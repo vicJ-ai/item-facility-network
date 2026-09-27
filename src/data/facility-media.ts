@@ -9,14 +9,203 @@ export type FacilityMediaAsset = {
 export type FacilityMedia = {
   facilityId: string
   sourcePage: string
-  retrievedDate: '2026-09-25'
-  verification: 'official-source-address-correlated' | 'official-listing-contextual' | 'official-listing-address-candidate'
+  retrievedDate: '2026-09-25' | '2026-09-27'
+  verification: 'official-source-address-correlated' | 'official-listing-contextual' | 'official-listing-address-candidate' | 'user-provided-address-matched' | 'user-provided-address-unconfirmed' | 'user-provided-address-user-verified'
   matchNote: string
   thumbnail: FacilityMediaAsset
   detail: FacilityMediaAsset
 }
 
 export const facilityMedia: Record<string, FacilityMedia> = {
+  'moreno-valley-heacock': {
+    facilityId: 'moreno-valley-heacock',
+    sourcePage: 'https://www.google.com/maps/place/Cubework/@33.8769096,-117.2418954,15z',
+    retrievedDate: '2026-09-27',
+    verification: 'user-provided-address-matched',
+    matchNote: 'User-provided photo supplied as a screenshot on 2026-09-27. The building number visible on the facade reads 16850, matching this roster address. This is not official UNIS listing media; the original image source and publication rights are not verified.',
+    thumbnail: {
+      assetUrl: '/media/thumbnails/moreno-valley-heacock.webp',
+      sourceUrl: 'https://www.google.com/maps/place/Cubework/@33.8769096,-117.2418954,15z',
+      alt: 'A white industrial warehouse with a dark-glass office front, gated entrance and security booth, palm trees, landscaping, and shipping containers visible through the gate',
+      width: 500,
+      height: 500,
+    },
+    detail: {
+      assetUrl: '/media/moreno-valley-heacock.jpg',
+      sourceUrl: 'https://www.google.com/maps/place/Cubework/@33.8769096,-117.2418954,15z',
+      alt: 'A white industrial warehouse with a dark-glass office front, gated entrance and security booth, palm trees, landscaping, and shipping containers visible through the gate',
+      width: 1600,
+      height: 907,
+    },
+  },
+  'houston-citypark': {
+    facilityId: 'houston-citypark',
+    sourcePage: 'user-provided screenshot (no public source URL)',
+    retrievedDate: '2026-09-27',
+    verification: 'user-provided-address-unconfirmed',
+    matchNote: 'User-provided photo supplied as a screenshot on 2026-09-27. It depicts a warehouse loading-dock area with dock doors numbered 57–64 and third-party carrier equipment. No street-address signage is visible, so the building identity is not independently confirmed from the image. This is not official UNIS listing media; the original image source and publication rights are not verified.',
+    thumbnail: {
+      assetUrl: '/media/thumbnails/houston-citypark.webp',
+      sourceUrl: 'user-provided screenshot (no public source URL)',
+      alt: 'A beige warehouse with white roll-up dock doors numbered 57 through 64, a concrete yard, an intermodal container and parked trailer, power lines, and a clear blue sky',
+      width: 500,
+      height: 500,
+    },
+    detail: {
+      assetUrl: '/media/houston-citypark.jpg',
+      sourceUrl: 'user-provided screenshot (no public source URL)',
+      alt: 'A beige warehouse with white roll-up dock doors numbered 57 through 64, a concrete yard, an intermodal container and parked trailer, power lines, and a clear blue sky',
+      width: 1600,
+      height: 745,
+    },
+  },
+  'pooler-morgan-lakes': {
+    facilityId: 'pooler-morgan-lakes',
+    sourcePage: 'user-provided screenshot (no public source URL)',
+    retrievedDate: '2026-09-27',
+    verification: 'user-provided-address-user-verified',
+    matchNote: 'User-provided photo supplied as a screenshot on 2026-09-27. The address/building association was verified by the user who supplied it and was not independently verified by this prototype. This is not official UNIS listing media; the original image source and publication rights are not verified.',
+    thumbnail: {
+      assetUrl: '/media/thumbnails/pooler-morgan-lakes.webp',
+      sourceUrl: 'user-provided screenshot (no public source URL)',
+      alt: 'A light-gray and dark-gray paneled warehouse with a row of white overhead loading dock doors, front office glazing, parked vehicles, a concrete lot with mulch landscaping, and a clear blue sky',
+      width: 500,
+      height: 500,
+    },
+    detail: {
+      assetUrl: '/media/pooler-morgan-lakes.jpg',
+      sourceUrl: 'user-provided screenshot (no public source URL)',
+      alt: 'A light-gray and dark-gray paneled warehouse with a row of white overhead loading dock doors, front office glazing, parked vehicles, a concrete lot with mulch landscaping, and a clear blue sky',
+      width: 1600,
+      height: 924,
+    },
+  },
+  'pooler-seabrook-building-2': {
+    facilityId: 'pooler-seabrook-building-2',
+    sourcePage: 'user-provided screenshot (no public source URL)',
+    retrievedDate: '2026-09-27',
+    verification: 'user-provided-address-user-verified',
+    matchNote: 'User-provided photo supplied as a screenshot on 2026-09-27. The address/building association was verified by the user who supplied it and was not independently verified by this prototype. This is not official UNIS listing media; the original image source and publication rights are not verified.',
+    thumbnail: {
+      assetUrl: '/media/thumbnails/pooler-seabrook-building-2.webp',
+      sourceUrl: 'user-provided screenshot (no public source URL)',
+      alt: 'An aerial view of a long industrial warehouse with a white roof and light-gray panel walls, loading dock doors along its side, a freight train with white container cars on adjacent tracks, paved yards, retention ponds, and a forested background',
+      width: 500,
+      height: 500,
+    },
+    detail: {
+      assetUrl: '/media/pooler-seabrook-building-2.jpg',
+      sourceUrl: 'user-provided screenshot (no public source URL)',
+      alt: 'An aerial view of a long industrial warehouse with a white roof and light-gray panel walls, loading dock doors along its side, a freight train with white container cars on adjacent tracks, paved yards, retention ponds, and a forested background',
+      width: 1402,
+      height: 1204,
+    },
+  },
+  'jacksonville-ignition': {
+    facilityId: 'jacksonville-ignition',
+    sourcePage: 'user-provided screenshot (no public source URL)',
+    retrievedDate: '2026-09-27',
+    verification: 'user-provided-address-user-verified',
+    matchNote: 'User-provided photo supplied as a screenshot on 2026-09-27. The address/building association was verified by the user who supplied it and was not independently verified by this prototype. This is not official UNIS listing media; the original image source and publication rights are not verified.',
+    thumbnail: {
+      assetUrl: '/media/thumbnails/jacksonville-ignition.webp',
+      sourceUrl: 'user-provided screenshot (no public source URL)',
+      alt: 'A long industrial warehouse with tan and gray walls and numerous loading dock bays, with semi-trucks and trailers parked in a dark asphalt loading area and a partly cloudy blue sky',
+      width: 500,
+      height: 500,
+    },
+    detail: {
+      assetUrl: '/media/jacksonville-ignition.jpg',
+      sourceUrl: 'user-provided screenshot (no public source URL)',
+      alt: 'A long industrial warehouse with tan and gray walls and numerous loading dock bays, with semi-trucks and trailers parked in a dark asphalt loading area and a partly cloudy blue sky',
+      width: 1600,
+      height: 1070,
+    },
+  },
+  'tennessee-quality-drive': {
+    facilityId: 'tennessee-quality-drive',
+    sourcePage: 'user-provided screenshot (no public source URL)',
+    retrievedDate: '2026-09-27',
+    verification: 'user-provided-address-user-verified',
+    matchNote: 'User-provided photo supplied as a screenshot on 2026-09-27. The address/building association was verified by the user who supplied it and was not independently verified by this prototype. This is not official UNIS listing media; the original image source and publication rights are not verified. The source image is a Google Maps screenshot containing a visible "© 2025 Google" copyright notice in its upper-right corner; the notice is retained in the uncropped detail asset.',
+    thumbnail: {
+      assetUrl: '/media/thumbnails/tennessee-quality-drive.webp',
+      sourceUrl: 'user-provided screenshot (no public source URL)',
+      alt: 'A long commercial building with white and cream paneled facades and a yellow stripe along its lower section, an entrance with large windows and columns, and a parking lot with several cars in front under a blue sky',
+      width: 500,
+      height: 500,
+    },
+    detail: {
+      assetUrl: '/media/tennessee-quality-drive.jpg',
+      sourceUrl: 'user-provided screenshot (no public source URL)',
+      alt: 'A long commercial building with white and cream paneled facades and a yellow stripe along its lower section, an entrance with large windows and columns, and a parking lot with several cars in front under a blue sky',
+      width: 1600,
+      height: 981,
+    },
+  },
+  'las-vegas-marion-building-5': {
+    facilityId: 'las-vegas-marion-building-5',
+    sourcePage: 'user-provided screenshot (no public source URL)',
+    retrievedDate: '2026-09-27',
+    verification: 'user-provided-address-user-verified',
+    matchNote: 'User-provided photo supplied as a screenshot on 2026-09-27. The address/building association was verified by the user who supplied it and was not independently verified by this prototype. This is not official UNIS listing media; the original image source and publication rights are not verified. The source image is a Google Maps screenshot containing a visible Google copyright/attribution notice; the notice is retained in the uncropped detail asset.',
+    thumbnail: {
+      assetUrl: '/media/thumbnails/las-vegas-marion-building-5.webp',
+      sourceUrl: 'user-provided screenshot (no public source URL)',
+      alt: 'A long light beige warehouse with loading dock doors and shipping containers backed into them, a blue industrial bin, and a person walking across the asphalt in the foreground under a clear blue sky',
+      width: 500,
+      height: 500,
+    },
+    detail: {
+      assetUrl: '/media/las-vegas-marion-building-5.jpg',
+      sourceUrl: 'user-provided screenshot (no public source URL)',
+      alt: 'A long light beige warehouse with loading dock doors and shipping containers backed into them, a blue industrial bin, and a person walking across the asphalt in the foreground under a clear blue sky',
+      width: 1600,
+      height: 955,
+    },
+  },
+  'el-paso-emerald-12100': {
+    facilityId: 'el-paso-emerald-12100',
+    sourcePage: 'user-provided screenshot (no public source URL)',
+    retrievedDate: '2026-09-27',
+    verification: 'user-provided-address-user-verified',
+    matchNote: 'User-provided photo supplied as a screenshot on 2026-09-27. The address/building association was verified by the user who supplied it and was not independently verified by this prototype. This is not official UNIS listing media; the original image source and publication rights are not verified. The source image is a Google Maps screenshot containing a visible Google copyright/attribution notice; the notice is retained in the uncropped detail asset.',
+    thumbnail: {
+      assetUrl: '/media/thumbnails/el-paso-emerald-12100.webp',
+      sourceUrl: 'user-provided screenshot (no public source URL)',
+      alt: 'A large industrial building with light gray and darker gray wall panels, a glass-paneled entrance, loading dock doors to the right, and a monument sign in front, with paved roads and desert landscaping',
+      width: 500,
+      height: 500,
+    },
+    detail: {
+      assetUrl: '/media/el-paso-emerald-12100.jpg',
+      sourceUrl: 'user-provided screenshot (no public source URL)',
+      alt: 'A large industrial building with light gray and darker gray wall panels, a glass-paneled entrance, loading dock doors to the right, and a monument sign in front, with paved roads and desert landscaping',
+      width: 1600,
+      height: 955,
+    },
+  },
+  'el-paso-emerald-12102-building-5': {
+    facilityId: 'el-paso-emerald-12102-building-5',
+    sourcePage: 'user-provided screenshot (no public source URL)',
+    retrievedDate: '2026-09-27',
+    verification: 'user-provided-address-user-verified',
+    matchNote: 'User-provided photo supplied as a screenshot on 2026-09-27. The address/building association was verified by the user who supplied it and was not independently verified by this prototype. This is not official UNIS listing media; the original image source and publication rights are not verified. The source image is a Google Maps screenshot containing a visible Google copyright/attribution notice; the notice is retained in the uncropped detail asset.',
+    thumbnail: {
+      assetUrl: '/media/thumbnails/el-paso-emerald-12102-building-5.webp',
+      sourceUrl: 'user-provided screenshot (no public source URL)',
+      alt: 'A large industrial building with light gray and dark blue paneling, a glass entrance, loading dock doors to the right, a freestanding sign in front, parked vehicles, and a paved road with dry landscaping',
+      width: 500,
+      height: 500,
+    },
+    detail: {
+      assetUrl: '/media/el-paso-emerald-12102-building-5.jpg',
+      sourceUrl: 'user-provided screenshot (no public source URL)',
+      alt: 'A large industrial building with light gray and dark blue paneling, a glass entrance, loading dock doors to the right, a freestanding sign in front, parked vehicles, and a paved road with dry landscaping',
+      width: 1600,
+      height: 955,
+    },
+  },
   'buena-park-valley-view': {
     facilityId: 'buena-park-valley-view',
     sourcePage: 'https://www.unisco.com/locations/facility/buena-park-ca',

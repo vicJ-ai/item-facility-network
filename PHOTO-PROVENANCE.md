@@ -15,6 +15,26 @@ This public prototype bundles eight source-verified media records from the offic
 
 The exact source-derived alt descriptions are stored with both variants in `src/data/facility-media.ts`. Long Beach is described as the port/container scene shown by the source and is never labeled as the Willow warehouse exterior.
 
-## Withheld mappings
+## User-provided photos (retrieved 2026-09-27)
 
-No image is assigned to Seabrook Building 2 because the official 300 Seabrook listing does not distinguish that building. No image is assigned to 335 Morgan Lakes because the available official listing and image are for 251 Morgan Lakes. The remaining unmatched roster records retain the neutral “Photo not available” state. No neighboring, stock, or guessed images are substituted.
+Nine roster records that previously had no official directory match now show photos supplied directly by the user as screenshots. None of these are official UNIS media, and the original image sources and publication rights are not independently verified. Verification is classified per record:
+
+- **Address-matched** — a street number or other identifying detail visible in the photo itself confirms the roster address.
+- **Address-unconfirmed** — no address-identifying detail is visible in the photo, so building identity is not confirmed from the image alone.
+- **User-verified** — the address/building association was verified by the user who supplied the photo, not independently by this prototype.
+
+| Main facility ID | Local square thumbnail | Detail asset | Verification | Evidence and limitation |
+| --- | --- | --- | --- | --- |
+| `moreno-valley-heacock` | `/media/thumbnails/moreno-valley-heacock.webp` | `/media/moreno-valley-heacock.jpg` | Address-matched | The building number visible on the facade reads 16850, matching this roster address. |
+| `houston-citypark` | `/media/thumbnails/houston-citypark.webp` | `/media/houston-citypark.jpg` | Address-unconfirmed | Depicts dock doors numbered 57–64 and carrier equipment; no street-address signage is visible. |
+| `pooler-morgan-lakes` | `/media/thumbnails/pooler-morgan-lakes.webp` | `/media/pooler-morgan-lakes.jpg` | User-verified | Association verified by the supplying user, not independently confirmed. |
+| `pooler-seabrook-building-2` | `/media/thumbnails/pooler-seabrook-building-2.webp` | `/media/pooler-seabrook-building-2.jpg` | User-verified | Association verified by the supplying user, not independently confirmed. |
+| `jacksonville-ignition` | `/media/thumbnails/jacksonville-ignition.webp` | `/media/jacksonville-ignition.jpg` | User-verified | Association verified by the supplying user, not independently confirmed. |
+| `tennessee-quality-drive` | `/media/thumbnails/tennessee-quality-drive.webp` | `/media/tennessee-quality-drive.jpg` | User-verified | Google Maps screenshot; a visible "© 2025 Google" notice is retained in the uncropped detail asset. |
+| `las-vegas-marion-building-5` | `/media/thumbnails/las-vegas-marion-building-5.webp` | `/media/las-vegas-marion-building-5.jpg` | User-verified | Google Maps screenshot; a visible Google copyright/attribution notice is retained in the uncropped detail asset. |
+| `el-paso-emerald-12100` | `/media/thumbnails/el-paso-emerald-12100.webp` | `/media/el-paso-emerald-12100.jpg` | User-verified | Google Maps screenshot; a visible Google copyright/attribution notice is retained in the uncropped detail asset. |
+| `el-paso-emerald-12102-building-5` | `/media/thumbnails/el-paso-emerald-12102-building-5.webp` | `/media/el-paso-emerald-12102-building-5.jpg` | User-verified | Google Maps screenshot; a visible Google copyright/attribution notice is retained in the uncropped detail asset. |
+
+## Coverage
+
+All 17 roster records now have an assigned photo (8 official plus 9 user-provided). No neighboring, stock, or guessed images are substituted for any record.
