@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import {
-  ArrowLeft, Bell, Box, Building2, Check, ChevronRight, CircleHelp, ClipboardList,
+  ArrowLeft, Bell, Box, Building2, Camera, Check, ChevronRight, CircleHelp, ClipboardList,
   ExternalLink, FileQuestion, FileText, Grid2X2, Info, Layers3, LocateFixed,
   Map as MapIcon, MapPin, Menu, Moon, PackageSearch, Search, ShieldCheck,
   SlidersHorizontal, Sun, Truck, Warehouse, X,
@@ -20,11 +20,12 @@ import { getFacilityMedia, type FacilityMedia } from './data/facility-media'
 
 type Tab = 'Overview' | 'Site Plan' | 'Photos' | 'Documents' | 'Operations'
 type Theme = 'light' | 'dark'
+type AppView = 'dashboard' | 'locations'
 type StatusFilter = 'All' | DisplayStatus
 type StatusAssignments = Record<string, DisplayStatus>
+type MapViewport = { lat: number; lng: number; zoom: number; south: number; west: number; north: number; east: number }
 
-// A new key intentionally replaces earlier local assignments with the requested Active baseline.
-const STATUS_STORAGE_KEY = 'facility-status-assignments-v2'
+const STATUS_STORAGE_KEY = 'facility-status-assignments-v3'
 const DIRECTORY_WIDTH_STORAGE_KEY = 'facility-directory-width-v1'
 const SITE_FOCUS_ZOOM = 16
 const DEFAULT_DIRECTORY_RATIO = 0.36
@@ -49,24 +50,50 @@ function getInitialTheme(): Theme {
 }
 
 function getInitialStatuses(): StatusAssignments {
-  const defaults = Object.fromEntries(facilities.map((facility) => [facility.id, 'Active'])) as StatusAssignments
   try {
-    const saved = JSON.parse(window.localStorage.getItem(STATUS_STORAGE_KEY) ?? '{}') as Record<string, unknown>
-    if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return defaults
-    for (const facility of facilities) {
-      const value = saved[facility.id]
-      if (value === 'Active' || value === 'Coming Soon' || value === 'Planned' || value === 'Unassigned') {
-        defaults[facility.id] = value
-      }
-    }
+    const stored = window.localStorage.getItem(STATUS_STORAGE_KEY)
+    if (stored === null) return {}
+    const saved = JSON.parse(stored) as Record<string, unknown>
+    return Object.fromEntries(
+      Object.entries(saved).filter(([id, value]) =>
+        facilities.some((facility) => facility.id === id) &&
+        (value === 'Active' || value === 'Coming Soon' || value === 'Planned' || value === 'Unassigned'),
+      ),
+    ) as StatusAssignments
   } catch {
-    // Invalid browser storage falls back to the requested Active baseline.
+    return {}
   }
-  return defaults
+}
+
+function resolveFacilityStatus(facility: Facility, overrides: StatusAssignments): DisplayStatus {
+  return overrides[facility.id] ?? facility.status
 }
 
 function getFacilityTitle(facility: Facility) {
   return facility.city ? `${facility.city}, ${facility.state}` : `${facility.street}, ${facility.state}`
+}
+
+function isUserProvidedMedia(media: FacilityMedia) {
+  return media.verification.startsWith('user-provided')
+}
+
+function mediaSourceValue(value: string, linkedLabel: string) {
+  if (!value.startsWith('http')) return value
+  return <a href={value} target="_blank" rel="noreferrer">{linkedLabel} <ExternalLink size={12} /></a>
+}
+
+function googleMapsUrl(facility: Facility) {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(facility.fullAddress)}`
+}
+
+function streetViewUrl(facility: Facility) {
+  const [latitude, longitude] = facility.coordinates
+  return `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${latitude},${longitude}`
+}
+
+function googleMapsPhotoLookupUrl(facility: Facility) {
+  const [latitude, longitude] = facility.coordinates
+  return `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`
 }
 
 function statusClass(status: DisplayStatus) {
@@ -116,13 +143,17 @@ function MapFocus({ selected, focusSignal, recenterSignal, cameraMode, visibilit
 
   useEffect(() => {
     if (cameraMode !== 'site' || focusSignal === 0 || !hasUsableCoordinates(selected)) return
-    const frame = window.requestAnimationFrame(() => {
+    let focusFrame = 0
+    const resizeFrame = window.requestAnimationFrame(() => {
       const container = map.getContainer()
       if (container.clientWidth === 0 || container.clientHeight === 0) return
       map.invalidateSize()
-      map.flyTo(selected.coordinates, SITE_FOCUS_ZOOM, { duration: 0.8 })
+      focusFrame = window.requestAnimationFrame(() => map.flyTo(selected.coordinates, SITE_FOCUS_ZOOM, { duration: 0.8 }))
     })
-    return () => window.cancelAnimationFrame(frame)
+    return () => {
+      window.cancelAnimationFrame(resizeFrame)
+      window.cancelAnimationFrame(focusFrame)
+    }
   }, [cameraMode, focusSignal, map, selected, visibilityKey])
 
   useEffect(() => {
@@ -139,16 +170,51 @@ function MapFocus({ selected, focusSignal, recenterSignal, cameraMode, visibilit
   return null
 }
 
-function MapLifecycle({ resizeKey, onViewChange }: { resizeKey: string; onViewChange: (view: { lat: number; lng: number; zoom: number }) => void }) {
+function getMapViewport(map: L.Map): MapViewport {
+  const center = map.getCenter()
+  const bounds = map.getBounds()
+  return {
+    lat: center.lat,
+    lng: center.lng,
+    zoom: map.getZoom(),
+    south: bounds.getSouth(),
+    west: bounds.getWest(),
+    north: bounds.getNorth(),
+    east: bounds.getEast(),
+  }
+}
+
+function DashboardOverview({ active, signal, onViewChange }: { active: boolean; signal: number; onViewChange: (view: MapViewport) => void }) {
+  const map = useMap()
+
+  useEffect(() => {
+    if (!active || signal === 0) return
+    let fitFrame = 0
+    const resizeFrame = window.requestAnimationFrame(() => {
+      const container = map.getContainer()
+      if (container.clientWidth === 0 || container.clientHeight === 0) return
+      map.invalidateSize({ pan: false })
+      fitFrame = window.requestAnimationFrame(() => {
+        const coordinates = facilities.filter(hasUsableCoordinates).map((facility) => facility.coordinates)
+        if (coordinates.length === 0) return
+        const padding = container.clientWidth <= 720 ? 32 : Math.min(80, Math.round(container.clientWidth * 0.055))
+        map.fitBounds(L.latLngBounds(coordinates), { animate: false, maxZoom: 6, padding: [padding, padding] })
+        onViewChange(getMapViewport(map))
+      })
+    })
+    return () => {
+      window.cancelAnimationFrame(resizeFrame)
+      window.cancelAnimationFrame(fitFrame)
+    }
+  }, [active, map, onViewChange, signal])
+
+  return null
+}
+
+function MapLifecycle({ resizeKey, onViewChange }: { resizeKey: string; onViewChange: (view: MapViewport) => void }) {
   const map = useMapEvents({
-    moveend: () => {
-      const center = map.getCenter()
-      onViewChange({ lat: center.lat, lng: center.lng, zoom: map.getZoom() })
-    },
-    zoomend: () => {
-      const center = map.getCenter()
-      onViewChange({ lat: center.lat, lng: center.lng, zoom: map.getZoom() })
-    },
+    moveend: () => onViewChange(getMapViewport(map)),
+    zoomend: () => onViewChange(getMapViewport(map)),
   })
 
   useEffect(() => {
@@ -156,8 +222,7 @@ function MapLifecycle({ resizeKey, onViewChange }: { resizeKey: string; onViewCh
       const container = map.getContainer()
       if (container.clientWidth === 0 || container.clientHeight === 0) return
       map.invalidateSize()
-      const center = map.getCenter()
-      onViewChange({ lat: center.lat, lng: center.lng, zoom: map.getZoom() })
+      onViewChange(getMapViewport(map))
     })
     return () => window.cancelAnimationFrame(frame)
   }, [map, onViewChange, resizeKey])
@@ -165,7 +230,7 @@ function MapLifecycle({ resizeKey, onViewChange }: { resizeKey: string; onViewCh
   return null
 }
 
-function MapSplitResize({ resizeKey, selected, preserveSiteFocus, onViewChange }: { resizeKey: number; selected: Facility | null; preserveSiteFocus: boolean; onViewChange: (view: { lat: number; lng: number; zoom: number }) => void }) {
+function MapSplitResize({ resizeKey, selected, preserveSiteFocus, onViewChange }: { resizeKey: number; selected: Facility | null; preserveSiteFocus: boolean; onViewChange: (view: MapViewport) => void }) {
   const map = useMap()
   const selectedRef = useRef(selected)
   const preserveSiteFocusRef = useRef(preserveSiteFocus)
@@ -180,8 +245,7 @@ function MapSplitResize({ resizeKey, selected, preserveSiteFocus, onViewChange }
       if (preserveSiteFocusRef.current && hasUsableCoordinates(selectedRef.current)) {
         map.setView(selectedRef.current.coordinates, map.getZoom(), { animate: false })
       }
-      const center = map.getCenter()
-      onViewChange({ lat: center.lat, lng: center.lng, zoom: map.getZoom() })
+      onViewChange(getMapViewport(map))
     })
     return () => window.cancelAnimationFrame(frame)
   }, [map, onViewChange, resizeKey])
@@ -189,18 +253,25 @@ function MapSplitResize({ resizeKey, selected, preserveSiteFocus, onViewChange }
   return null
 }
 
-function EmptyState({ icon: Icon = FileText, title, body }: { icon?: typeof FileText; title: string; body: string }) {
+function ApproximateStreetViewNote({ facility }: { facility: Facility }) {
+  if (facility.coordinatePrecision !== 'Approximate') return null
+  return <p className="street-view-caveat"><Info size={13} />Street-level imagery may be near, not exactly at, this facility.</p>
+}
+
+function EmptyState({ icon: Icon = FileText, title, body, children }: { icon?: typeof FileText; title: string; body: string; children?: ReactNode }) {
   return (
     <div className="empty-state">
       <span className="empty-icon"><Icon size={22} /></span>
       <strong>{title}</strong>
       <p>{body}</p>
+      {children}
     </div>
   )
 }
 
 function App() {
   const [theme, setTheme] = useState<Theme>(getInitialTheme)
+  const [appView, setAppView] = useState<AppView>('locations')
   const [selected, setSelected] = useState<Facility | null>(null)
   const [showcaseOpen, setShowcaseOpen] = useState(false)
   const [mobileView, setMobileView] = useState<'list' | 'map'>('list')
@@ -214,11 +285,12 @@ function App() {
   const [focusSignal, setFocusSignal] = useState(0)
   const [cameraMode, setCameraMode] = useState<'overview' | 'site'>('overview')
   const [recenterSignal, setRecenterSignal] = useState(0)
+  const [dashboardOverviewSignal, setDashboardOverviewSignal] = useState(0)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
   const [mobileNav, setMobileNav] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
-  const [mapView, setMapView] = useState({ lat: 37.8, lng: -96.2, zoom: 4 })
+  const [mapView, setMapView] = useState<MapViewport>({ lat: 37.8, lng: -96.2, zoom: 4, south: 23.4, west: -127.4, north: 49.8, east: -65 })
   const dashboardRef = useRef<HTMLElement>(null)
   const resizeDrag = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null)
   const returnFocusPending = useRef(false)
@@ -286,7 +358,7 @@ function App() {
     return () => window.cancelAnimationFrame(frame)
   }, [selected, showcaseOpen])
 
-  const facilityStatus = (facility: Facility): DisplayStatus => statusAssignments[facility.id] ?? 'Active'
+  const facilityStatus = (facility: Facility): DisplayStatus => resolveFacilityStatus(facility, statusAssignments)
   const selectedStatus = selected ? facilityStatus(selected) : 'Active'
   const selectedMedia = selected ? getFacilityMedia(selected.id) : undefined
 
@@ -295,13 +367,13 @@ function App() {
     const isStateAbbreviation = query.length === 2 && facilities.some((facility) => facility.state.toLowerCase() === query)
     return facilities.filter((facility) => {
       const matchesText = !query || (isStateAbbreviation ? facility.state.toLowerCase() === query : searchableFacilityText(facility).includes(query))
-      const currentStatus = statusAssignments[facility.id] ?? 'Active'
+      const currentStatus = resolveFacilityStatus(facility, statusAssignments)
       return matchesText && (statusFilter === 'All' || currentStatus === statusFilter)
     })
   }, [search, statusAssignments, statusFilter])
 
   const counts = useMemo(() => {
-    const statuses = facilities.map((facility) => statusAssignments[facility.id] ?? 'Active')
+    const statuses = facilities.map((facility) => resolveFacilityStatus(facility, statusAssignments))
     return {
       total: facilities.length,
       active: statuses.filter((item) => item === 'Active').length,
@@ -312,6 +384,7 @@ function App() {
   }, [statusAssignments])
 
   const chooseFacility = (facility: Facility) => {
+    setAppView('locations')
     setSelected(facility)
     setCameraMode('site')
     setFocusSignal((value) => value + 1)
@@ -371,17 +444,28 @@ function App() {
 
   const showOverview = () => {
     setCameraMode('overview')
-    setRecenterSignal((value) => value + 1)
+    if (appView === 'dashboard') setDashboardOverviewSignal((value) => value + 1)
+    else setRecenterSignal((value) => value + 1)
+  }
+
+  const showDashboard = () => {
+    setMobileNav(false)
+    setDetailsOpen(false)
+    setShowcaseOpen(false)
+    setSelected(null)
+    setCameraMode('overview')
+    setAppView('dashboard')
+    setDashboardOverviewSignal((value) => value + 1)
+  }
+
+  const showLocations = () => {
+    setMobileNav(false)
+    setAppView('locations')
   }
 
   const assignStatus = (facility: Facility, status: DisplayStatus) => {
     setStatusAssignments((current) => ({ ...current, [facility.id]: status }))
     setNotice(`Local status set to ${status}.`)
-  }
-
-  const openMaps = () => {
-    if (!selected) return
-    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selected.fullAddress)}`, '_blank', 'noopener,noreferrer')
   }
 
   const navItems = [
@@ -396,30 +480,46 @@ function App() {
         <div className="brand" aria-label="ITEM Locations Network"><img src="/brand/item-logo-fullcolor-whitetxt.svg" alt="ITEM" /><span>LOCATIONS NETWORK</span></div>
         <nav className={mobileNav ? 'nav-links is-open' : 'nav-links'} aria-label="Primary navigation">
           {navItems.map(([label, Icon]) => (
-            <button key={label} className={label === 'Locations' ? 'active' : ''} aria-current={label === 'Locations' ? 'page' : undefined} onClick={() => { setMobileNav(false); if (label !== 'Locations') setNotice(`${label} is outside this reference prototype.`) }}>
+            <button
+              key={label}
+              className={label.toLowerCase() === appView ? 'active' : ''}
+              aria-current={label.toLowerCase() === appView ? 'page' : undefined}
+              onClick={() => {
+                if (label === 'Dashboard') showDashboard()
+                else if (label === 'Locations') showLocations()
+                else {
+                  setMobileNav(false)
+                  setNotice(`${label} is outside this reference prototype.`)
+                }
+              }}
+            >
               <Icon size={17} /><span>{label}</span>
             </button>
           ))}
         </nav>
         <div className="top-actions">
-          <label className="global-search">
-            <Search size={17} /><span className="sr-only">Search facilities</span>
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search address, city, state, ZIP..." />
-            {search && <button aria-label="Clear search" onClick={() => setSearch('')}><X size={15} /></button>}
-          </label>
+          {appView === 'locations' && (
+            <label className="global-search">
+              <Search size={17} /><span className="sr-only">Search facilities</span>
+              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search address, city, state, ZIP..." />
+              {search && <button aria-label="Clear search" onClick={() => setSearch('')}><X size={15} /></button>}
+            </label>
+          )}
           <button className="icon-button" aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`} data-testid="theme-toggle" onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>{theme === 'light' ? <Moon /> : <Sun />}</button>
           <button className="icon-button" aria-label="Notifications" onClick={() => setNotice('No new notifications.')}><Bell /></button>
           <button className="avatar" aria-label="Open profile menu" onClick={() => setNotice('Signed in as reference viewer.')}>RV</button>
         </div>
       </header>
 
-      <main ref={dashboardRef} className={`dashboard${isResizing ? ' is-resizing' : ''}`} style={{ '--directory-width': `${directoryWidth}px` } as CSSProperties}>
-        <div className="mobile-explorer-switch" role="group" aria-label="Explorer view">
-          <button aria-pressed={mobileView === 'list'} className={mobileView === 'list' ? 'active' : ''} onClick={() => setMobileView('list')}><ClipboardList size={16} />List</button>
-          <button aria-pressed={mobileView === 'map'} className={mobileView === 'map' ? 'active' : ''} onClick={() => setMobileView('map')}><MapIcon size={16} />Map</button>
-        </div>
+      <main ref={dashboardRef} className={`dashboard${appView === 'dashboard' ? ' dashboard-map-only' : ''}${isResizing ? ' is-resizing' : ''}`} style={{ '--directory-width': `${directoryWidth}px` } as CSSProperties}>
+        {appView === 'locations' && (
+          <div className="mobile-explorer-switch" role="group" aria-label="Explorer view">
+            <button aria-pressed={mobileView === 'list'} className={mobileView === 'list' ? 'active' : ''} onClick={() => setMobileView('list')}><ClipboardList size={16} />List</button>
+            <button aria-pressed={mobileView === 'map'} className={mobileView === 'map' ? 'active' : ''} onClick={() => setMobileView('map')}><MapIcon size={16} />Map</button>
+          </div>
+        )}
 
-        <section className={`explorer-pane ${mobileView === 'map' ? 'mobile-hidden' : ''}`} aria-label={showcaseOpen && selected ? `${selected.fullAddress} details` : 'Facility directory'}>
+        {appView === 'locations' && <section className={`explorer-pane ${mobileView === 'map' ? 'mobile-hidden' : ''}`} aria-label={showcaseOpen && selected ? `${selected.fullAddress} details` : 'Facility directory'}>
           {showcaseOpen && selected ? (
             <aside className="detail-panel selected-showcase" data-testid="selected-showcase">
               <div className="detail-navigation">
@@ -433,7 +533,15 @@ function App() {
               </div>
               <div className="detail-header">
                 <div className="title-line"><MapPin /><h1>Facility {String(selected.number).padStart(2, '0')}</h1><span className={`status-pill ${statusClass(selectedStatus)}`}>{selectedStatus}</span></div>
-                <div className="address-line"><MapPin size={15} /><span>{selected.fullAddress}</span><button onClick={openMaps}>Open in Maps <ExternalLink size={13} /></button></div>
+                <div className="address-line">
+                  <MapPin size={15} />
+                  <span>{selected.fullAddress}</span>
+                  <div className="address-actions">
+                    <a href={googleMapsUrl(selected)} target="_blank" rel="noopener noreferrer">Open in Maps <ExternalLink size={13} /></a>
+                    <a href={streetViewUrl(selected)} target="_blank" rel="noopener noreferrer" title={selected.coordinatePrecision === 'Approximate' ? 'Street-level imagery may be near, not exactly at, this facility.' : undefined}><Camera size={13} />Street View</a>
+                  </div>
+                </div>
+                <ApproximateStreetViewNote facility={selected} />
               </div>
               <div className="tabs" role="tablist" aria-label="Facility details">
                 {tabs.map((item) => <button key={item} role="tab" aria-selected={tab === item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item}</button>)}
@@ -489,9 +597,9 @@ function App() {
               </div>
             </div>
           )}
-        </section>
+        </section>}
 
-        <div
+        {appView === 'locations' && <div
           className="explorer-resizer"
           role="separator"
           aria-label="Resize facility directory and map"
@@ -508,35 +616,53 @@ function App() {
           onPointerMove={moveResize}
           onPointerUp={finishResize}
           onPointerCancel={finishResize}
-        ><span aria-hidden="true" /></div>
+        ><span aria-hidden="true" /></div>}
 
         <section
-          className={`map-stage ${mobileView === 'list' ? 'mobile-hidden' : ''}`}
+          className={`map-stage ${appView === 'locations' && mobileView === 'list' ? 'mobile-hidden' : ''}`}
           aria-label="Facility network map"
+          data-view={appView}
           data-center={`${mapView.lat.toFixed(6)},${mapView.lng.toFixed(6)}`}
           data-zoom={mapView.zoom.toFixed(2)}
+          data-bounds={`${mapView.south.toFixed(6)},${mapView.west.toFixed(6)},${mapView.north.toFixed(6)},${mapView.east.toFixed(6)}`}
         >
           <MapContainer center={[37.8, -96.2]} zoom={4} minZoom={3} maxZoom={18} zoomControl={false} scrollWheelZoom className="map" preferCanvas>
             {layer === 'street' ? (
-              <TileLayer key="street" attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>' url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" />
+              <TileLayer key="street" attribution='Tiles &copy; Esri &mdash; Source: Esri, TomTom, Garmin, FAO, NOAA, USGS, OpenStreetMap contributors, and the GIS User Community' url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}" />
             ) : (
               <TileLayer key="satellite" attribution='Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics' url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />
             )}
             <ZoomControl position="topright" />
-            <MapFocus selected={selected} focusSignal={focusSignal} recenterSignal={recenterSignal} cameraMode={cameraMode} visibilityKey={mobileView} />
-            <MapLifecycle resizeKey={mobileView} onViewChange={setMapView} />
-            <MapSplitResize resizeKey={directoryWidth} selected={selected} preserveSiteFocus={cameraMode === 'site'} onViewChange={setMapView} />
-            {filtered.map((facility) => {
+            <MapFocus selected={selected} focusSignal={focusSignal} recenterSignal={recenterSignal} cameraMode={cameraMode} visibilityKey={`${appView}:${mobileView}`} />
+            <DashboardOverview active={appView === 'dashboard'} signal={dashboardOverviewSignal} onViewChange={setMapView} />
+            <MapLifecycle resizeKey={`${appView}:${mobileView}`} onViewChange={setMapView} />
+            {appView === 'locations' && <MapSplitResize resizeKey={directoryWidth} selected={selected} preserveSiteFocus={cameraMode === 'site'} onViewChange={setMapView} />}
+            {(appView === 'dashboard' ? facilities : filtered).map((facility) => {
               const currentStatus = facilityStatus(facility)
               return (
-                <Marker key={facility.id} position={facility.coordinates} icon={pinIcon(facility, currentStatus, facility.id === selected?.id)} eventHandlers={{ click: () => chooseFacility(facility) }} title={facility.fullAddress}>
-                  <Tooltip permanent direction="right" className="pin-label" opacity={1}>#{facility.number} {facility.city ?? 'TN'}{facility.coordinatePrecision === 'Approximate' ? ' · approx.' : ''}</Tooltip>
+                <Marker
+                  key={`${appView}-${facility.id}`}
+                  position={facility.coordinates}
+                  icon={pinIcon(facility, currentStatus, facility.id === selected?.id)}
+                  eventHandlers={{
+                    add: (event) => (event.target as L.Marker).getElement()?.setAttribute('aria-label', appView === 'dashboard' ? `Open facility ${String(facility.number).padStart(2, '0')} in Locations` : `Show ${facility.fullAddress} on map`),
+                    click: () => chooseFacility(facility),
+                    keypress: (event) => {
+                      const keyboardEvent = event.originalEvent as KeyboardEvent
+                      if (keyboardEvent.key !== 'Enter' && keyboardEvent.key !== ' ') return
+                      keyboardEvent.preventDefault()
+                      chooseFacility(facility)
+                    },
+                  }}
+                  title={appView === 'locations' ? facility.fullAddress : undefined}
+                >
+                  {appView === 'locations' && <Tooltip permanent direction="right" className="pin-label" opacity={1}>#{facility.number} {facility.city ?? 'TN'}{facility.coordinatePrecision === 'Approximate' ? ' · approx.' : ''}</Tooltip>}
                 </Marker>
               )
             })}
           </MapContainer>
 
-          <div className="overview-panel">
+          {appView === 'locations' && <div className="overview-panel">
             <div className="panel-title"><strong>Facility Network</strong><button aria-label="About this prototype" onClick={() => setAboutOpen(true)}><Info size={16} /></button></div>
             <div className="overview-metrics five-metrics">
               <div><Building2 /><b>{counts.total}</b><span>Facilities</span></div>
@@ -545,7 +671,7 @@ function App() {
               <div><MapPin /><b>{counts.planned}</b><span>Planned</span></div>
               <div><FileQuestion /><b>{counts.unassigned}</b><span>Unassigned</span></div>
             </div>
-          </div>
+          </div>}
 
           <div className="map-tools" aria-label="Map layers">
             <span><Layers3 size={16} />Layers</span>
@@ -555,10 +681,10 @@ function App() {
             </div>
           </div>
           <button className="recenter-control" aria-label="Recenter map" title="View all facilities" onClick={showOverview}><LocateFixed size={18} /></button>
-          <div className="map-legend" aria-label="Local facility status legend">
+          {appView === 'locations' && <div className="map-legend" aria-label="Local facility status legend">
             {assignableStatuses.map((item) => <span key={item}><i style={{ background: statusColor[item] }} />{item}</span>)}
-          </div>
-          {filtered.length === 0 && <div className="no-map-results"><Search size={20} /><strong>No facilities found</strong><button onClick={() => { setSearch(''); setStatusFilter('All') }}>Clear filters</button></div>}
+          </div>}
+          {appView === 'locations' && filtered.length === 0 && <div className="no-map-results"><Search size={20} /><strong>No facilities found</strong><button onClick={() => { setSearch(''); setStatusFilter('All') }}>Clear filters</button></div>}
         </section>
       </main>
 
@@ -571,8 +697,13 @@ function App() {
             <div className="drawer-content">
               {selectedMedia && <FacilityPhoto media={selectedMedia} variant="drawer" />}
               <div className="drawer-banner"><Warehouse /><div><strong>{selected.fullAddress}</strong><span>User-provided facility address</span></div></div>
+              <div className="drawer-map-actions">
+                <a className="secondary-button" href={googleMapsUrl(selected)} target="_blank" rel="noopener noreferrer">Open in Maps <ExternalLink size={14} /></a>
+                <a className="secondary-button" href={streetViewUrl(selected)} target="_blank" rel="noopener noreferrer" title={selected.coordinatePrecision === 'Approximate' ? 'Street-level imagery may be near, not exactly at, this facility.' : undefined}><Camera size={14} />Street View</a>
+              </div>
+              <ApproximateStreetViewNote facility={selected} />
               <dl className="detail-list">
-                <div><dt>Status</dt><dd>{selectedStatus === 'Unassigned' ? 'Not provided · locally unassigned' : `${selectedStatus} · local assignment`}</dd></div>
+                <div><dt>Status</dt><dd>{selectedStatus}</dd></div>
                 <div><dt>Street / building</dt><dd>{selected.street}</dd></div>
                 <div><dt>City</dt><dd>{selected.city ?? 'Not provided'}</dd></div>
                 <div><dt>State</dt><dd>{selected.state} · {selected.stateName}</dd></div>
@@ -582,7 +713,7 @@ function App() {
                 <div><dt>Coordinate source</dt><dd>{selected.coordinateSource}</dd></div>
               </dl>
               <section className="geocode-detail"><strong>Geocoder match</strong><p>{selected.geocoderMatch}</p>{selected.geocodeNote && <p className="geocode-warning"><Info size={15} />{selected.geocodeNote}</p>}</section>
-              <p className="source-note"><Info size={15} />No property size, dock, site-plan, or operational data was supplied. {selectedMedia ? 'The displayed photo is official UNIS listing media; its source and association limits are documented in the Photos tab.' : 'No responsibly address-matched official photo is available for this facility.'} Those fields are intentionally not inferred.</p>
+              <p className="source-note"><Info size={15} />No property size, dock, site-plan, or operational data was supplied. {selectedMedia ? isUserProvidedMedia(selectedMedia) ? 'The displayed photo was user-provided; its original source, publication rights, and association limits are documented in the Photos tab.' : 'The displayed photo is official UNIS listing media; its source and association limits are documented in the Photos tab.' : 'No responsibly address-matched photo is available for this facility.'} Those fields are intentionally not inferred.</p>
             </div>
           </section>
         </div>
@@ -593,7 +724,7 @@ function App() {
           <section className="about-modal" role="dialog" aria-modal="true" aria-labelledby="about-title">
             <div className="modal-head"><div><span className="eyebrow">About this experience</span><h2 id="about-title">Reference prototype</h2></div><button className="icon-button" aria-label="Close about" onClick={() => setAboutOpen(false)}><X /></button></div>
             <p>This screenshot-based prototype uses exactly 17 user-provided facility addresses. It is not connected to WMS, YMS, inventory, facility, or operational APIs.</p>
-            <p>No official statuses or property attributes were supplied. All facilities start as Active in this prototype at your request, and status changes are saved only in this browser. Eight facilities have source-verified official listing media with association limits documented in the Photos tab; unmatched facilities intentionally show no substitute image. Coordinates were geocoded for map placement; source and precision are shown in Full Details.</p>
+            <p>No property attributes were supplied. Eight facilities have source-verified official listing media and nine have user-provided photos with unverified original sources and publication rights (one address-matched, one with unconfirmed building identity, and seven with user-verified associations not independently verified by this prototype). All 17 facilities have media and are Active in this prototype. A changed Local status is saved only in this browser. Coordinates were geocoded for map placement; source and precision are shown in Full Details.</p>
             <button className="primary-button" onClick={() => setAboutOpen(false)}>Understood</button>
           </section>
         </div>
@@ -604,19 +735,25 @@ function App() {
 
 function PhotosContent({ facility, media }: { facility: Facility; media?: FacilityMedia }) {
   if (!media) {
-    return <EmptyState icon={Warehouse} title="Photo not available" body="No responsibly address-matched official photo is available for this facility." />
+    return (
+      <EmptyState icon={Warehouse} title="Photo not available" body="No responsibly address-matched official photo is available for this facility.">
+        <a className="external-photo-link" href={googleMapsPhotoLookupUrl(facility)} target="_blank" rel="noopener noreferrer"><Camera size={15} />View photos on Google Maps <ExternalLink size={13} /></a>
+      </EmptyState>
+    )
   }
+
+  const userProvided = isUserProvidedMedia(media)
 
   return (
     <section className="photo-detail" aria-label={`Photo provenance for ${facility.fullAddress}`}>
       <FacilityPhoto media={media} variant="gallery" />
       <div className="photo-caption">
-        <div><span className="eyebrow">Official listing media</span><strong>{getFacilityTitle(facility)}</strong></div>
+        <div><span className="eyebrow">{userProvided ? 'User-provided photo' : 'Official listing media'}</span><strong>{getFacilityTitle(facility)}</strong></div>
         <p>{media.matchNote}</p>
         <dl>
-          <div><dt>Source</dt><dd><a href={media.sourcePage} target="_blank" rel="noreferrer">Official UNIS page <ExternalLink size={12} /></a></dd></div>
-          <div><dt>Original</dt><dd><a href={media.detail.sourceUrl} target="_blank" rel="noreferrer">Official image <ExternalLink size={12} /></a></dd></div>
-          <div><dt>Thumbnail</dt><dd><a href={media.thumbnail.sourceUrl} target="_blank" rel="noreferrer">Directory preview <ExternalLink size={12} /></a></dd></div>
+          <div><dt>Source</dt><dd>{mediaSourceValue(media.sourcePage, userProvided ? 'Google Maps place' : 'Official UNIS page')}</dd></div>
+          <div><dt>Original</dt><dd>{mediaSourceValue(media.detail.sourceUrl, userProvided ? 'User-provided source reference' : 'Official image')}</dd></div>
+          <div><dt>Thumbnail</dt><dd>{mediaSourceValue(media.thumbnail.sourceUrl, userProvided ? 'User-provided source reference' : 'Directory preview')}</dd></div>
           <div><dt>Retrieved</dt><dd><time dateTime={media.retrievedDate}>{media.retrievedDate}</time></dd></div>
           <div><dt>Detail image</dt><dd>{media.detail.width} × {media.detail.height}</dd></div>
         </dl>
@@ -629,7 +766,7 @@ function OverviewContent({ facility, status, onStatusChange }: { facility: Facil
   return (
     <>
       <section className="status-assignment">
-        <div><span className="eyebrow">Local planning field</span><h2>Working status</h2><p>All facilities started as Active at your request. You can change this browser-only working status; it is not an official facility status.</p></div>
+        <div><span className="eyebrow">Local planning field</span><h2>Facility status</h2><p>All facility records are Active in this prototype data.</p></div>
         <label><span>Local status</span><select aria-label={`Set status for ${facility.fullAddress}`} value={status} onChange={(event) => onStatusChange(event.target.value as DisplayStatus)}>{assignableStatuses.map((item) => <option key={item}>{item}</option>)}</select></label>
       </section>
 

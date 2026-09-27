@@ -1,14 +1,14 @@
 # ITEM Locations Network
 
-A responsive React + TypeScript facility-network prototype. It uses real Leaflet mapping with CARTO/OpenStreetMap and Esri satellite tiles, plus the supplied ITEM logo, palette, and Satoshi typography.
+A responsive React + TypeScript facility-network prototype. It uses real Leaflet mapping with Esri street and satellite tiles, plus the supplied ITEM logo, palette, and Satoshi typography.
 
 ## Data boundary
 
 This is a screenshot-based interface prototype, not a live WMS, YMS, facility, inventory, or operations product. The roster contains exactly the 17 user-provided facility addresses. Their original spelling, punctuation, parenthetical address, building identifiers, and supplied city/state/ZIP fields are preserved.
 
-No official statuses, property sizes, dock counts, clear heights, site plans, documents, or operational details were supplied. The UI does not infer them. At the user’s request, all 17 facilities begin with a working status of `Active`. Users can change a facility to Active, Coming Soon, Planned, or Unassigned; those choices are stored only in browser localStorage under `facility-status-assignments-v2` and do not represent operational truth. The v2 key intentionally resets any older v1 browser assignments to the new Active baseline.
+All 17 facility records explicitly carry status `Active` in this prototype. Users can change the local working status to Unassigned, Active, Coming Soon, or Planned; a changed value is stored only in browser localStorage under `facility-status-assignments-v3`. Property sizes, dock counts, clear heights, site plans, documents, and operational details were not supplied and are not inferred.
 
-Eight roster records have source-verified public media from the official UNIS location directory. Each uses a deterministic local 500×500 directory thumbnail in the roster and a separate original-source asset in detail views. Their URLs, source-derived alt text, retrieval date, dimensions, match rationale, and limitations are recorded in `src/data/facility-media.ts` and [PHOTO-PROVENANCE.md](./PHOTO-PROVENANCE.md). This evidence verifies the source and documented address correlation, not separate human sign-off of each photo-to-building association. Summerville remains an address candidate because the roster also includes an alternate address, and Long Beach is explicitly contextual port imagery rather than a verified building exterior. The other nine facilities use a neutral fallback; no stock, neighboring-facility, or uncertain building image is substituted.
+All 17 roster records show media: eight source-verified records from the official UNIS location directory and nine user-provided photos. The Moreno Valley photo is address-matched by visible facade signage; the Houston photo has no visible street-address signage, so its building identity remains unconfirmed; the other seven user-provided photos have associations verified by the users who supplied them and were not independently verified by this prototype. None of the user-provided photos are official UNIS media, and their original sources and publication rights are not verified. The Tennessee, Las Vegas, and two El Paso sources are Google Maps screenshots with their visible third-party copyright/attribution notices retained in the uncropped detail assets. Each media record uses a deterministic local 500×500 roster thumbnail and a separate detail asset. URLs or source markers, alt text, retrieval date, dimensions, match rationale, and limitations are recorded in `src/data/facility-media.ts` and [PHOTO-PROVENANCE.md](./PHOTO-PROVENANCE.md). Summerville remains an address candidate because the roster also includes an alternate address, and Long Beach is explicitly contextual port imagery rather than a verified building exterior. No stock, neighboring-facility, or uncertain building image is substituted.
 
 The Tennessee address intentionally remains `4550 Quality Drive, TN` because no city or ZIP was supplied. Geocoder-inferred locality data is not added to the user-provided address.
 
@@ -57,7 +57,7 @@ docker build -t locations-network .
 docker run --rm -p 8080:8080 locations-network
 ```
 
-No runtime environment variables, credentials, database, or backend services are required. Basemap tiles are loaded in the browser from CARTO/OpenStreetMap or Esri and therefore require outbound client network access.
+No runtime environment variables, credentials, database, or backend services are required. Basemap tiles are loaded in the browser from Esri and therefore require outbound client network access.
 
 ## Quality checks
 
@@ -69,8 +69,8 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-The Playwright suite verifies all 17 exact addresses, eight source-verified directory previews and nine intentional fallbacks, square thumbnail sizing, uncropped detail media, image-error fallback, mobile address wrapping, photo provenance, address/city/state/ZIP search, local status assignment and persistence, all status filters, marker and row selection without navigation, unavailable property states, light/dark persistence, and basemap switching.
+The Playwright suite verifies all 17 exact addresses and previews, eight official records plus nine user-provided photos across three verification classifications, square thumbnail sizing, uncropped detail media, forced image-error fallback, mobile address wrapping, photo provenance, address/city/state/ZIP search, local status assignment and persistence, all status filters, marker and row selection without navigation, unavailable property states, light/dark persistence, and basemap switching.
 
 ## Map attribution
 
-Leaflet displays attribution for OpenStreetMap/CARTO street tiles and Esri satellite imagery. Network access is required for basemap tiles; the application data and brand assets are local.
+Leaflet displays Esri attribution for the street and satellite basemaps. Network access is required for basemap tiles; the application data and brand assets are local.
