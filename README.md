@@ -6,7 +6,9 @@ A responsive React + TypeScript facility-network prototype. It uses real Leaflet
 
 This is a screenshot-based interface prototype, not a live WMS, YMS, facility, inventory, or operations product. The roster contains exactly the 17 user-provided facility addresses. Their original spelling, punctuation, parenthetical address, building identifiers, and supplied city/state/ZIP fields are preserved.
 
-No official statuses, property sizes, dock counts, clear heights, photos, site plans, documents, or operational details were supplied. The UI does not infer them. Every facility begins with `Status not provided` / `Unassigned`. Users can assign Active, Coming Soon, or Planned as a local planning aid; those choices are stored only in browser localStorage under `facility-status-assignments-v1` and do not represent operational truth.
+No official statuses, property sizes, dock counts, clear heights, site plans, documents, or operational details were supplied. The UI does not infer them. At the user’s request, all 17 facilities begin with a working status of `Active`. Users can change a facility to Active, Coming Soon, Planned, or Unassigned; those choices are stored only in browser localStorage under `facility-status-assignments-v2` and do not represent operational truth. The v2 key intentionally resets any older v1 browser assignments to the new Active baseline.
+
+Eight roster records have source-verified public media from the official UNIS location directory. Each uses a deterministic local 500×500 directory thumbnail in the roster and a separate original-source asset in detail views. Their URLs, source-derived alt text, retrieval date, dimensions, match rationale, and limitations are recorded in `src/data/facility-media.ts` and [PHOTO-PROVENANCE.md](./PHOTO-PROVENANCE.md). This evidence verifies the source and documented address correlation, not separate human sign-off of each photo-to-building association. Summerville remains an address candidate because the roster also includes an alternate address, and Long Beach is explicitly contextual port imagery rather than a verified building exterior. The other nine facilities use a neutral fallback; no stock, neighboring-facility, or uncertain building image is substituted.
 
 The Tennessee address intentionally remains `4550 Quality Drive, TN` because no city or ZIP was supplied. Geocoder-inferred locality data is not added to the user-provided address.
 
@@ -67,7 +69,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-The Playwright suite verifies all 17 exact addresses, address/city/state/ZIP search, local status assignment and persistence, all status filters, marker and row selection without navigation, unavailable property states, light/dark persistence, and basemap switching.
+The Playwright suite verifies all 17 exact addresses, eight source-verified directory previews and nine intentional fallbacks, square thumbnail sizing, uncropped detail media, image-error fallback, mobile address wrapping, photo provenance, address/city/state/ZIP search, local status assignment and persistence, all status filters, marker and row selection without navigation, unavailable property states, light/dark persistence, and basemap switching.
 
 ## Map attribution
 

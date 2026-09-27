@@ -7,16 +7,19 @@ export default defineConfig({
   fullyParallel: false,
   reporter: 'list',
   use: {
-    baseURL: 'http://127.0.0.1:4174',
+    baseURL: 'http://127.0.0.1:4191',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
+    launchOptions: process.env.PLAYWRIGHT_CHROME_PATH
+      ? { executablePath: process.env.PLAYWRIGHT_CHROME_PATH }
+      : undefined,
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'], viewport: { width: 1536, height: 1024 } } },
   ],
   webServer: {
-    command: 'npm run preview -- --host 0.0.0.0 --port 4174 --strictPort',
-    url: 'http://127.0.0.1:4174',
+    command: 'npm run preview -- --host 0.0.0.0 --port 4191 --strictPort',
+    url: 'http://127.0.0.1:4191',
     reuseExistingServer: false,
     timeout: 120_000,
   },
