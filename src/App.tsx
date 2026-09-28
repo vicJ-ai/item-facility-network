@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import {
   ArrowLeft, Bell, Box, Building2, Camera, Check, ChevronRight, CircleHelp, ClipboardList, Clock,
-  ExternalLink, FileQuestion, FileText, Grid2X2, Info, Layers3, LocateFixed,
+  ExternalLink, FileQuestion, FileText, Grid2X2, Info, Layers3, LocateFixed, Maximize2,
   Map as MapIcon, MapPin, Menu, Moon, PackageSearch, Search, ShieldCheck,
   SlidersHorizontal, Sun, Truck, Warehouse, X,
 } from 'lucide-react'
@@ -9,7 +9,9 @@ import L from 'leaflet'
 import { CircleMarker, MapContainer, Marker, TileLayer, Tooltip, useMap, useMapEvents, ZoomControl } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import './App.css'
+import { FacilityDocuments } from './components/FacilityDocuments'
 import { FacilityPhoto } from './components/FacilityPhoto'
+import { UserProvidedPhotoGallery } from './components/UserProvidedPhotoGallery'
 import {
   facilities,
   searchableFacilityText,
@@ -18,6 +20,8 @@ import {
 } from './data/facilities'
 import { getFacilityMedia, type FacilityMedia } from './data/facility-media'
 import { getFacilityOperatingHours } from './data/facility-hours'
+import { getFacilitySitePlan, type FacilitySitePlan, type FacilitySitePlanFact } from './data/facility-site-plans'
+import { getUserProvidedFacilityPhotos, type UserProvidedFacilityPhotos } from './data/facility-user-photos'
 
 type Tab = 'Overview' | 'Site Plan' | 'Photos' | 'Documents' | 'Operations'
 type Theme = 'light' | 'dark'
@@ -95,6 +99,15 @@ function isUserProvidedMedia(media: FacilityMedia) {
 function mediaSourceValue(value: string, linkedLabel: string) {
   if (!value.startsWith('http')) return value
   return <a href={value} target="_blank" rel="noreferrer">{linkedLabel} <ExternalLink size={12} /></a>
+}
+
+function mediaCategory(media: FacilityMedia) {
+  return isUserProvidedMedia(media) ? 'User-provided photo' : 'Official listing media'
+}
+
+function formatSitePlanFact(fact: FacilitySitePlanFact) {
+  const value = typeof fact.value === 'number' ? fact.value.toLocaleString('en-US') : fact.value
+  return `${value}${fact.unit ? ` ${fact.unit}` : ''}`
 }
 
 function OperatingHoursDisplay({ facilityId, variant }: { facilityId: string; variant: 'preview' | 'overview' | 'drawer' }) {
@@ -442,6 +455,8 @@ function App() {
   const facilityStatus = (facility: Facility): DisplayStatus => resolveFacilityStatus(facility, statusAssignments)
   const selectedStatus = selected ? facilityStatus(selected) : 'Active'
   const selectedMedia = selected ? getFacilityMedia(selected.id) : undefined
+  const selectedSitePlan = selected ? getFacilitySitePlan(selected.id) : undefined
+  const selectedUserPhotos = selected ? getUserProvidedFacilityPhotos(selected.id) : undefined
   const dashboardHighlightRenderer = useMemo(() => L.svg({ pane: 'overlayPane' }), [])
   const activeRegion = dashboardRegions.find((region) => region.id === activeRegionId) ?? null
   const dashboardFacilities = useMemo(() => {
@@ -659,10 +674,12 @@ function App() {
                 {tabs.map((item) => <button key={item} role="tab" aria-selected={tab === item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item}</button>)}
               </div>
               <div className="detail-content">
-                {tab === 'Overview' && <OverviewContent facility={selected} status={selectedStatus} onStatusChange={(value) => assignStatus(selected, value)} />}
-                {tab === 'Site Plan' && <EmptyState icon={MapIcon} title="Site plan not provided" body="No site plan was supplied for this facility." />}
-                {tab === 'Photos' && <PhotosContent facility={selected} media={selectedMedia} />}
-                {tab === 'Documents' && <EmptyState title="Documents not provided" body="No property or operating documents were supplied for this facility." />}
+                {tab === 'Overview' && <OverviewContent facility={selected} sitePlan={selectedSitePlan} status={selectedStatus} onStatusChange={(value) => assignStatus(selected, value)} />}
+                {tab === 'Site Plan' && (selectedSitePlan
+                  ? <SitePlanContent facility={selected} sitePlan={selectedSitePlan} />
+                  : <EmptyState icon={MapIcon} title="Site plan not provided" body="No site plan was supplied for this facility." />)}
+                {tab === 'Photos' && <PhotosContent facility={selected} media={selectedMedia} userPhotos={selectedUserPhotos} />}
+                {tab === 'Documents' && <FacilityDocuments key={selected.id} facility={selected} facilityTitle={getFacilityTitle(selected)} operatingHours={getFacilityOperatingHours(selected.id)} media={selectedMedia} sitePlan={selectedSitePlan} userPhotos={selectedUserPhotos} />}
                 {tab === 'Operations' && <EmptyState icon={Truck} title="Operations data unavailable" body="This prototype does not connect to WMS, YMS, inventory, or operational systems." />}
               </div>
               <div className="detail-footer"><button className="secondary-button" onClick={() => setAboutOpen(true)}><CircleHelp size={16} />About data</button><button className="primary-button" onClick={() => setDetailsOpen(true)}>View Full Details <ChevronRight size={17} /></button></div>
@@ -944,7 +961,7 @@ function App() {
                 <div><dt>Coordinate source</dt><dd>{selected.coordinateSource}</dd></div>
               </dl>
               <section className="geocode-detail"><strong>Geocoder match</strong><p>{selected.geocoderMatch}</p>{selected.geocodeNote && <p className="geocode-warning"><Info size={15} />{selected.geocodeNote}</p>}</section>
-              <p className="source-note"><Info size={15} />No property size, dock, site-plan, or operational data was supplied. {selectedMedia ? isUserProvidedMedia(selectedMedia) ? 'The displayed photo was user-provided; its original source, publication rights, and association limits are documented in the Photos tab.' : 'The displayed photo is official UNIS listing media; its source and association limits are documented in the Photos tab.' : 'No responsibly address-matched photo is available for this facility.'} Those fields are intentionally not inferred.</p>
+              <p className="source-note"><Info size={15} />{selectedSitePlan ? 'Supplied site-plan facts are available in the Site Plan tab; they are not current availability claims. ' : 'No property or site-plan facts were supplied. '}{selectedUserPhotos ? `${selectedUserPhotos.photos.length} user-provided gallery photo${selectedUserPhotos.photos.length === 1 ? ' is' : 's are'} documented in the Photos tab. ` : ''}{selectedMedia ? `${mediaCategory(selectedMedia)} remains separately documented in the Photos tab.` : 'No existing media record is available for this facility.'}</p>
             </div>
           </section>
         </div>
@@ -955,7 +972,7 @@ function App() {
           <section className="about-modal" role="dialog" aria-modal="true" aria-labelledby="about-title">
             <div className="modal-head"><div><span className="eyebrow">About this experience</span><h2 id="about-title">Reference prototype</h2></div><button className="icon-button" aria-label="Close about" onClick={() => setAboutOpen(false)}><X /></button></div>
             <p>This screenshot-based prototype uses exactly 17 user-provided facility addresses. It is not connected to WMS, YMS, inventory, facility, or operational APIs.</p>
-            <p>No property attributes were supplied. Eight facilities have source-verified official listing media and nine have user-provided photos with unverified original sources and publication rights (one address-matched, one with unconfirmed building identity, and seven with user-verified associations not independently verified by this prototype). All 17 facilities have media and are Active in this prototype. A changed Local status is saved only in this browser. Coordinates were geocoded for map placement; source and precision are shown in Full Details.</p>
+            <p>Fourteen facilities have supplied site plans and thirteen have separate user-provided photo galleries. The target's eight official listing records and nine user-provided screenshot records remain separate and unchanged. All 17 facilities have media and operating hours in this prototype. A changed Local status is saved only in this browser. Coordinates were geocoded for map placement; source and precision are shown in Full Details.</p>
             <button className="primary-button" onClick={() => setAboutOpen(false)}>Understood</button>
           </section>
         </div>
@@ -964,7 +981,66 @@ function App() {
   )
 }
 
-function PhotosContent({ facility, media }: { facility: Facility; media?: FacilityMedia }) {
+function SitePlanContent({ facility, sitePlan }: { facility: Facility; sitePlan: FacilitySitePlan }) {
+  return (
+    <section className="site-plan-detail" aria-label={`Site plan for ${facility.fullAddress}`}>
+      <header className="site-plan-heading">
+        <div><span className="eyebrow">User-provided site plan</span><h2>Property plan details</h2></div>
+        <p>{sitePlan.sourceNote ?? 'Supplied property facts and plan details.'}</p>
+      </header>
+      <dl className="site-plan-facts">
+        {sitePlan.facts.map((fact) => (
+          <div key={fact.id}>
+            <dt>{fact.label}</dt>
+            <dd>{formatSitePlanFact(fact)}</dd>
+            {fact.note && <dd className="fact-note">{fact.note}</dd>}
+          </div>
+        ))}
+      </dl>
+      <figure className="site-plan-figure">
+        <a href={sitePlan.assetUrl} target="_blank" rel="noreferrer" aria-label="Open full-size site plan in a new tab">
+          <img src={sitePlan.assetUrl} alt={sitePlan.alt} width={sitePlan.width} height={sitePlan.height} />
+          <span><Maximize2 size={15} />Open full size</span>
+        </a>
+      </figure>
+    </section>
+  )
+}
+
+function ExistingMediaReference({ facility, media }: { facility: Facility; media: FacilityMedia }) {
+  const userProvided = isUserProvidedMedia(media)
+  const category = mediaCategory(media)
+
+  return (
+    <section className="official-media-reference" aria-label={`Existing media record for ${facility.fullAddress}`}>
+      <div className="official-media-reference-heading"><span className="eyebrow">{category}</span><strong>{userProvided ? 'Existing screenshot record' : 'UNIS directory image'}</strong></div>
+      <div className="official-media-reference-body">
+        <a className="official-media-reference-image" href={media.detail.assetUrl} target="_blank" rel="noreferrer" aria-label={`Open ${category.toLowerCase()} in a new tab`}>
+          <img src={media.detail.assetUrl} alt={media.detail.alt} width={media.detail.width} height={media.detail.height} loading="lazy" />
+          <span><ExternalLink size={13} />Open image</span>
+        </a>
+        <div>
+          <p>{media.matchNote}</p>
+          <dl>
+            <div><dt>Source</dt><dd>{mediaSourceValue(media.sourcePage, userProvided ? 'Source reference' : 'Official UNIS page')}</dd></div>
+            <div><dt>Retrieved</dt><dd><time dateTime={media.retrievedDate}>{media.retrievedDate}</time></dd></div>
+          </dl>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function PhotosContent({ facility, media, userPhotos }: { facility: Facility; media?: FacilityMedia; userPhotos?: UserProvidedFacilityPhotos }) {
+  if (userPhotos) {
+    return (
+      <div className="user-photo-content">
+        <UserProvidedPhotoGallery address={facility.fullAddress} facilityTitle={getFacilityTitle(facility)} gallery={userPhotos} />
+        {media && <ExistingMediaReference facility={facility} media={media} />}
+      </div>
+    )
+  }
+
   if (!media) {
     return (
       <EmptyState icon={Warehouse} title="Photo not available" body="No responsibly address-matched official photo is available for this facility.">
@@ -979,7 +1055,7 @@ function PhotosContent({ facility, media }: { facility: Facility; media?: Facili
     <section className="photo-detail" aria-label={`Photo provenance for ${facility.fullAddress}`}>
       <FacilityPhoto media={media} variant="gallery" />
       <div className="photo-caption">
-        <div><span className="eyebrow">{userProvided ? 'User-provided photo' : 'Official listing media'}</span><strong>{getFacilityTitle(facility)}</strong></div>
+        <div><span className="eyebrow">{mediaCategory(media)}</span><strong>{getFacilityTitle(facility)}</strong></div>
         <p>{media.matchNote}</p>
         <dl>
           <div><dt>Source</dt><dd>{mediaSourceValue(media.sourcePage, userProvided ? 'Google Maps place' : 'Official UNIS page')}</dd></div>
@@ -993,7 +1069,7 @@ function PhotosContent({ facility, media }: { facility: Facility; media?: Facili
   )
 }
 
-function OverviewContent({ facility, status, onStatusChange }: { facility: Facility; status: DisplayStatus; onStatusChange: (status: DisplayStatus) => void }) {
+function OverviewContent({ facility, sitePlan, status, onStatusChange }: { facility: Facility; sitePlan?: FacilitySitePlan; status: DisplayStatus; onStatusChange: (status: DisplayStatus) => void }) {
   return (
     <>
       <section
@@ -1024,10 +1100,20 @@ function OverviewContent({ facility, status, onStatusChange }: { facility: Facil
         </dl>
       </section>
 
-      <section className="unavailable-section info-section">
-        <h2><FileQuestion />Property attributes</h2>
-        <div className="unavailable-grid"><span><b>Total area</b>Not provided</span><span><b>Dock doors</b>Not provided</span><span><b>Grade doors</b>Not provided</span><span><b>Clear height</b>Not provided</span></div>
-      </section>
+      {sitePlan ? (
+        <section className="property-facts-summary info-section">
+          <h2><FileText />Sourced property facts</h2>
+          <div className="unavailable-grid">
+            {sitePlan.facts.slice(0, 4).map((fact) => <span key={fact.id}><b>{fact.label}</b>{formatSitePlanFact(fact)}</span>)}
+          </div>
+          <p className="property-facts-note">From the supplied Site Plan record. See that tab for source notes and all facts.</p>
+        </section>
+      ) : (
+        <section className="unavailable-section info-section">
+          <h2><FileQuestion />Property attributes</h2>
+          <div className="unavailable-grid"><span><b>Total area</b>Not provided</span><span><b>Dock doors</b>Not provided</span><span><b>Grade doors</b>Not provided</span><span><b>Clear height</b>Not provided</span></div>
+        </section>
+      )}
 
       <section className="coordinate-section info-section">
         <h2><ShieldCheck />Map placement</h2>
