@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import {
-  ArrowLeft, Bell, Box, Building2, Camera, Check, ChevronRight, CircleHelp, ClipboardList,
+  ArrowLeft, Bell, Box, Building2, Camera, Check, ChevronRight, CircleHelp, ClipboardList, Clock,
   ExternalLink, FileQuestion, FileText, Grid2X2, Info, Layers3, LocateFixed,
   Map as MapIcon, MapPin, Menu, Moon, PackageSearch, Search, ShieldCheck,
   SlidersHorizontal, Sun, Truck, Warehouse, X,
 } from 'lucide-react'
 import L from 'leaflet'
-import { MapContainer, Marker, TileLayer, Tooltip, useMap, useMapEvents, ZoomControl } from 'react-leaflet'
+import { CircleMarker, MapContainer, Marker, TileLayer, Tooltip, useMap, useMapEvents, ZoomControl } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import './App.css'
 import { FacilityPhoto } from './components/FacilityPhoto'
@@ -17,6 +17,7 @@ import {
   type Facility,
 } from './data/facilities'
 import { getFacilityMedia, type FacilityMedia } from './data/facility-media'
+import { getFacilityOperatingHours } from './data/facility-hours'
 
 type Tab = 'Overview' | 'Site Plan' | 'Photos' | 'Documents' | 'Operations'
 type Theme = 'light' | 'dark'
@@ -34,6 +35,8 @@ const MAX_DIRECTORY_RATIO = 0.55
 const MIN_DIRECTORY_WIDTH = 420
 const MAX_DIRECTORY_WIDTH = 760
 const MIN_MAP_WIDTH = 360
+const ESRI_STREET_ATTRIBUTION = 'Tiles &copy; Esri &mdash; Source: Esri, TomTom, Garmin, FAO, NOAA, USGS, OpenStreetMap contributors, and the GIS User Community'
+const ESRI_STREET_TILE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}'
 const tabs: Tab[] = ['Overview', 'Site Plan', 'Photos', 'Documents', 'Operations']
 const assignableStatuses: DisplayStatus[] = ['Unassigned', 'Active', 'Coming Soon', 'Planned']
 const statusColor: Record<DisplayStatus, string> = {
@@ -42,6 +45,18 @@ const statusColor: Record<DisplayStatus, string> = {
   Planned: '#753bbd',
   Unassigned: '#7a8798',
 }
+const dashboardRegions = [
+  { id: 'southern-california', label: 'Southern California', facilityNumbers: [1, 2, 3, 15] },
+  { id: 'texas', label: 'Texas', facilityNumbers: [4, 5, 14, 17] },
+  { id: 'washington', label: 'Washington', facilityNumbers: [10, 11] },
+  { id: 'georgia', label: 'Georgia', facilityNumbers: [6, 7] },
+  { id: 'south-carolina', label: 'South Carolina', facilityNumbers: [8] },
+  { id: 'tennessee', label: 'Tennessee', facilityNumbers: [9] },
+  { id: 'florida', label: 'Florida', facilityNumbers: [12] },
+  { id: 'nevada', label: 'Nevada', facilityNumbers: [13] },
+  { id: 'illinois', label: 'Illinois', facilityNumbers: [16] },
+] as const
+type DashboardRegionId = (typeof dashboardRegions)[number]['id']
 
 function getInitialTheme(): Theme {
   const saved = window.localStorage.getItem('locations-theme')
@@ -82,8 +97,31 @@ function mediaSourceValue(value: string, linkedLabel: string) {
   return <a href={value} target="_blank" rel="noreferrer">{linkedLabel} <ExternalLink size={12} /></a>
 }
 
+function OperatingHoursDisplay({ facilityId, variant }: { facilityId: string; variant: 'preview' | 'overview' | 'drawer' }) {
+  const hours = getFacilityOperatingHours(facilityId)
+
+  return (
+    <span
+      className={`operating-hours operating-hours-${variant}`}
+      data-testid={`operating-hours-${variant}`}
+      data-hours-status={hours.status}
+    >
+      <Clock size={variant === 'preview' ? 12 : 14} />
+      <span>
+        <strong>{hours.startTime}–{hours.endTime} {hours.timezone} <span className="operating-hours-days">{hours.days}</span></strong>
+        {variant !== 'preview' && <small>{hours.status === 'confirmed' ? `User-confirmed · ${hours.sourceRowLabel}` : `User-provided · As supplied · ${hours.sourceRowLabel}`}</small>}
+        {variant === 'drawer' && <small>{hours.matchNote}</small>}
+      </span>
+    </span>
+  )
+}
+
 function googleMapsUrl(facility: Facility) {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(facility.fullAddress)}`
+}
+
+function googleMapsEmbedUrl(facility: Facility) {
+  return `https://www.google.com/maps?q=${encodeURIComponent(facility.fullAddress)}&z=15&output=embed`
 }
 
 function streetViewUrl(facility: Facility) {
@@ -138,6 +176,28 @@ function pinIcon(facility: Facility, status: DisplayStatus, selected: boolean) {
   })
 }
 
+function dashboardPreviewDirection(facility: Facility): 'left' | 'right' | 'top' {
+  const longitude = facility.coordinates[1]
+  if (longitude <= -110) return 'right'
+  if (longitude >= -90) return 'left'
+  return 'top'
+}
+
+function getDashboardRegionBounds(regionFacilities: readonly Facility[]) {
+  const latitudes = regionFacilities.map((facility) => facility.coordinates[0])
+  const longitudes = regionFacilities.map((facility) => facility.coordinates[1])
+  const minLatitude = Math.min(...latitudes)
+  const maxLatitude = Math.max(...latitudes)
+  const minLongitude = Math.min(...longitudes)
+  const maxLongitude = Math.max(...longitudes)
+  const latitudePadding = Math.max((maxLatitude - minLatitude) * 0.18, 0.1)
+  const longitudePadding = Math.max((maxLongitude - minLongitude) * 0.18, 0.12)
+  return L.latLngBounds(
+    [minLatitude - latitudePadding, minLongitude - longitudePadding],
+    [maxLatitude + latitudePadding, maxLongitude + longitudePadding],
+  )
+}
+
 function MapFocus({ selected, focusSignal, recenterSignal, cameraMode, visibilityKey }: { selected: Facility | null; focusSignal: number; recenterSignal: number; cameraMode: 'overview' | 'site'; visibilityKey: string }) {
   const map = useMap()
 
@@ -153,6 +213,7 @@ function MapFocus({ selected, focusSignal, recenterSignal, cameraMode, visibilit
     return () => {
       window.cancelAnimationFrame(resizeFrame)
       window.cancelAnimationFrame(focusFrame)
+      map.stop()
     }
   }, [cameraMode, focusSignal, map, selected, visibilityKey])
 
@@ -184,21 +245,33 @@ function getMapViewport(map: L.Map): MapViewport {
   }
 }
 
-function DashboardOverview({ active, signal, onViewChange }: { active: boolean; signal: number; onViewChange: (view: MapViewport) => void }) {
+function DashboardOverview({ active, signal, targets, regionActive, panelOpen, onViewChange }: { active: boolean; signal: number; targets: readonly Facility[]; regionActive: boolean; panelOpen: boolean; onViewChange: (view: MapViewport) => void }) {
   const map = useMap()
 
   useEffect(() => {
     if (!active || signal === 0) return
+    map.stop()
     let fitFrame = 0
     const resizeFrame = window.requestAnimationFrame(() => {
       const container = map.getContainer()
       if (container.clientWidth === 0 || container.clientHeight === 0) return
       map.invalidateSize({ pan: false })
       fitFrame = window.requestAnimationFrame(() => {
-        const coordinates = facilities.filter(hasUsableCoordinates).map((facility) => facility.coordinates)
+        const coordinates = targets.filter(hasUsableCoordinates).map((facility) => facility.coordinates)
         if (coordinates.length === 0) return
-        const padding = container.clientWidth <= 720 ? 32 : Math.min(80, Math.round(container.clientWidth * 0.055))
-        map.fitBounds(L.latLngBounds(coordinates), { animate: false, maxZoom: 6, padding: [padding, padding] })
+        const mobile = container.clientWidth <= 720
+        const basePadding = mobile ? 28 : Math.min(80, Math.round(container.clientWidth * 0.055))
+        const paddingTopLeft: L.PointExpression = [!mobile && panelOpen ? 370 : basePadding, basePadding]
+        const paddingBottomRight: L.PointExpression = [basePadding, mobile && panelOpen ? Math.min(390, Math.round(container.clientHeight * 0.5)) : basePadding]
+        const bounds = regionActive ? getDashboardRegionBounds(targets) : L.latLngBounds(coordinates)
+        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        map.fitBounds(bounds, {
+          animate: regionActive && !reduceMotion,
+          duration: 0.65,
+          maxZoom: regionActive ? 9 : 6,
+          paddingTopLeft,
+          paddingBottomRight,
+        })
         onViewChange(getMapViewport(map))
       })
     })
@@ -206,7 +279,7 @@ function DashboardOverview({ active, signal, onViewChange }: { active: boolean; 
       window.cancelAnimationFrame(resizeFrame)
       window.cancelAnimationFrame(fitFrame)
     }
-  }, [active, map, onViewChange, signal])
+  }, [active, map, onViewChange, panelOpen, regionActive, signal, targets])
 
   return null
 }
@@ -279,19 +352,23 @@ function App() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('All')
   const [statusAssignments, setStatusAssignments] = useState<StatusAssignments>(getInitialStatuses)
   const [tab, setTab] = useState<Tab>('Overview')
-  const [layer, setLayer] = useState<'street' | 'satellite'>('satellite')
+  const [layer, setLayer] = useState<'street' | 'satellite'>('street')
   const [directoryWidth, setDirectoryWidth] = useState(getInitialDirectoryWidth)
   const [isResizing, setIsResizing] = useState(false)
   const [focusSignal, setFocusSignal] = useState(0)
   const [cameraMode, setCameraMode] = useState<'overview' | 'site'>('overview')
   const [recenterSignal, setRecenterSignal] = useState(0)
   const [dashboardOverviewSignal, setDashboardOverviewSignal] = useState(0)
+  const [regionPanelOpen, setRegionPanelOpen] = useState(false)
+  const [activeRegionId, setActiveRegionId] = useState<DashboardRegionId | null>(null)
+  const [expandedRegionId, setExpandedRegionId] = useState<DashboardRegionId | null>(null)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
   const [mobileNav, setMobileNav] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [mapView, setMapView] = useState<MapViewport>({ lat: 37.8, lng: -96.2, zoom: 4, south: 23.4, west: -127.4, north: 49.8, east: -65 })
   const dashboardRef = useRef<HTMLElement>(null)
+  const regionToggleRef = useRef<HTMLButtonElement>(null)
   const resizeDrag = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null)
   const returnFocusPending = useRef(false)
 
@@ -340,6 +417,10 @@ function App() {
       setDetailsOpen(false)
       setAboutOpen(false)
       setMobileNav(false)
+      setRegionPanelOpen((current) => {
+        if (current) window.requestAnimationFrame(() => regionToggleRef.current?.focus())
+        return false
+      })
       setShowcaseOpen((current) => {
         if (current) returnFocusPending.current = true
         return false
@@ -361,6 +442,12 @@ function App() {
   const facilityStatus = (facility: Facility): DisplayStatus => resolveFacilityStatus(facility, statusAssignments)
   const selectedStatus = selected ? facilityStatus(selected) : 'Active'
   const selectedMedia = selected ? getFacilityMedia(selected.id) : undefined
+  const dashboardHighlightRenderer = useMemo(() => L.svg({ pane: 'overlayPane' }), [])
+  const activeRegion = dashboardRegions.find((region) => region.id === activeRegionId) ?? null
+  const dashboardFacilities = useMemo(() => {
+    if (!activeRegion) return facilities
+    return facilities.filter((facility) => activeRegion.facilityNumbers.some((number) => number === facility.number))
+  }, [activeRegion])
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -454,6 +541,9 @@ function App() {
     setShowcaseOpen(false)
     setSelected(null)
     setCameraMode('overview')
+    setRegionPanelOpen(false)
+    setActiveRegionId(null)
+    setExpandedRegionId(null)
     setAppView('dashboard')
     setDashboardOverviewSignal((value) => value + 1)
   }
@@ -461,6 +551,33 @@ function App() {
   const showLocations = () => {
     setMobileNav(false)
     setAppView('locations')
+  }
+
+  const toggleRegionPanel = () => {
+    setRegionPanelOpen((current) => !current)
+    setDashboardOverviewSignal((value) => value + 1)
+  }
+
+  const closeRegionPanel = () => {
+    setRegionPanelOpen(false)
+    setDashboardOverviewSignal((value) => value + 1)
+    window.requestAnimationFrame(() => regionToggleRef.current?.focus())
+  }
+
+  const selectDashboardRegion = (regionId: DashboardRegionId) => {
+    if (activeRegionId === regionId) {
+      setExpandedRegionId((current) => current === regionId ? null : regionId)
+      return
+    }
+    setActiveRegionId(regionId)
+    setExpandedRegionId(regionId)
+    setDashboardOverviewSignal((value) => value + 1)
+  }
+
+  const clearDashboardRegion = () => {
+    setActiveRegionId(null)
+    setExpandedRegionId(null)
+    setDashboardOverviewSignal((value) => value + 1)
   }
 
   const assignStatus = (facility: Facility, status: DisplayStatus) => {
@@ -536,12 +653,7 @@ function App() {
                 <div className="address-line">
                   <MapPin size={15} />
                   <span>{selected.fullAddress}</span>
-                  <div className="address-actions">
-                    <a href={googleMapsUrl(selected)} target="_blank" rel="noopener noreferrer">Open in Maps <ExternalLink size={13} /></a>
-                    <a href={streetViewUrl(selected)} target="_blank" rel="noopener noreferrer" title={selected.coordinatePrecision === 'Approximate' ? 'Street-level imagery may be near, not exactly at, this facility.' : undefined}><Camera size={13} />Street View</a>
-                  </div>
                 </div>
-                <ApproximateStreetViewNote facility={selected} />
               </div>
               <div className="tabs" role="tablist" aria-label="Facility details">
                 {tabs.map((item) => <button key={item} role="tab" aria-selected={tab === item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item}</button>)}
@@ -628,16 +740,41 @@ function App() {
         >
           <MapContainer center={[37.8, -96.2]} zoom={4} minZoom={3} maxZoom={18} zoomControl={false} scrollWheelZoom className="map" preferCanvas>
             {layer === 'street' ? (
-              <TileLayer key="street" attribution='Tiles &copy; Esri &mdash; Source: Esri, TomTom, Garmin, FAO, NOAA, USGS, OpenStreetMap contributors, and the GIS User Community' url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}" />
+              <TileLayer key="street" attribution={ESRI_STREET_ATTRIBUTION} url={ESRI_STREET_TILE_URL} />
             ) : (
               <TileLayer key="satellite" attribution='Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics' url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />
             )}
             <ZoomControl position="topright" />
             <MapFocus selected={selected} focusSignal={focusSignal} recenterSignal={recenterSignal} cameraMode={cameraMode} visibilityKey={`${appView}:${mobileView}`} />
-            <DashboardOverview active={appView === 'dashboard'} signal={dashboardOverviewSignal} onViewChange={setMapView} />
+            <DashboardOverview
+              active={appView === 'dashboard'}
+              signal={dashboardOverviewSignal}
+              targets={dashboardFacilities}
+              regionActive={activeRegion !== null}
+              panelOpen={regionPanelOpen}
+              onViewChange={setMapView}
+            />
             <MapLifecycle resizeKey={`${appView}:${mobileView}`} onViewChange={setMapView} />
             {appView === 'locations' && <MapSplitResize resizeKey={directoryWidth} selected={selected} preserveSiteFocus={cameraMode === 'site'} onViewChange={setMapView} />}
-            {(appView === 'dashboard' ? facilities : filtered).map((facility) => {
+            {appView === 'dashboard' && activeRegion && dashboardFacilities.flatMap((facility) => [
+              <CircleMarker
+                key={`${facility.id}-highlight-outer`}
+                {...{ className: 'dashboard-facility-highlight dashboard-facility-highlight-outer', renderer: dashboardHighlightRenderer }}
+                center={facility.coordinates}
+                radius={38}
+                interactive={false}
+                pathOptions={{ fill: true, fillColor: '#753bbd', fillOpacity: 0.08, interactive: false, stroke: false }}
+              />,
+              <CircleMarker
+                key={`${facility.id}-highlight-inner`}
+                {...{ className: 'dashboard-facility-highlight dashboard-facility-highlight-inner', renderer: dashboardHighlightRenderer }}
+                center={facility.coordinates}
+                radius={22}
+                interactive={false}
+                pathOptions={{ fill: true, fillColor: '#753bbd', fillOpacity: 0.18, interactive: false, stroke: false }}
+              />,
+            ])}
+            {(appView === 'dashboard' ? dashboardFacilities : filtered).map((facility) => {
               const currentStatus = facilityStatus(facility)
               return (
                 <Marker
@@ -656,32 +793,113 @@ function App() {
                   }}
                   title={appView === 'locations' ? facility.fullAddress : undefined}
                 >
-                  {appView === 'locations' && <Tooltip permanent direction="right" className="pin-label" opacity={1}>#{facility.number} {facility.city ?? 'TN'}{facility.coordinatePrecision === 'Approximate' ? ' · approx.' : ''}</Tooltip>}
+                  {appView === 'dashboard' ? (
+                    <Tooltip direction={dashboardPreviewDirection(facility)} offset={[0, -18]} className="dashboard-pin-preview" opacity={1} interactive={false}>
+                      <div className="dashboard-pin-preview-content" data-testid="dashboard-pin-preview" data-facility-id={facility.id}>
+                        <FacilityPhoto media={getFacilityMedia(facility.id)} variant="thumbnail" />
+                        <span>
+                          <small>Facility {String(facility.number).padStart(2, '0')}</small>
+                          <strong>{getFacilityTitle(facility)}</strong>
+                          <span className="dashboard-pin-preview-address">{facility.fullAddress}</span>
+                          <OperatingHoursDisplay facilityId={facility.id} variant="preview" />
+                        </span>
+                      </div>
+                    </Tooltip>
+                  ) : (
+                    <Tooltip permanent direction="right" className="pin-label" opacity={1}>#{facility.number} {facility.city ?? 'TN'}{facility.coordinatePrecision === 'Approximate' ? ' · approx.' : ''}</Tooltip>
+                  )}
                 </Marker>
               )
             })}
           </MapContainer>
 
-          {appView === 'locations' && selected && (
-            <a
-              className="map-open-in-maps"
-              data-testid="map-open-in-maps"
-              href={googleMapsUrl(selected)}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Open in Maps <ExternalLink size={18} />
-            </a>
+          {appView === 'dashboard' && (
+            <>
+              <button
+                ref={regionToggleRef}
+                className={`dashboard-region-toggle${activeRegion ? ' has-active-region' : ''}`}
+                type="button"
+                aria-expanded={regionPanelOpen}
+                aria-controls="dashboard-regions-panel"
+                onClick={toggleRegionPanel}
+              >
+                <MapIcon size={17} />
+                <span>Regions</span>
+                {activeRegion && <small>{activeRegion.label}</small>}
+                <ChevronRight className={regionPanelOpen ? 'is-open' : ''} size={16} />
+              </button>
+
+              {regionPanelOpen && (
+                <aside id="dashboard-regions-panel" className="dashboard-region-panel" aria-label="Dashboard regions">
+                  <header>
+                    <div><span className="eyebrow">Roster grouping</span><h2>Regions</h2></div>
+                    <button className="icon-button" type="button" aria-label="Close regions" onClick={closeRegionPanel}><X size={18} /></button>
+                  </header>
+                  <button
+                    className={`dashboard-region-all${activeRegion === null ? ' active' : ''}`}
+                    type="button"
+                    aria-pressed={activeRegion === null}
+                    onClick={clearDashboardRegion}
+                  >
+                    <span><strong>All facilities</strong><small>Nationwide roster</small></span><b>{facilities.length}</b>
+                  </button>
+                  <div className="dashboard-region-list">
+                    {dashboardRegions.map((region) => {
+                      const expanded = region.id === expandedRegionId
+                      const active = region.id === activeRegionId
+                      const regionFacilities = facilities.filter((facility) => region.facilityNumbers.some((number) => number === facility.number))
+                      return (
+                        <section key={region.id} className={expanded ? 'dashboard-region-group is-expanded' : 'dashboard-region-group'}>
+                          <button
+                            className="dashboard-region-heading"
+                            type="button"
+                            aria-expanded={expanded}
+                            aria-pressed={active}
+                            aria-controls={`dashboard-region-${region.id}`}
+                            onClick={() => selectDashboardRegion(region.id)}
+                          >
+                            <span><strong>{region.label}</strong><small>{regionFacilities.length} {regionFacilities.length === 1 ? 'facility' : 'facilities'}</small></span>
+                            <ChevronRight size={16} />
+                          </button>
+                          {expanded && (
+                            <div id={`dashboard-region-${region.id}`} className="dashboard-region-facilities">
+                              {regionFacilities.map((facility) => (
+                                <button
+                                  key={facility.id}
+                                  className="dashboard-region-facility"
+                                  type="button"
+                                  data-testid="dashboard-region-facility"
+                                  data-facility-id={facility.id}
+                                  aria-label={`Open Facility ${String(facility.number).padStart(2, '0')}, ${getFacilityTitle(facility)}`}
+                                  onClick={() => chooseFacility(facility)}
+                                >
+                                  <FacilityPhoto media={getFacilityMedia(facility.id)} variant="thumbnail" />
+                                  <span><small>Facility {String(facility.number).padStart(2, '0')}</small><strong>{getFacilityTitle(facility)}</strong><span>{facility.fullAddress}</span></span>
+                                  <ChevronRight size={15} />
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </section>
+                      )
+                    })}
+                  </div>
+                  <div className="dashboard-focus-key"><i aria-hidden="true" /><span>Highlighted facilities</span><small>Illustrative</small></div>
+                </aside>
+              )}
+
+              {activeRegion && !regionPanelOpen && (
+                <div className="dashboard-focus-badge" data-testid="dashboard-focus-label"><i aria-hidden="true" />Highlighted facilities <small>Illustrative</small></div>
+              )}
+            </>
           )}
 
           {appView === 'locations' && <div className="overview-panel">
             <div className="panel-title"><strong>Facility Network</strong><button aria-label="About this prototype" onClick={() => setAboutOpen(true)}><Info size={16} /></button></div>
-            <div className="overview-metrics five-metrics">
+            <div className="overview-metrics">
               <div><Building2 /><b>{counts.total}</b><span>Facilities</span></div>
               <div><MapPin /><b>{counts.active}</b><span>Active</span></div>
               <div><MapPin /><b>{counts.coming}</b><span>Coming Soon</span></div>
-              <div><MapPin /><b>{counts.planned}</b><span>Planned</span></div>
-              <div><FileQuestion /><b>{counts.unassigned}</b><span>Unassigned</span></div>
             </div>
           </div>}
 
@@ -692,7 +910,7 @@ function App() {
               <button className={layer === 'satellite' ? 'active' : ''} aria-pressed={layer === 'satellite'} onClick={() => setLayer('satellite')}>Satellite</button>
             </div>
           </div>
-          <button className="recenter-control" aria-label="Recenter map" title="View all facilities" onClick={showOverview}><LocateFixed size={18} /></button>
+          <button className="recenter-control" aria-label="Recenter map" title={activeRegion ? `View ${activeRegion.label} facilities` : 'View all facilities'} onClick={showOverview}><LocateFixed size={18} /></button>
           {appView === 'locations' && <div className="map-legend" aria-label="Local facility status legend">
             {assignableStatuses.map((item) => <span key={item}><i style={{ background: statusColor[item] }} />{item}</span>)}
           </div>}
@@ -720,6 +938,7 @@ function App() {
                 <div><dt>City</dt><dd>{selected.city ?? 'Not provided'}</dd></div>
                 <div><dt>State</dt><dd>{selected.state} · {selected.stateName}</dd></div>
                 <div><dt>ZIP</dt><dd>{selected.zip ?? 'Not provided'}</dd></div>
+                <div className="detail-list-hours"><dt>Operating hours</dt><dd><OperatingHoursDisplay facilityId={selected.id} variant="drawer" /></dd></div>
                 <div><dt>Coordinates</dt><dd>{selected.coordinates.map((value) => value.toFixed(6)).join(', ')}</dd></div>
                 <div><dt>Coordinate precision</dt><dd>{selected.coordinatePrecision}</dd></div>
                 <div><dt>Coordinate source</dt><dd>{selected.coordinateSource}</dd></div>
@@ -777,6 +996,18 @@ function PhotosContent({ facility, media }: { facility: Facility; media?: Facili
 function OverviewContent({ facility, status, onStatusChange }: { facility: Facility; status: DisplayStatus; onStatusChange: (status: DisplayStatus) => void }) {
   return (
     <>
+      <section
+        className={`overview-map-card${facility.coordinatePrecision === 'Approximate' ? ' has-approximate-note' : ''}`}
+        data-testid="overview-map-preview"
+        data-facility-id={facility.id}
+        data-latitude={facility.coordinates[0]}
+        data-longitude={facility.coordinates[1]}
+        aria-label={`Map preview for ${facility.fullAddress}`}
+      >
+        <GoogleMapsOverview facility={facility} />
+        {facility.coordinatePrecision === 'Approximate' && <p className="overview-map-note"><Info size={14} />Approximate placement: the marker may be near, not exactly at, this facility.</p>}
+      </section>
+
       <section className="status-assignment">
         <div><span className="eyebrow">Local planning field</span><h2>Facility status</h2><p>All facility records are Active in this prototype data.</p></div>
         <label><span>Local status</span><select aria-label={`Set status for ${facility.fullAddress}`} value={status} onChange={(event) => onStatusChange(event.target.value as DisplayStatus)}>{assignableStatuses.map((item) => <option key={item}>{item}</option>)}</select></label>
@@ -789,6 +1020,7 @@ function OverviewContent({ facility, status, onStatusChange }: { facility: Facil
           <div><dt>City</dt><dd>{facility.city ?? 'Not provided'}</dd></div>
           <div><dt>State</dt><dd>{facility.state} · {facility.stateName}</dd></div>
           <div><dt>ZIP</dt><dd>{facility.zip ?? 'Not provided'}</dd></div>
+          <div className="known-details-hours"><dt>Operating hours</dt><dd><OperatingHoursDisplay facilityId={facility.id} variant="overview" /></dd></div>
         </dl>
       </section>
 
@@ -803,6 +1035,46 @@ function OverviewContent({ facility, status, onStatusChange }: { facility: Facil
         {facility.geocodeNote && <p className="geocode-warning"><Info size={14} />{facility.geocodeNote}</p>}
       </section>
     </>
+  )
+}
+
+function GoogleMapsOverview({ facility }: { facility: Facility }) {
+  const [embedState, setEmbedState] = useState<'loading' | 'loaded' | 'failed'>('loading')
+
+  useEffect(() => {
+    setEmbedState('loading')
+    const timeout = window.setTimeout(() => setEmbedState((current) => current === 'loading' ? 'failed' : current), 12_000)
+    return () => window.clearTimeout(timeout)
+  }, [facility.id])
+
+  const mapsUrl = googleMapsUrl(facility)
+
+  return (
+    <div className="overview-map-canvas" aria-busy={embedState === 'loading'}>
+      {embedState !== 'failed' ? (
+        <iframe
+          key={facility.id}
+          className="overview-map-embed"
+          data-testid="overview-map-embed"
+          src={googleMapsEmbedUrl(facility)}
+          title={`Google Maps preview for ${facility.fullAddress}`}
+          referrerPolicy="strict-origin-when-cross-origin"
+          loading="eager"
+          allowFullScreen
+          onLoad={() => setEmbedState((current) => current === 'loading' ? 'loaded' : current)}
+          onErrorCapture={() => setEmbedState('failed')}
+        />
+      ) : (
+        <div className="overview-map-fallback" data-testid="overview-map-fallback" role="status">
+          <MapPin size={22} />
+          <strong>Map preview unavailable</strong>
+          <span>Google Maps could not be loaded in this page.</span>
+          <a href={mapsUrl} target="_blank" rel="noopener noreferrer">Open in Maps <ExternalLink size={13} /></a>
+        </div>
+      )}
+      {embedState === 'loading' && <span className="overview-map-loading" role="status">Loading map...</span>}
+      {embedState !== 'failed' && <a className="overview-map-link" data-testid="overview-map-link" href={mapsUrl} target="_blank" rel="noopener noreferrer">Open in Maps <ExternalLink size={14} /></a>}
+    </div>
   )
 }
 
