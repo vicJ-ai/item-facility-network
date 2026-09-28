@@ -12,9 +12,13 @@ All 17 roster records show media: eight source-verified records from the officia
 
 The Tennessee address intentionally remains `4550 Quality Drive, TN` because no city or ZIP was supplied. Geocoder-inferred locality data is not added to the user-provided address.
 
+Facility operating hours are stored separately in `src/data/facility-hours.ts`. Thirteen current-roster facilities retain confidently mapped hours from the user-provided 26-row list. Tennessee, Las Vegas, and both El Paso facilities have hours confirmed by the user in a follow-up, separately from the original list. All 17 display 8:00 AM–4:30 PM M-F with the confirmed local abbreviation. The app preserves the literal PST, EST, CST, or MST abbreviation, does not convert timezones, and does not compute live open/closed status. Rows for facilities outside the current 17-record roster are not imported.
+
 ## Coordinates
 
 Map coordinates were resolved in September 2026 with the public Esri World Geocoding Service and are stored with a source, precision, returned match, and any relevant limitation in `src/data/facilities.ts`.
+
+The selected facility's Overview tab uses Google's keyless `www.google.com/maps?q=...&output=embed` iframe form with the supplied roster address. This is distinct from the official, key-required Google Maps Embed API v1: no API key is present or required by this prototype, and the undocumented keyless form may be less stable. If the frame is blocked or does not load, the UI falls back to an external Google Maps link.
 
 - Most records resolved to Esri `PointAddress` matches.
 - Riverside and both El Paso records resolved at `StreetAddress` precision.
@@ -57,7 +61,7 @@ docker build -t locations-network .
 docker run --rm -p 8080:8080 locations-network
 ```
 
-No runtime environment variables, credentials, database, or backend services are required. Basemap tiles are loaded in the browser from Esri and therefore require outbound client network access.
+No runtime environment variables, API keys, credentials, database, or backend services are required. Main-map basemap tiles are loaded in the browser from Esri, and the selected Overview map loads from Google Maps; both require outbound client network access.
 
 ## Quality checks
 
@@ -69,7 +73,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-The Playwright suite verifies all 17 exact addresses and previews, eight official records plus nine user-provided photos across three verification classifications, square thumbnail sizing, uncropped detail media, forced image-error fallback, mobile address wrapping, photo provenance, address/city/state/ZIP search, local status assignment and persistence, all status filters, marker and row selection without navigation, unavailable property states, light/dark persistence, and basemap switching.
+The Playwright suite verifies all 17 exact addresses and previews, eight official records plus nine user-provided photos across three verification classifications, the 13 original-list and four follow-up-confirmed operating-hours records, square thumbnail sizing, uncropped detail media, forced image-error fallback, mobile address wrapping, photo provenance, address/city/state/ZIP search, local status assignment and persistence, all status filters, marker and row selection without navigation, unavailable property states, light/dark persistence, and basemap switching.
 
 ## Map attribution
 
