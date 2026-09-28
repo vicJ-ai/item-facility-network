@@ -37,6 +37,53 @@ function boxesOverlap(a: { x: number; y: number; width: number; height: number }
   return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y
 }
 
+function mapsHref(address: string) {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`
+}
+
+async function expectMapActionLayout(page: Page) {
+  const map = page.getByLabel('Facility network map')
+  const action = page.getByTestId('map-open-in-maps')
+  const [mapBox, actionBox, attributionBox, legendBox] = await Promise.all([
+    map.boundingBox(),
+    action.boundingBox(),
+    map.locator('.leaflet-control-attribution').boundingBox(),
+    map.locator('.map-legend').boundingBox(),
+  ])
+
+  expect(mapBox).not.toBeNull()
+  expect(actionBox).not.toBeNull()
+  expect(actionBox!.width).toBeGreaterThanOrEqual(44)
+  expect(actionBox!.height).toBeGreaterThanOrEqual(44)
+  expect(actionBox!.x).toBeGreaterThanOrEqual(mapBox!.x)
+  expect(actionBox!.y).toBeGreaterThanOrEqual(mapBox!.y)
+  expect(actionBox!.x + actionBox!.width).toBeLessThanOrEqual(mapBox!.x + mapBox!.width)
+  expect(actionBox!.y + actionBox!.height).toBeLessThanOrEqual(mapBox!.y + mapBox!.height)
+  expect(attributionBox ? boxesOverlap(actionBox!, attributionBox) : true).toBe(false)
+  expect(legendBox ? boxesOverlap(actionBox!, legendBox) : true).toBe(false)
+}
+
+async function expectMapActionBrand(page: Page) {
+  const styles = await page.getByTestId('map-open-in-maps').evaluate((element) => {
+    const actionStyles = window.getComputedStyle(element)
+    const probe = document.createElement('span')
+    probe.style.backgroundColor = window.getComputedStyle(document.documentElement).getPropertyValue('--primary')
+    document.body.append(probe)
+    const primary = window.getComputedStyle(probe).backgroundColor
+    probe.remove()
+    return {
+      backgroundColor: actionStyles.backgroundColor,
+      borderColor: actionStyles.borderColor,
+      color: actionStyles.color,
+      primary,
+    }
+  })
+
+  expect(styles.backgroundColor).toBe(styles.primary)
+  expect(styles.borderColor).toBe(styles.primary)
+  expect(styles.color).toBe('rgb(255, 255, 255)')
+}
+
 async function chooseFromDirectory(page: Page, address: string) {
   await page.getByRole('button', { name: `Select ${address}` }).click()
   await expect(page.getByTestId('selected-showcase')).toContainText(address)
@@ -97,6 +144,7 @@ test('opens with the exact 17-address directory beside the map and no selected p
   expect(facilities).toHaveLength(17)
   expect(facilities.every((facility) => facility.status === 'Active')).toBe(true)
   await expect(page.getByRole('heading', { name: 'Facility 01', exact: true })).toHaveCount(0)
+  await expect(page.getByTestId('map-open-in-maps')).toHaveCount(0)
   await expectAllFacilitiesActive(page)
 
   const [directoryBox, mapBox] = await Promise.all([
@@ -204,6 +252,7 @@ test('Dashboard marker opens Locations showcase and returning clears detail and 
 
   await dashboardNav.click()
   await expectAllFacilitiesInMapBounds(map)
+  await expect(page.getByTestId('map-open-in-maps')).toHaveCount(0)
   await page.getByRole('button', { name: 'Open facility 12 in Locations' }).focus()
   await page.keyboard.press('Enter')
 
@@ -211,10 +260,13 @@ test('Dashboard marker opens Locations showcase and returning clears detail and 
   await expect(dashboardNav).not.toHaveAttribute('aria-current')
   await expect(page.getByTestId('selected-showcase')).toContainText(facility.fullAddress)
   await expectMapFocusedOn(map, facility.coordinates)
+  await expect(page.getByTestId('map-open-in-maps')).toBeVisible()
+  await expect(page.getByTestId('map-open-in-maps')).toHaveAttribute('href', mapsHref(facility.fullAddress))
 
   await dashboardNav.click()
   await expect(dashboardNav).toHaveAttribute('aria-current', 'page')
   await expect(page.getByTestId('selected-showcase')).toHaveCount(0)
+  await expect(page.getByTestId('map-open-in-maps')).toHaveCount(0)
   await expect(page.locator('.location-pin.is-selected')).toHaveCount(0)
   await expect(page.locator('.location-marker-wrap')).toHaveCount(17)
   await expectAllFacilitiesInMapBounds(map)
@@ -575,6 +627,53 @@ test('row and map marker selection share the in-place showcase and focus the per
   await expect(page.getByRole('heading', { name: `Facility ${String(markerFacility.number).padStart(2, '0')}` })).toBeVisible()
   await expectMapFocusedOn(map, markerFacility.coordinates)
   await expect(page).toHaveURL(startingUrl)
+})
+
+test('map Open in Maps action follows selection and clears with Dashboard', async ({ page }) => {
+  const action = page.getByTestId('map-open-in-maps')
+  const dashboardNav = page.getByRole('button', { name: 'Dashboard', exact: true })
+  const firstFacility = facilities[0]
+  const nextFacility = facilities[9]
+
+  await expect(action).toHaveCount(0)
+  await chooseFromDirectory(page, firstFacility.fullAddress)
+  await expect(action).toBeVisible()
+  await expect(action).toHaveText('Open in Maps')
+  await expect(action).toHaveAttribute('href', mapsHref(firstFacility.fullAddress))
+  await expect(action).toHaveAttribute('target', '_blank')
+  await expect(action).toHaveAttribute('rel', /noopener/)
+  await expect(action).toHaveAttribute('rel', /noreferrer/)
+  await expectMapActionBrand(page)
+  await expectMapActionLayout(page)
+
+  for (let attempt = 0; attempt < 50 && !(await action.evaluate((element) => element === document.activeElement)); attempt += 1) {
+    await page.keyboard.press('Tab')
+  }
+  await expect(action).toBeFocused()
+  await expect(action).toHaveCSS('outline-style', 'solid')
+  await expect(action).toHaveCSS('outline-width', '3px')
+
+  await returnToDirectory(page)
+  await chooseFromDirectory(page, nextFacility.fullAddress)
+  await expect(action).toHaveAttribute('href', mapsHref(nextFacility.fullAddress))
+
+  await dashboardNav.click()
+  await expect(action).toHaveCount(0)
+})
+
+test('map Open in Maps action stays inside the mobile map without covering map credits', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.reload()
+  const facility = facilities[0]
+
+  await expect(page.getByTestId('map-open-in-maps')).toHaveCount(0)
+  await chooseFromDirectory(page, facility.fullAddress)
+  await page.getByRole('button', { name: 'Map', exact: true }).click()
+
+  const action = page.getByTestId('map-open-in-maps')
+  await expect(action).toBeVisible()
+  await expect(action).toHaveAttribute('href', mapsHref(facility.fullAddress))
+  await expectMapActionLayout(page)
 })
 
 test('back and Escape restore the directory with search/filter state and selected pin intact', async ({ page }) => {

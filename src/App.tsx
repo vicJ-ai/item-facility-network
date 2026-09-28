@@ -662,6 +662,18 @@ function App() {
             })}
           </MapContainer>
 
+          {appView === 'locations' && selected && (
+            <a
+              className="map-open-in-maps"
+              data-testid="map-open-in-maps"
+              href={googleMapsUrl(selected)}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Open in Maps <ExternalLink size={18} />
+            </a>
+          )}
+
           {appView === 'locations' && <div className="overview-panel">
             <div className="panel-title"><strong>Facility Network</strong><button aria-label="About this prototype" onClick={() => setAboutOpen(true)}><Info size={16} /></button></div>
             <div className="overview-metrics five-metrics">
