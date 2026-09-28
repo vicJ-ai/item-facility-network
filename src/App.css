@@ -70,6 +70,11 @@ body.is-resizing-explorer, body.is-resizing-explorer * { cursor: col-resize !imp
 .layer-switch button { height: 29px; padding: 0 9px; border: 0; border-radius: 5px; color: var(--muted); background: transparent; font-size: 11px; }
 .layer-switch button.active { color: #fff; background: var(--primary); }
 .recenter-control { position: absolute; z-index: 500; right: 12px; top: 144px; width: 34px; height: 34px; display: grid; place-items: center; color: var(--text); border: 0; border-radius: 6px; background: var(--surface); box-shadow: var(--shadow); }
+.map-open-in-maps { position: absolute; z-index: 600; right: 12px; bottom: 68px; min-height: 48px; max-width: calc(100% - 24px); padding: 0 18px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; border: 1px solid var(--primary); border-radius: 7px; color: #fff; background: var(--primary); box-shadow: 0 8px 24px rgba(6, 28, 51, .3); font-size: 14px; font-weight: 800; text-decoration: none; transition: color .16s ease, background .16s ease, border-color .16s ease, box-shadow .16s ease, transform .16s ease; }
+.map-open-in-maps:hover { color: #fff; background: var(--primary-strong); border-color: var(--primary-strong); box-shadow: 0 10px 28px rgba(6, 28, 51, .36); transform: translateY(-1px); }
+.map-open-in-maps:active { color: #fff; background: var(--primary-strong); border-color: var(--primary-strong); box-shadow: 0 5px 16px rgba(6, 28, 51, .28); transform: translateY(0); }
+.map-open-in-maps:focus-visible { outline: 3px solid #fff; outline-offset: 3px; box-shadow: 0 0 0 6px var(--primary), 0 10px 28px rgba(6, 28, 51, .36); }
+.map-open-in-maps svg { flex: 0 0 auto; }
 .map-legend { position: absolute; z-index: 500; left: 18px; bottom: 18px; display: flex; align-items: center; gap: 16px; padding: 9px 12px; border: 1px solid rgba(255,255,255,.24); border-radius: 7px; color: #fff; background: rgba(5,24,42,.9); font-size: 11px; font-weight: 600; }
 .map-legend span { display: flex; align-items: center; gap: 6px; }
 .map-legend i { width: 11px; height: 11px; border: 2px solid #fff; border-radius: 50%; }
@@ -301,6 +306,7 @@ td:last-child { width: 20px; padding-left: 0; }
   .overview-metrics > div { grid-template-columns: 1fr; grid-template-rows: 25px 20px; justify-items: center; padding: 5px 2px; } .overview-metrics svg { display: none; }
   .overview-metrics b { font-size: 18px; } .overview-metrics span { font-size: 9px; } .map-tools { top: 163px; left: 10px; right: auto; }
   .leaflet-control-zoom { margin-top: 165px !important; } .recenter-control { top: 243px; } .map-legend { left: 10px; right: 10px; bottom: 12px; justify-content: space-around; gap: 5px; }
+  .map-open-in-maps { right: 10px; bottom: 64px; min-height: 46px; max-width: calc(100% - 20px); padding: 0 15px; }
   .leaflet-tooltip.pin-label { display: none; }
   .lower-grid { min-height: 0; display: block; padding: 8px; } .site-card { height: 440px; }
   .card-heading { min-height: 52px; } .list-filters { grid-template-columns: 1fr 118px; }
