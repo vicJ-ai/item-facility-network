@@ -29,6 +29,49 @@ The exact source-derived alt descriptions are stored with both variants in `src/
 | `el-paso-emerald-12100` | `/media/thumbnails/el-paso-emerald-12100.webp` | `/media/el-paso-emerald-12100.jpg` | User-provided screenshot (no public source URL) | User-provided photo supplied as a screenshot on 2026-09-27. The address/building association was verified by the user who supplied it and was not independently verified by this prototype. This is not official UNIS listing media; the original image source and publication rights are not verified. The source image is a Google Maps screenshot containing a visible Google copyright/attribution notice; the notice is retained in the uncropped detail asset. |
 | `el-paso-emerald-12102-building-5` | `/media/thumbnails/el-paso-emerald-12102-building-5.webp` | `/media/el-paso-emerald-12102-building-5.jpg` | User-provided screenshot (no public source URL) | User-provided photo supplied as a screenshot on 2026-09-27. The address/building association was verified by the user who supplied it and was not independently verified by this prototype. This is not official UNIS listing media; the original image source and publication rights are not verified. The source image is a Google Maps screenshot containing a visible Google copyright/attribution notice; the notice is retained in the uncropped detail asset. |
 
+## Supplied facility galleries
+
+The following 40 files form thirteen separate user-provided galleries. They are displayed above the existing media record and do not replace or relabel it. Full-size links use the original local bytes.
+
+| Facility ID | Photos | Local directory | Cover within gallery | Notes |
+| --- | ---: | --- | --- | --- |
+| `buena-park-valley-view` | 4 | `/media/buena-park/` | Building exterior | Includes two interiors and an aerial yard view. |
+| `moreno-valley-heacock` | 3 | `/media/moreno-valley/` | Exterior wide | Exterior and interior views. |
+| `houston-citypark` | 1 | `/media/houston/` | Aerial site context | Broad context, not a ground exterior or exact parcel outline. |
+| `roanoke-highway-114` | 4 | `/media/roanoke/` | Front exterior | Regional aerial is labeled as context. |
+| `pooler-morgan-lakes` | 3 | `/media/pooler-morgan-lakes/` | Building exterior | Exterior visibly shows 335; no satellite was supplied. |
+| `summerville-cypress-tradeport` | 3 | `/media/summerville/` | Building exterior | Exterior, truck-yard, and interior views. |
+| `tennessee-quality-drive` | 1 | `/media/tennessee-quality-drive/` | Oblique aerial exterior | No separate satellite, ground-level, or interior photo was supplied. |
+| `jacksonville-ignition` | 5 | `/media/jacksonville/` | Building exterior | Satellite image is regional context across multiple buildings. |
+| `las-vegas-marion-building-5` | 1 | `/media/las-vegas/` | Building exterior | No satellite or PDF mentioned by the batch README was supplied. |
+| `el-paso-emerald-12100` | 5 | `/media/el-paso-12100/` | Building exterior | Source `.jpg` names contained PNG bytes; local `.png` paths preserve those bytes. |
+| `long-beach-willow` | 4 | `/media/long-beach/` | Warehouse aerial | Satellite and street-view images are contextual and do not prove the exact parcel. |
+| `joliet-brandon` | 3 | `/media/joliet/` | Street-view exterior | Aerial is broad industrial context. |
+| `el-paso-emerald-12102-building-5` | 3 | `/media/el-paso-building-5/` | Warehouse exterior | `fullforce-7.jpg` was excluded because it visibly depicts Building 6; no satellite was supplied. |
+
+Facility 07 `pooler-seabrook-building-2` has no separate gallery, but its existing target user-provided screenshot remains available in roster, detail, Photos, and PDF views.
+
+## Supplied site plans
+
+Fourteen facilities have plan assets under `/media/site-plans/`. The UI and generated PDF use only the facts recorded in `src/data/facility-site-plans.ts`; counts describe the drawing and are not live availability claims.
+
+| Facility ID | Plan provenance and limits |
+| --- | --- |
+| `buena-park-valley-view` | User-provided plan; 1,034,026 SF and the displayed dock, trailer, and car-parking totals. |
+| `riverside-alessandro` | User-provided footprint redraw marked not to scale; not an original official plan. |
+| `moreno-valley-heacock` | Supplied plan with building, trailer capacity, and excess-yard facts. |
+| `houston-citypark` | User-provided plan; only the explicitly labeled 254,229 SF is recorded. |
+| `roanoke-highway-114` | Plan-labeled dock/car/trailer totals; 568,632 SF is separately attributed `Provided by user` and is not claimed to appear on the drawing. |
+| `pooler-morgan-lakes` | Supplied reference layout marked not to scale. |
+| `summerville-cypress-tradeport` | User-provided plan with labeled area and summed parking, dock, ramp, and trailer components. |
+| `tennessee-quality-drive` | User-provided plan with 220,100 SF and 122 auto spaces; no dock total is inferred. |
+| `jacksonville-ignition` | User-provided plan; 174,288 SF is labeled within one segment and is not presented as a total beside the leased segment. |
+| `las-vegas-marion-building-5` | Source crop assigns only the explicit 271,616 SF to Building 5. |
+| `el-paso-emerald-12100` | Source filename identifies Building 6; the drawing itself does not print a building number. The plan is associated only with the 12100 record. |
+| `long-beach-willow` | User-provided plan with the facts explicitly printed along West Willow Street. |
+| `joliet-brandon` | User-provided layout; 354 auto stalls are labeled as expandable plan capacity, not current parking availability. |
+| `el-paso-emerald-12102-building-5` | User-provided plan explicitly labeled Building 5; neighboring cut-off areas are not assigned to it. |
+
 ## Withheld mappings
 
 The official 300 Seabrook listing does not distinguish Building 2, so no official image was assigned; that record now uses the separately supplied, user-verified photo documented above. The official 251 Morgan Lakes listing image was not reused for the 335 Morgan Lakes record; that record also uses its separately supplied, user-verified photo. All 17 roster records now have media; no roster record uses the neutral fallback. No neighboring, stock, or guessed images are substituted.

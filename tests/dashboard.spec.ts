@@ -1,7 +1,12 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
+import { createHash } from 'node:crypto'
+import { readFile } from 'node:fs/promises'
+import { PDFDocument } from 'pdf-lib'
 import { facilities } from '../src/data/facilities'
 import { CONFIRMED_OPERATING_HOURS_SOURCE, facilityOperatingHours, formatOperatingHours, OPERATING_HOURS_SOURCE } from '../src/data/facility-hours'
 import { facilityMedia } from '../src/data/facility-media'
+import { facilitySitePlans } from '../src/data/facility-site-plans'
+import { userProvidedFacilityPhotos } from '../src/data/facility-user-photos'
 
 const suppliedAddresses = [
   '6800 Valley View St., Buena Park, CA 90620',
@@ -177,6 +182,75 @@ async function chooseFromDirectory(page: Page, address: string) {
 async function returnToDirectory(page: Page) {
   await page.getByRole('button', { name: 'All facilities' }).click()
   await expect(page.getByRole('heading', { name: 'Facility directory' })).toBeVisible()
+}
+
+async function downloadFacilityProfile(page: Page, address: string, expectedFilename: string, options: { assertLoading?: boolean } = {}) {
+  await chooseFromDirectory(page, address)
+  await page.getByRole('tab', { name: 'Documents' }).click()
+  const panel = page.locator('.facility-documents')
+  await expect(panel.getByRole('heading', { name: 'Facility profile PDF' })).toBeVisible()
+  await expect(panel).toContainText('generated from the current portal data')
+  await expect(panel).not.toContainText('Documents not provided')
+
+  if (options.assertLoading) {
+    await page.evaluate(() => {
+      const originalFetch = window.fetch.bind(window)
+      window.fetch = async (...args) => {
+        const input = args[0]
+        const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+        if (url.includes('/media/buena-park/building-exterior.jpg')) {
+          await new Promise((resolve) => window.setTimeout(resolve, 600))
+        }
+        return originalFetch(...args)
+      }
+    })
+  }
+
+  const assetRequests: string[] = []
+  const recordFetch = (request: { resourceType: () => string; url: () => string }) => {
+    if (request.resourceType() === 'fetch') assetRequests.push(request.url())
+  }
+  page.on('request', recordFetch)
+  const button = panel.getByRole('button', { name: 'Download facility profile PDF' })
+  if (options.assertLoading) {
+    await button.evaluate((element: HTMLButtonElement) => {
+      const state = window as Window & { __pdfLoadingObserved?: boolean }
+      state.__pdfLoadingObserved = false
+      const observer = new MutationObserver(() => {
+        if (element.disabled && element.textContent?.includes('Generating PDF')) {
+          state.__pdfLoadingObserved = true
+          observer.disconnect()
+        }
+      })
+      observer.observe(element, { attributes: true, childList: true, subtree: true })
+    })
+  }
+  const downloadPromise = page.waitForEvent('download')
+  await button.evaluate((element: HTMLButtonElement) => element.click())
+  const download = await downloadPromise
+  page.off('request', recordFetch)
+
+  expect(download.suggestedFilename()).toBe(expectedFilename)
+  if (options.assertLoading) expect(await page.evaluate(() => (window as Window & { __pdfLoadingObserved?: boolean }).__pdfLoadingObserved)).toBe(true)
+  await expect(panel).toContainText('PDF download ready')
+  for (const url of assetRequests) expect(new URL(url).origin).toBe('http://127.0.0.1:4191')
+
+  const path = await download.path()
+  expect(path).not.toBeNull()
+  const bytes = await readFile(path!)
+  expect(bytes.subarray(0, 4).toString('ascii')).toBe('%PDF')
+  const pdf = await PDFDocument.load(bytes)
+  expect(pdf.getPageCount()).toBe(4)
+  for (const pdfPage of pdf.getPages()) {
+    expect(pdfPage.getWidth()).toBe(612)
+    expect(pdfPage.getHeight()).toBe(792)
+  }
+  expect(pdf.getSubject()).toBe(address)
+  return {
+    title: pdf.getTitle() ?? '',
+    keywords: pdf.getKeywords() ?? '',
+    assetPaths: assetRequests.map((url) => new URL(url).pathname),
+  }
 }
 
 async function expectMapFocusedOn(map: Locator, coordinates: readonly [number, number]) {
@@ -1203,92 +1277,51 @@ test('selected Photos tab distinguishes official and user-provided media', async
   await expect(detailImage).toHaveCSS('object-fit', 'contain')
 
   await page.getByRole('tab', { name: 'Photos' }).click()
-  await expect(page.locator('.photo-detail img')).toBeVisible()
-  await expect(page.locator('.photo-detail img')).toHaveCSS('object-fit', 'contain')
-  await expect(page.locator('.photo-detail').getByRole('link', { name: 'Official UNIS page' })).toHaveAttribute('href', 'https://www.unisco.com/locations/facility/buena-park-ca')
-  await expect(page.locator('.photo-detail').getByRole('link', { name: 'Official image' })).toHaveAttribute('href', /cdn\.unisco\.com/)
-  await expect(page.locator('.photo-detail').getByRole('link', { name: 'Directory preview' })).toHaveAttribute('href', 'https://cdn.unisco.com/api/media/file/buenapark-ca-500x500.webp')
-  await expect(page.locator('.photo-detail')).toContainText('2026-09-25')
+  const buenaGallery = page.getByRole('region', { name: `User-provided photos for ${suppliedAddresses[0]}` })
+  await expect(buenaGallery.locator('.user-photo-card')).toHaveCount(4)
+  await expect(buenaGallery.locator('img').first()).toHaveAttribute('src', '/media/buena-park/building-exterior.jpg')
+  await expect(buenaGallery.locator('img').first()).toHaveCSS('object-fit', 'contain')
+  const buenaExisting = page.getByRole('region', { name: `Existing media record for ${suppliedAddresses[0]}` })
+  await expect(buenaExisting).toContainText('Official listing media')
+  await expect(buenaExisting.getByRole('link', { name: 'Official UNIS page' })).toHaveAttribute('href', 'https://www.unisco.com/locations/facility/buena-park-ca')
+  await expect(buenaExisting.locator('img')).toHaveAttribute('src', '/media/buena-park-valley-view.jpg')
+  await expect(buenaExisting).toContainText('2026-09-25')
 
   await returnToDirectory(page)
   await chooseFromDirectory(page, suppliedAddresses[7])
   await page.getByRole('tab', { name: 'Photos' }).click()
-  await expect(page.locator('.photo-detail')).toContainText('does not verify building or coordinate identity')
+  await expect(page.getByRole('region', { name: `User-provided photos for ${suppliedAddresses[7]}` }).locator('.user-photo-card')).toHaveCount(3)
+  await expect(page.getByRole('region', { name: `Existing media record for ${suppliedAddresses[7]}` })).toContainText('does not verify building or coordinate identity')
 
-  await returnToDirectory(page)
-  await chooseFromDirectory(page, suppliedAddresses[2])
-  await expect(page.locator('.facility-photo-detail img')).toHaveAttribute('src', '/media/moreno-valley-heacock.jpg')
-  await expect(page.locator('.facility-photo-detail img')).toHaveCSS('object-fit', 'contain')
-  await page.getByRole('tab', { name: 'Photos' }).click()
-  await expect(page.locator('.photo-detail img')).toHaveAttribute('src', '/media/moreno-valley-heacock.jpg')
-  await expect(page.locator('.photo-detail')).toContainText('User-provided photo')
-  await expect(page.locator('.photo-detail')).not.toContainText('Official listing media')
-  await expect(page.locator('.photo-detail')).toContainText('not official UNIS listing media')
-  await expect(page.locator('.photo-detail').getByRole('link', { name: 'Google Maps place' })).toHaveAttribute('href', facilityMedia['moreno-valley-heacock'].sourcePage)
-
-  await returnToDirectory(page)
-  await chooseFromDirectory(page, suppliedAddresses[3])
-  await expect(page.locator('.facility-photo-detail img')).toHaveAttribute('src', '/media/houston-citypark.jpg')
-  await expect(page.locator('.facility-photo-detail img')).toHaveCSS('object-fit', 'contain')
-  await page.getByRole('tab', { name: 'Photos' }).click()
-  await expect(page.locator('.photo-detail img')).toHaveAttribute('src', '/media/houston-citypark.jpg')
-  await expect(page.locator('.photo-detail')).toContainText('User-provided photo')
-  await expect(page.locator('.photo-detail')).not.toContainText('Official listing media')
-  await expect(page.locator('.photo-detail')).toContainText('not official UNIS listing media')
-  await expect(page.locator('.photo-detail')).toContainText('user-provided screenshot (no public source URL)')
-  await expect(page.locator('.photo-caption dl a')).toHaveCount(0)
-
-  await returnToDirectory(page)
-  await chooseFromDirectory(page, suppliedAddresses[5])
-  await expect(page.locator('.facility-photo-detail img')).toHaveAttribute('src', '/media/pooler-morgan-lakes.jpg')
-  await expect(page.locator('.facility-photo-detail img')).toHaveCSS('object-fit', 'contain')
-  await page.getByRole('tab', { name: 'Photos' }).click()
-  await expect(page.locator('.photo-detail img')).toHaveAttribute('src', '/media/pooler-morgan-lakes.jpg')
-  await expect(page.locator('.photo-detail')).toContainText('User-provided photo')
-  await expect(page.locator('.photo-detail')).not.toContainText('Official listing media')
-  await expect(page.locator('.photo-detail')).toContainText('not official UNIS listing media')
-  await expect(page.locator('.photo-detail')).toContainText('user-provided screenshot (no public source URL)')
-  await expect(page.locator('.photo-caption dl a')).toHaveCount(0)
-
-  for (const [address, detailAsset] of [
-    [suppliedAddresses[6], '/media/pooler-seabrook-building-2.jpg'],
-    [suppliedAddresses[11], '/media/jacksonville-ignition.jpg'],
+  for (const [address, detailAsset, galleryCount] of [
+    [suppliedAddresses[2], '/media/moreno-valley-heacock.jpg', 3],
+    [suppliedAddresses[3], '/media/houston-citypark.jpg', 1],
+    [suppliedAddresses[5], '/media/pooler-morgan-lakes.jpg', 3],
+    [suppliedAddresses[8], '/media/tennessee-quality-drive.jpg', 1],
+    [suppliedAddresses[11], '/media/jacksonville-ignition.jpg', 5],
+    [suppliedAddresses[12], '/media/las-vegas-marion-building-5.jpg', 1],
   ] as const) {
     await returnToDirectory(page)
     await chooseFromDirectory(page, address)
     await expect(page.locator('.facility-photo-detail img')).toHaveAttribute('src', detailAsset)
     await expect(page.locator('.facility-photo-detail img')).toHaveCSS('object-fit', 'contain')
     await page.getByRole('tab', { name: 'Photos' }).click()
-    await expect(page.locator('.photo-detail img')).toHaveAttribute('src', detailAsset)
-    await expect(page.locator('.photo-detail')).toContainText('User-provided photo')
-    await expect(page.locator('.photo-detail')).not.toContainText('Official listing media')
-    await expect(page.locator('.photo-detail')).toContainText('not official UNIS listing media')
-    await expect(page.locator('.photo-detail')).toContainText('user-provided screenshot (no public source URL)')
-    await expect(page.locator('.photo-caption dl a')).toHaveCount(0)
+    await expect(page.getByRole('region', { name: `User-provided photos for ${address}` }).locator('.user-photo-card')).toHaveCount(galleryCount)
+    const existing = page.getByRole('region', { name: `Existing media record for ${address}` })
+    await expect(existing.locator('img')).toHaveAttribute('src', detailAsset)
+    await expect(existing).toContainText('User-provided photo')
+    await expect(existing).not.toContainText('Official listing media')
+    await expect(existing).toContainText('not official UNIS listing media')
   }
 
   await returnToDirectory(page)
-  await chooseFromDirectory(page, suppliedAddresses[8])
-  await expect(page.locator('.facility-photo-detail img')).toHaveAttribute('src', '/media/tennessee-quality-drive.jpg')
-  await expect(page.locator('.facility-photo-detail img')).toHaveCSS('object-fit', 'contain')
+  await chooseFromDirectory(page, suppliedAddresses[6])
   await page.getByRole('tab', { name: 'Photos' }).click()
-  await expect(page.locator('.photo-detail img')).toHaveAttribute('src', '/media/tennessee-quality-drive.jpg')
+  await expect(page.getByRole('region', { name: `User-provided photos for ${suppliedAddresses[6]}` })).toHaveCount(0)
+  await expect(page.locator('.photo-detail img')).toHaveAttribute('src', '/media/pooler-seabrook-building-2.jpg')
   await expect(page.locator('.photo-detail')).toContainText('User-provided photo')
   await expect(page.locator('.photo-detail')).not.toContainText('Official listing media')
   await expect(page.locator('.photo-detail')).toContainText('not official UNIS listing media')
-  await expect(page.locator('.photo-detail')).toContainText('© 2025 Google')
-  await expect(page.locator('.photo-detail')).toContainText('retained in the uncropped detail asset')
-  await expect(page.locator('.photo-caption dl a')).toHaveCount(0)
-
-  await returnToDirectory(page)
-  await chooseFromDirectory(page, suppliedAddresses[12])
-  await expect(page.locator('.facility-photo-detail img')).toHaveAttribute('src', '/media/las-vegas-marion-building-5.jpg')
-  await expect(page.locator('.facility-photo-detail img')).toHaveCSS('object-fit', 'contain')
-  await page.getByRole('tab', { name: 'Photos' }).click()
-  await expect(page.locator('.photo-detail img')).toHaveAttribute('src', '/media/las-vegas-marion-building-5.jpg')
-  await expect(page.locator('.photo-detail')).toContainText('User-provided photo')
-  await expect(page.locator('.photo-detail')).not.toContainText('Official listing media')
-  await expect(page.locator('.photo-detail')).toContainText('visible Google copyright/attribution notice')
   await expect(page.locator('.photo-caption dl a')).toHaveCount(0)
 })
 
@@ -1462,12 +1495,16 @@ test('mobile List/Map flow keeps full addresses readable and selected details sc
 })
 
 test('property tabs show honest unavailable states and coordinate limitations', async ({ page }) => {
-  await chooseFromDirectory(page, suppliedAddresses[0])
+  await chooseFromDirectory(page, suppliedAddresses[6])
   await expect(page.getByTestId('selected-showcase').locator('.street-view-caveat')).toHaveCount(0)
   await page.getByRole('tab', { name: 'Site Plan' }).click()
   await expect(page.getByText('Site plan not provided')).toBeVisible()
   await page.getByRole('tab', { name: 'Documents' }).click()
-  await expect(page.getByText('Documents not provided')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Facility profile PDF' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Download facility profile PDF' })).toBeEnabled()
+  await expect(page.locator('.facility-documents')).toContainText('Explicit site-plan unavailable state')
+  await expect(page.locator('.facility-documents')).toContainText('Existing user-provided photo')
+  await expect(page.locator('.facility-documents')).not.toContainText('Documents not provided')
   await page.getByRole('tab', { name: 'Operations' }).click()
   await expect(page.getByText('Operations data unavailable')).toBeVisible()
 
@@ -1476,6 +1513,100 @@ test('property tabs show honest unavailable states and coordinate limitations', 
   await expect(page.getByText('Approximate').first()).toBeVisible()
   await expect(page.getByTestId('selected-showcase').locator('.street-view-caveat')).toHaveCount(0)
   await expect(page.getByTestId('selected-showcase')).toContainText('closest point-address match conflicts')
+})
+
+test('facility gallery and site-plan sidecars retain all integrated records and serve exact local bytes', async ({ page }) => {
+  expect(Object.keys(userProvidedFacilityPhotos)).toHaveLength(13)
+  expect(Object.values(userProvidedFacilityPhotos).reduce((count, gallery) => count + gallery.photos.length, 0)).toBe(40)
+  expect(Object.keys(facilitySitePlans)).toHaveLength(14)
+  expect(userProvidedFacilityPhotos['pooler-seabrook-building-2']).toBeUndefined()
+  expect(facilitySitePlans['pooler-seabrook-building-2']).toBeUndefined()
+  expect(facilityMedia['pooler-seabrook-building-2'].verification).toBe('user-provided-address-user-verified')
+  expect(facilitySitePlans['roanoke-highway-114']?.facts[0]).toMatchObject({ value: 568_632, unit: 'SF', note: 'Provided by user' })
+  expect(facilitySitePlans['riverside-alessandro']?.sourceNote).toContain('not to scale')
+  expect(facilitySitePlans['pooler-morgan-lakes']?.sourceNote).toContain('not to scale')
+
+  const assetUrls = [
+    ...Object.values(userProvidedFacilityPhotos).flatMap((gallery) => gallery.photos.map((photo) => photo.assetUrl)),
+    ...Object.values(facilitySitePlans).map((plan) => plan.assetUrl),
+  ]
+  expect(assetUrls).toHaveLength(54)
+  expect(new Set(assetUrls).size).toBe(54)
+
+  for (const assetUrl of assetUrls) {
+    const [response, localBytes] = await Promise.all([
+      page.request.get(assetUrl),
+      readFile(`public${assetUrl}`),
+    ])
+    expect(response.ok(), assetUrl).toBe(true)
+    const responseBytes = await response.body()
+    expect(createHash('sha256').update(responseBytes).digest('hex'), assetUrl)
+      .toBe(createHash('sha256').update(localBytes).digest('hex'))
+  }
+})
+
+test('site-plan tabs show sourced facts, redraw notes, and the unaffected Seabrook empty state', async ({ page }) => {
+  for (const [address, imagePath, expectedText] of [
+    [suppliedAddresses[0], '/media/site-plans/buena-park-valley-view.png', '1,034,026 SF'],
+    [suppliedAddresses[1], '/media/site-plans/riverside-alessandro-redraw.png', 'Supplied redraw; not to scale and not an original official plan.'],
+    [suppliedAddresses[4], '/media/site-plans/roanoke-highway-114.png', 'Provided by user'],
+  ] as const) {
+    await chooseFromDirectory(page, address)
+    await page.getByRole('tab', { name: 'Site Plan' }).click()
+    const panel = page.getByRole('region', { name: `Site plan for ${address}` })
+    await expect(panel.locator('img')).toHaveAttribute('src', imagePath)
+    await expect(panel.locator('img')).toHaveCSS('object-fit', 'contain')
+    await expect(panel.getByRole('link', { name: 'Open full-size site plan in a new tab' })).toHaveAttribute('href', imagePath)
+    await expect(panel).toContainText(expectedText)
+    await expect(panel).not.toContainText(/currently available|currently occupied/i)
+    await returnToDirectory(page)
+  }
+
+  await chooseFromDirectory(page, suppliedAddresses[6])
+  await page.getByRole('tab', { name: 'Site Plan' }).click()
+  await expect(page.getByText('Site plan not provided')).toBeVisible()
+})
+
+test('facility profile downloads are four-page selected-facility PDFs with hours and media provenance', async ({ page }) => {
+  test.setTimeout(120_000)
+
+  const buenaPark = await downloadFacilityProfile(page, suppliedAddresses[0], 'facility-01-buena-park-valley-view-profile.pdf', { assertLoading: true })
+  expect(buenaPark.title).toContain('Facility 01')
+  expect(buenaPark.keywords).toContain(suppliedAddresses[0])
+  expect(buenaPark.keywords).toContain('1,034,026 SF')
+  expect(buenaPark.keywords).toContain('Building exterior')
+  expect(buenaPark.keywords).toContain('User-provided media')
+  expect(buenaPark.keywords).toContain('8:00 AM–4:30 PM PST M-F')
+  expect(buenaPark.keywords).toContain('User-provided · As supplied')
+  expect(buenaPark.keywords).not.toContain('709,081 SF')
+  expect(buenaPark.assetPaths.every((path) => path.startsWith('/media/buena-park/') || path === '/media/site-plans/buena-park-valley-view.png')).toBe(true)
+
+  await returnToDirectory(page)
+  const riverside = await downloadFacilityProfile(page, suppliedAddresses[1], 'facility-02-riverside-alessandro-profile.pdf')
+  expect(riverside.keywords).toContain(suppliedAddresses[1])
+  expect(riverside.keywords).toContain('709,081 SF')
+  expect(riverside.keywords).toContain('Supplied redraw; not to scale and not an original official plan.')
+  expect(riverside.keywords).toContain('Official UNIS directory listing media')
+  expect(riverside.keywords).not.toContain('1,034,026 SF')
+  expect(riverside.assetPaths.every((path) => path === '/media/riverside-alessandro.jpg' || path === '/media/site-plans/riverside-alessandro-redraw.png')).toBe(true)
+
+  await returnToDirectory(page)
+  const roanoke = await downloadFacilityProfile(page, suppliedAddresses[4], 'facility-05-roanoke-highway-114-profile.pdf')
+  expect(roanoke.keywords).toContain(suppliedAddresses[4])
+  expect(roanoke.keywords).toContain('568,632 SF')
+  expect(roanoke.keywords).toContain('Provided by user')
+  expect(roanoke.keywords).toContain('8:00 AM–4:30 PM CST M-F')
+  expect(roanoke.keywords).not.toMatch(/airport distance|port distance|currently available/i)
+  expect(roanoke.assetPaths.every((path) => path.startsWith('/media/roanoke/') || path === '/media/site-plans/roanoke-highway-114.png')).toBe(true)
+
+  await returnToDirectory(page)
+  const seabrook = await downloadFacilityProfile(page, suppliedAddresses[6], 'facility-07-pooler-seabrook-building-2-profile.pdf')
+  expect(seabrook.keywords).toContain(suppliedAddresses[6])
+  expect(seabrook.keywords).toContain('Site plan not provided')
+  expect(seabrook.keywords).toContain('Specific advantages not supplied')
+  expect(seabrook.keywords).toContain('User-provided screenshot media')
+  expect(seabrook.keywords).not.toContain('499,500 SF')
+  expect(seabrook.assetPaths).toEqual(['/media/pooler-seabrook-building-2.jpg'])
 })
 
 test('theme persistence remains functional', async ({ page }) => {
