@@ -188,10 +188,10 @@ async function expectDashboardPreviewLayout(page: Page, map: Locator, facility: 
   const { totalSquareFeet } = getFacilitySquareFootage(facility.id)
   const squareFootageTotal = preview.getByTestId('square-footage-total')
   if (totalSquareFeet === undefined) await expect(squareFootageTotal).toHaveCount(0)
-  else await expect(squareFootageTotal).toHaveText(`Total ${totalSquareFeet.toLocaleString('en-US')} SF`)
+  else await expect(squareFootageTotal).toHaveText(`Total ${totalSquareFeet.toLocaleString('en-US')} SQF`)
   const squareFootageAvailable = preview.getByTestId('square-footage-available')
   await expect(squareFootageAvailable).toHaveAttribute('data-available-status', 'pending')
-  await expect(squareFootageAvailable).toHaveText('Available Pending — warehouse to update monthly')
+  await expect(squareFootageAvailable).toHaveText('Available Pending')
   await expect(image).toHaveAttribute('src', facilityMedia[facility.id].thumbnail.assetUrl)
   await expect.poll(() => image.evaluate((element: HTMLImageElement) => element.complete && element.naturalWidth > 0 && element.naturalHeight > 0)).toBe(true)
 

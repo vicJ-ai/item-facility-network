@@ -144,11 +144,11 @@ function SquareFootagePreview({ facilityId }: { facilityId: string }) {
     <span className="square-footage-preview" data-testid="square-footage-preview">
       <Warehouse size={12} />
       <span>
-        {totalSquareFeet !== undefined && <span data-testid="square-footage-total">Total <strong>{totalSquareFeet.toLocaleString('en-US')} SF</strong></span>}
+        {totalSquareFeet !== undefined && <span data-testid="square-footage-total">Total <strong>{totalSquareFeet.toLocaleString('en-US')} SQF</strong></span>}
         <span data-testid="square-footage-available" data-available-status={available ? 'reported' : 'pending'}>
           Available {available
-            ? <><strong>{available.squareFeet.toLocaleString('en-US')} SF</strong> · as of {formatAvailableSpaceMonth(available.asOf)}</>
-            : <em className="square-footage-pending">Pending — warehouse to update monthly</em>}
+            ? <><strong>{available.squareFeet.toLocaleString('en-US')} SQF</strong> · as of {formatAvailableSpaceMonth(available.asOf)}</>
+            : <em className="square-footage-pending">Pending</em>}
         </span>
       </span>
     </span>
