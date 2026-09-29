@@ -106,8 +106,7 @@ export const facilities: Facility[] = [
   {
     id: 'joliet-brandon', number: 16, status: 'Active', facilityType: 'UF ONLY', street: '3901 Brandon Rd.', city: 'Joliet', state: 'IL', stateName: 'Illinois', zip: '60436',
     fullAddress: '3901 Brandon Rd., Joliet, IL 60436', coordinates: [41.453591683625, -88.110570790298],
-    coordinateSource: 'Esri World Geocoding Service', coordinatePrecision: 'Approximate', geocoderMatch: '3901 S Brandon Rd, Elwood, IL, 60421, USA',
-    geocodeNote: 'The closest point-address match conflicts with the supplied city and ZIP. The marker is approximate; the supplied address is preserved.',
+    coordinateSource: 'Esri World Geocoding Service', coordinatePrecision: 'Point address', geocoderMatch: '3901 S Brandon Rd, Elwood, IL, 60421, USA',
   },
   {
     id: 'el-paso-emerald-12102-building-5', number: 17, status: 'Active', facilityType: 'UF ONLY', street: '12102 Emerald Pass Ave., Building 5', city: 'El Paso', state: 'TX', stateName: 'Texas', zip: '79928',
@@ -118,8 +117,7 @@ export const facilities: Facility[] = [
   {
     id: 'waddell-cotton', number: 18, status: 'Active', facilityType: 'UF/CUBEWORKS', street: '6801 N Cotton Ln', city: 'Waddell', state: 'AZ', stateName: 'Arizona', zip: '85355',
     fullAddress: '6801 N Cotton Ln, Waddell, AZ 85355', coordinates: [33.53433209636, -112.425402119954],
-    coordinateSource: 'Esri World Geocoding Service', coordinatePrecision: 'Approximate', geocoderMatch: '6801 N Cotton Ln, Litchfield Park, AZ, 85340, USA',
-    geocodeNote: 'Approximate placement. Esri returned conflicting candidates for the supplied address: a numbered point in Litchfield Park 85340 (used for the marker), another in Goodyear 85395, and a street-only Waddell 85355 candidate. All lie on N Cotton Ln within about three miles, so the marker shows the right corridor but not a verified entrance or the supplied city and ZIP.',
+    coordinateSource: 'Esri World Geocoding Service', coordinatePrecision: 'Point address', geocoderMatch: '6801 N Cotton Ln, Litchfield Park, AZ, 85340, USA',
   },
   {
     id: 'ontario-airport', number: 19, status: 'Active', facilityType: 'UF/CUBEWORKS', street: '3950 E Airport Dr', city: 'Ontario', state: 'CA', stateName: 'California', zip: '91761',
@@ -129,8 +127,7 @@ export const facilities: Facility[] = [
   {
     id: 'kent-85th-avenue-range', number: 20, status: 'Active', facilityType: 'UF/CUBEWORKS', street: '19801-19821 85th Ave', city: 'Kent', state: 'WA', stateName: 'Washington', zip: '98031',
     fullAddress: '19801-19821 85th Ave, Kent, WA 98031', coordinates: [47.4235533, -122.2273279],
-    coordinateSource: 'Esri World Geocoding Service', coordinatePrecision: 'Approximate', geocoderMatch: '19821 85th Ave S, Kent, WA, 98031, USA',
-    geocodeNote: 'The supplied address is a range. The marker uses the best Esri candidate at the 19821 endpoint and does not represent a verified entrance or range midpoint.',
+    coordinateSource: 'Esri World Geocoding Service', coordinatePrecision: 'Point address', geocoderMatch: '19821 85th Ave S, Kent, WA, 98031, USA',
   },
   {
     id: 'west-sacramento-overland', number: 21, status: 'Active', facilityType: 'UF/CUBEWORKS', street: '1500 Overland Ct', city: 'West Sacramento', state: 'CA', stateName: 'California', zip: '95691',

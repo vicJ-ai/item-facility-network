@@ -23,6 +23,7 @@ import { getFacilityMedia, type FacilityMedia } from './data/facility-media'
 import { getFacilityOperatingHours } from './data/facility-hours'
 import { getFacilityOperations, type FacilityContact, type FacilityOperations } from './data/facility-operations'
 import { getFacilitySitePlan, type FacilitySitePlan, type FacilitySitePlanFact } from './data/facility-site-plans'
+import { formatAvailableSpaceMonth, getFacilitySquareFootage } from './data/facility-space'
 import { getUserProvidedFacilityPhotos, type UserProvidedFacilityPhotos } from './data/facility-user-photos'
 
 type Tab = 'Overview' | 'Site Plan' | 'Photos' | 'Documents' | 'Operations'
@@ -131,6 +132,24 @@ function OperatingHoursDisplay({ facilityId, variant }: { facilityId: string; va
         <strong>{hours.startTime}–{hours.endTime} {hours.timezone} <span className="operating-hours-days">{hours.days}</span></strong>
         {variant !== 'preview' && <small>{hours.status === 'confirmed' ? `User-confirmed · ${hours.sourceRowLabel}` : `User-provided · As supplied · ${hours.sourceRowLabel}`}</small>}
         {variant === 'drawer' && <small>{hours.matchNote}</small>}
+      </span>
+    </span>
+  )
+}
+
+function SquareFootagePreview({ facilityId }: { facilityId: string }) {
+  const { totalSquareFeet, available } = getFacilitySquareFootage(facilityId)
+
+  return (
+    <span className="square-footage-preview" data-testid="square-footage-preview">
+      <Warehouse size={12} />
+      <span>
+        {totalSquareFeet !== undefined && <span data-testid="square-footage-total">Total <strong>{totalSquareFeet.toLocaleString('en-US')} SF</strong></span>}
+        <span data-testid="square-footage-available" data-available-status={available ? 'reported' : 'pending'}>
+          Available {available
+            ? <><strong>{available.squareFeet.toLocaleString('en-US')} SF</strong> · as of {formatAvailableSpaceMonth(available.asOf)}</>
+            : <em className="square-footage-pending">Pending — warehouse to update monthly</em>}
+        </span>
       </span>
     </span>
   )
@@ -853,6 +872,7 @@ function App() {
                           <strong>{getFacilityTitle(facility)}</strong>
                           <span className="dashboard-pin-preview-address">{facility.fullAddress}</span>
                           <OperatingHoursDisplay facilityId={facility.id} variant="preview" />
+                          <SquareFootagePreview facilityId={facility.id} />
                         </span>
                       </div>
                     </Tooltip>
@@ -1011,7 +1031,7 @@ function App() {
           <section className="about-modal" role="dialog" aria-modal="true" aria-labelledby="about-title">
             <div className="modal-head"><div><span className="eyebrow">About this experience</span><h2 id="about-title">Reference prototype</h2></div><button className="icon-button" aria-label="Close about" onClick={() => setAboutOpen(false)}><X /></button></div>
             <p>This screenshot-based prototype uses exactly 27 user-provided facility addresses. It is not connected to WMS, YMS, inventory, facility, or operational APIs.</p>
-            <p>Fourteen facilities have supplied site plans and thirteen have separate user-provided photo galleries. Twelve facilities have official listing media and fifteen have user-provided photos with documented association limits. All 27 records are Active. A changed Local status is saved only in this browser. All 27 facilities have address-based map coordinates; the Waddell, Kent, and Plano markers are approximate.</p>
+            <p>Fourteen facilities have supplied site plans and thirteen have separate user-provided photo galleries. Twelve facilities have official listing media and fifteen have user-provided photos with documented association limits. All 27 records are Active. A changed Local status is saved only in this browser. All 27 facilities have address-based map coordinates.</p>
             <button className="primary-button" onClick={() => setAboutOpen(false)}>Understood</button>
           </section>
         </div>

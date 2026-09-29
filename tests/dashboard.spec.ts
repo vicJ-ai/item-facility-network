@@ -8,6 +8,7 @@ import { CONFIRMED_OPERATING_HOURS_SOURCE, facilityOperatingHours, formatOperati
 import { facilityMedia } from '../src/data/facility-media'
 import { facilitiesNeedingOperationsContactReview, facilityOperations } from '../src/data/facility-operations'
 import { facilitySitePlans } from '../src/data/facility-site-plans'
+import { facilityAvailableSpace, formatAvailableSpaceMonth, getFacilitySquareFootage } from '../src/data/facility-space'
 import { userProvidedFacilityPhotos } from '../src/data/facility-user-photos'
 
 const suppliedAddresses = [
@@ -184,6 +185,13 @@ async function expectDashboardPreviewLayout(page: Page, map: Locator, facility: 
   await expect(operatingHours).toContainText(formatOperatingHours(hoursRecord))
   await expect(operatingHours).toHaveAttribute('data-hours-status', hoursRecord.status)
   await expect(operatingHours).not.toContainText('Assumed')
+  const { totalSquareFeet } = getFacilitySquareFootage(facility.id)
+  const squareFootageTotal = preview.getByTestId('square-footage-total')
+  if (totalSquareFeet === undefined) await expect(squareFootageTotal).toHaveCount(0)
+  else await expect(squareFootageTotal).toHaveText(`Total ${totalSquareFeet.toLocaleString('en-US')} SF`)
+  const squareFootageAvailable = preview.getByTestId('square-footage-available')
+  await expect(squareFootageAvailable).toHaveAttribute('data-available-status', 'pending')
+  await expect(squareFootageAvailable).toHaveText('Available Pending — warehouse to update monthly')
   await expect(image).toHaveAttribute('src', facilityMedia[facility.id].thumbnail.assetUrl)
   await expect.poll(() => image.evaluate((element: HTMLImageElement) => element.complete && element.naturalWidth > 0 && element.naturalHeight > 0)).toBe(true)
 
@@ -1035,7 +1043,30 @@ test('desktop divider supports bounded pointer and keyboard resizing and persist
   await expect.poll(async () => (await page.getByRole('region', { name: 'Facility directory', exact: true }).boundingBox())?.width ?? 0).toBeCloseTo(persistedWidth, 0)
 })
 
-test('ten UF/CUBEWORKS additions preserve supplied addresses, status, and geocode limitations', () => {
+test('square footage uses each site plan building area and available space awaits monthly warehouse updates', () => {
+  const totals = Object.fromEntries(facilities.map((facility) => [facility.id, getFacilitySquareFootage(facility.id).totalSquareFeet]))
+  expect(Object.values(totals).filter((total) => total !== undefined)).toHaveLength(14)
+  expect(Object.keys(facilitySitePlans).every((facilityId) => totals[facilityId] !== undefined)).toBe(true)
+  expect(totals['buena-park-valley-view']).toBe(1_034_026)
+  expect(totals['el-paso-emerald-12102-building-5']).toBe(209_153)
+  expect(totals['moreno-valley-heacock']).toBe(756_340)
+  expect(totals['waddell-cotton']).toBeUndefined()
+  expect(facilityAvailableSpace).toEqual({})
+  expect(facilities.every((facility) => getFacilitySquareFootage(facility.id).available === undefined)).toBe(true)
+  expect(formatAvailableSpaceMonth('2026-10')).toBe('Oct 2026')
+})
+
+test('Dashboard preview without a site plan shows only the pending available-space line', async ({ page }) => {
+  await page.getByRole('button', { name: 'Dashboard', exact: true }).click()
+  const map = page.getByLabel('Facility network map')
+  const waddell = facilities[17]
+  await page.getByRole('button', { name: 'Open facility 18 in Locations' }).hover()
+  const preview = await expectDashboardPreviewLayout(page, map, waddell)
+  await expect(preview.getByTestId('square-footage-total')).toHaveCount(0)
+  await expect(preview.getByTestId('square-footage-available')).toBeVisible()
+})
+
+test('ten UF/CUBEWORKS additions preserve supplied addresses, status, and confirmed coordinates', () => {
   const additions = facilities.slice(17)
   expect(additions.map((facility) => facility.fullAddress)).toEqual(suppliedAddresses.slice(17))
   expect(additions.map((facility) => facility.number)).toEqual([18, 19, 20, 21, 22, 23, 24, 25, 26, 27])
@@ -1044,14 +1075,13 @@ test('ten UF/CUBEWORKS additions preserve supplied addresses, status, and geocod
 
   const waddell = additions[0]
   expect(waddell.coordinates).toEqual([33.53433209636, -112.425402119954])
-  expect(waddell.coordinatePrecision).toBe('Approximate')
-  expect(waddell.geocodeNote).toContain('conflicting candidates')
-  expect(waddell.geocodeNote).toContain('Litchfield Park 85340')
+  expect(waddell.coordinatePrecision).toBe('Point address')
+  expect(waddell.geocodeNote).toBeUndefined()
 
   const kent = additions[2]
   expect(kent.coordinates).toEqual([47.4235533, -122.2273279])
-  expect(kent.coordinatePrecision).toBe('Approximate')
-  expect(kent.geocodeNote).toContain('19821 endpoint')
+  expect(kent.coordinatePrecision).toBe('Point address')
+  expect(kent.geocodeNote).toBeUndefined()
   expect(kent.fullAddress).toContain('19801-19821')
 
   const plano = additions[9]
@@ -1417,7 +1447,7 @@ test('facility type filter combines with search and status, clears fully, and st
   await expect(markers).toHaveCount(27)
 })
 
-test('approximate Waddell pin stays fully usable while range and dual-address caveats stay visible', async ({ page }) => {
+test('confirmed Waddell and Kent pins show no approximate caveats while the Plano dual-address caveat stays visible', async ({ page }) => {
   const waddell = facilities[17]
   const kent = facilities[19]
   const plano = facilities[26]
@@ -1430,15 +1460,16 @@ test('approximate Waddell pin stays fully usable while range and dual-address ca
   await expect(showcase.locator('.status-pill')).toHaveText('Active')
   await expect(showcase.getByTestId('operating-hours-overview')).toContainText('8:00 AM–4:30 PM MST M-F')
   await expect(showcase.getByTestId('overview-map-embed')).toHaveAttribute('src', mapsEmbedHref(waddell.fullAddress))
-  await expect(showcase.locator('.overview-map-note')).toContainText('Approximate placement')
-  await expect(showcase.locator('.coordinate-section')).toContainText('Approximate')
+  await expect(showcase.locator('.overview-map-note')).toHaveCount(0)
+  await expect(showcase.locator('.coordinate-section')).toContainText('Point address')
+  await expect(showcase.locator('.geocode-warning')).toHaveCount(0)
   await expect(page.getByLabel('Facility network map').locator(`.location-marker-wrap[title="${waddell.fullAddress}"]`)).toHaveCount(1)
 
   await showcase.getByRole('button', { name: 'View Full Details' }).click()
   let drawer = page.getByRole('dialog', { name: 'Waddell, AZ' })
   await expect(drawer.getByRole('link', { name: 'Open in Maps' })).toHaveAttribute('href', mapsHref(waddell.fullAddress))
   await expect(drawer.getByText('Coordinates', { exact: true }).locator('..')).toContainText('33.534332, -112.425402')
-  await expect(drawer).toContainText('conflicting candidates')
+  await expect(drawer.locator('.geocode-warning')).toHaveCount(0)
   await drawer.getByRole('button', { name: 'Close details' }).click()
 
   await page.getByRole('tab', { name: 'Photos' }).click()
@@ -1447,10 +1478,10 @@ test('approximate Waddell pin stays fully usable while range and dual-address ca
   await expect(facilityType).toHaveValue('UF/CUBEWORKS')
 
   await chooseFromDirectory(page, kent.fullAddress)
-  await expect(page.getByTestId('selected-showcase').locator('.overview-map-note')).toContainText('Approximate placement')
+  await expect(page.getByTestId('selected-showcase').locator('.overview-map-note')).toHaveCount(0)
   await page.getByTestId('selected-showcase').getByRole('button', { name: 'View Full Details' }).click()
   drawer = page.getByRole('dialog', { name: 'Kent, WA' })
-  await expect(drawer).toContainText('19821 endpoint')
+  await expect(drawer.locator('.geocode-warning')).toHaveCount(0)
   await drawer.getByRole('button', { name: 'Close details' }).click()
   await returnToDirectory(page)
 
@@ -1604,8 +1635,7 @@ test('selected Overview embeds a keyless Google map and follows facility and tab
   await expect(preview).toHaveAttribute('data-longitude', String(nextFacility.coordinates[1]))
   await expect(embed).toHaveAttribute('src', mapsEmbedHref(nextFacility.fullAddress))
   await expect(link).toHaveAttribute('href', mapsHref(nextFacility.fullAddress))
-  await expect(preview.locator('.overview-map-note')).toContainText('Approximate placement')
-  await expect(preview.locator('.overview-map-note')).toContainText('near, not exactly at, this facility')
+  await expect(preview.locator('.overview-map-note')).toHaveCount(0)
 
   await page.getByRole('tab', { name: 'Photos' }).click()
   await expect(preview).toHaveCount(0)
@@ -1757,7 +1787,7 @@ test('selected showcase omits address actions while Full Details retains Maps an
   await expect(drawerStreetViewLink).toHaveAttribute('target', '_blank')
   await expect(drawerStreetViewLink).toHaveAttribute('rel', /noopener/)
   await expect(drawerStreetViewLink).toHaveAttribute('rel', /noreferrer/)
-  await expect(drawer.locator('.street-view-caveat')).toBeVisible()
+  await expect(drawer.locator('.street-view-caveat')).toHaveCount(0)
 })
 
 test('operating hours distinguish original-list and follow-up-confirmed provenance', async ({ page }) => {
@@ -1925,9 +1955,9 @@ test('property tabs show honest unavailable states and coordinate limitations', 
 
   await returnToDirectory(page)
   await chooseFromDirectory(page, suppliedAddresses[15])
-  await expect(page.getByText('Approximate').first()).toBeVisible()
+  await expect(page.getByTestId('selected-showcase').locator('.coordinate-section')).toContainText('Point address')
   await expect(page.getByTestId('selected-showcase').locator('.street-view-caveat')).toHaveCount(0)
-  await expect(page.getByTestId('selected-showcase')).toContainText('closest point-address match conflicts')
+  await expect(page.getByTestId('selected-showcase').locator('.geocode-warning')).toHaveCount(0)
 })
 
 test('Operations sidecar maps 18 exact sheet rows, all 79 role entries, and only two portraits', () => {
