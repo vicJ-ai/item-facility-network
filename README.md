@@ -18,6 +18,8 @@ The Tennessee address intentionally remains `4550 Quality Drive, TN` because no 
 
 Facility operating hours are stored separately in `src/data/facility-hours.ts`. Thirteen current-roster facilities retain confidently mapped hours from the user-provided 26-row list. Tennessee, Las Vegas, and both El Paso facilities have hours confirmed by the user in a follow-up, separately from the original list. All 17 display 8:00 AM–4:30 PM M-F with the confirmed local abbreviation. The app preserves the literal PST, EST, CST, or MST abbreviation, does not convert timezones, and does not compute live open/closed status. Rows for facilities outside the current 17-record roster are not imported.
 
+Facility 01 Valley View's Operations tab also shows its existing sourced hours and five authorized contacts from row 5 of the user-provided facility contact sheet. Contact roles and values are stored in `src/data/facility-operations.ts`. User-provided portraits are attached for Ruben Jauregui and Mark Tuttle; the other three portrait spaces remain blank pending supplied images. No other sheet rows are imported, and the other sixteen facilities retain the Operations unavailable state.
+
 ## Coordinates
 
 Map coordinates were resolved in September 2026 with the public Esri World Geocoding Service and are stored with a source, precision, returned match, and any relevant limitation in `src/data/facilities.ts`.

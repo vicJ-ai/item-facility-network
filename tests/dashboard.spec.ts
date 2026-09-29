@@ -5,6 +5,7 @@ import { PDFDocument } from 'pdf-lib'
 import { facilities } from '../src/data/facilities'
 import { CONFIRMED_OPERATING_HOURS_SOURCE, facilityOperatingHours, formatOperatingHours, OPERATING_HOURS_SOURCE } from '../src/data/facility-hours'
 import { facilityMedia } from '../src/data/facility-media'
+import { facilityOperations } from '../src/data/facility-operations'
 import { facilitySitePlans } from '../src/data/facility-site-plans'
 import { userProvidedFacilityPhotos } from '../src/data/facility-user-photos'
 
@@ -1513,6 +1514,82 @@ test('property tabs show honest unavailable states and coordinate limitations', 
   await expect(page.getByText('Approximate').first()).toBeVisible()
   await expect(page.getByTestId('selected-showcase').locator('.street-view-caveat')).toHaveCount(0)
   await expect(page.getByTestId('selected-showcase')).toContainText('closest point-address match conflicts')
+})
+
+test('Valley View Operations shows sourced hours and five contacts while other facilities stay unavailable', async ({ page }) => {
+  expect(Object.keys(facilityOperations)).toEqual(['buena-park-valley-view'])
+  const record = facilityOperations['buena-park-valley-view']
+  expect(record?.source).toBe('User-provided facility contact sheet, row 5')
+  expect(record?.contacts).toEqual([
+    expect.objectContaining({ group: 'account-management', role: 'Manager of Account Management & Client Onboarding', name: 'Michelle Topete', email: 'michelle.topete@unisco.com', phone: '626.829.3160' }),
+    expect.objectContaining({ group: 'account-management', role: 'Sr Director of Account Management & Client Onboarding', name: 'Mary Smothers', email: 'mary.smothers@unisco.com', phone: '626-899-2363' }),
+    expect.objectContaining({ group: 'operations', role: 'General Manager', name: 'Ruben Jauregui', email: 'ruben.jauregui@unisco.com', phone: '562-644-4594', photoUrl: '/media/operations/buena-park-valley-view/ruben-jauregui.png' }),
+    expect.objectContaining({ group: 'operations', role: 'Director of Operations', name: 'Mark Tuttle', email: 'mark.tuttle@unisco.com', phone: '657-689-6951', photoUrl: '/media/operations/buena-park-valley-view/mark-tuttle.png' }),
+    expect.objectContaining({ group: 'operations', role: 'VP of Operations', name: 'John Diaz', email: 'john.diaz@unisco.com' }),
+  ])
+  const johnRecord = record?.contacts.find((contact) => contact.id === 'john-diaz')
+  expect(johnRecord).not.toHaveProperty('phone')
+  expect(johnRecord).not.toHaveProperty('phoneHref')
+  expect(record?.contacts.filter((contact) => contact.photoUrl).map((contact) => contact.id)).toEqual(['ruben-jauregui', 'mark-tuttle'])
+
+  await chooseFromDirectory(page, suppliedAddresses[0])
+  await page.getByRole('tab', { name: 'Operations' }).click()
+  const panel = page.getByRole('region', { name: `Operations contacts for ${suppliedAddresses[0]}` })
+  await expect(panel).toContainText('8:00 AM–4:30 PM PST M-F')
+  await expect(panel).toContainText('User-provided · As supplied · CA Buena Park (Valley View)')
+  await expect(panel).toContainText('User-provided facility contact sheet, row 5')
+  await expect(panel.getByRole('heading', { name: 'Account management' })).toBeVisible()
+  await expect(panel.getByRole('heading', { name: 'Operations leaders' })).toBeVisible()
+  await expect(panel.locator('.operations-contact-card')).toHaveCount(5)
+  await expect(panel.locator('.operations-contact-photo.is-blank')).toHaveCount(3)
+  await expect(panel.locator('.operations-contact-card img')).toHaveCount(2)
+
+  for (const [name, assetUrl, sourcePath] of [
+    ['Ruben Jauregui', '/media/operations/buena-park-valley-view/ruben-jauregui.png', '/home/user/workspace/ruben.png'],
+    ['Mark Tuttle', '/media/operations/buena-park-valley-view/mark-tuttle.png', '/home/user/workspace/mark.png'],
+  ] as const) {
+    const card = panel.locator('.operations-contact-card').filter({ hasText: name })
+    const portrait = card.getByRole('img', { name: `Portrait of ${name}` })
+    await expect(portrait).toHaveAttribute('src', assetUrl)
+    await expect(portrait).toHaveCSS('object-fit', 'contain')
+    await expect.poll(() => portrait.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth === 1254 && image.naturalHeight === 1254)).toBe(true)
+    const [response, sourceBytes] = await Promise.all([page.request.get(assetUrl), readFile(sourcePath)])
+    expect(response.ok(), assetUrl).toBe(true)
+    expect(response.headers()['content-type']).toContain('image/png')
+    expect(createHash('sha256').update(await response.body()).digest('hex'))
+      .toBe(createHash('sha256').update(sourceBytes).digest('hex'))
+  }
+
+  for (const name of ['Michelle Topete', 'Mary Smothers', 'John Diaz']) {
+    const card = panel.locator('.operations-contact-card').filter({ hasText: name })
+    await expect(card.locator('img')).toHaveCount(0)
+    await expect(card.getByRole('img', { name: `Portrait not provided for ${name}` })).toBeVisible()
+  }
+
+  const expectedContacts = [
+    ['Michelle Topete', 'Manager of Account Management & Client Onboarding', 'michelle.topete@unisco.com', 'mailto:michelle.topete@unisco.com', '626.829.3160', 'tel:+16268293160'],
+    ['Mary Smothers', 'Sr Director of Account Management & Client Onboarding', 'mary.smothers@unisco.com', 'mailto:mary.smothers@unisco.com', '626-899-2363', 'tel:+16268992363'],
+    ['Ruben Jauregui', 'General Manager', 'ruben.jauregui@unisco.com', 'mailto:ruben.jauregui@unisco.com', '562-644-4594', 'tel:+15626444594'],
+    ['Mark Tuttle', 'Director of Operations', 'mark.tuttle@unisco.com', 'mailto:mark.tuttle@unisco.com', '657-689-6951', 'tel:+16576896951'],
+  ] as const
+  for (const [name, role, email, emailHref, phone, phoneHref] of expectedContacts) {
+    const card = panel.locator('.operations-contact-card').filter({ hasText: name })
+    await expect(card).toContainText(role)
+    await expect(card.getByRole('link', { name: email })).toHaveAttribute('href', emailHref)
+    await expect(card.getByRole('link', { name: phone })).toHaveAttribute('href', phoneHref)
+  }
+
+  const john = panel.locator('.operations-contact-card').filter({ hasText: 'John Diaz' })
+  await expect(john).toContainText('VP of Operations')
+  await expect(john.getByRole('link', { name: 'john.diaz@unisco.com' })).toHaveAttribute('href', 'mailto:john.diaz@unisco.com')
+  await expect(john).toContainText('Phone not provided')
+  await expect(john.locator('a[href^="tel:"]')).toHaveCount(0)
+
+  await returnToDirectory(page)
+  await chooseFromDirectory(page, suppliedAddresses[1])
+  await page.getByRole('tab', { name: 'Operations' }).click()
+  await expect(page.getByText('Operations data unavailable')).toBeVisible()
+  await expect(page.locator('.facility-operations')).toHaveCount(0)
 })
 
 test('facility gallery and site-plan sidecars retain all integrated records and serve exact local bytes', async ({ page }) => {
