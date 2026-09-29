@@ -31,7 +31,7 @@ The selected facility's Overview tab uses Google's keyless `www.google.com/maps?
 - `3901 Brandon Rd., Joliet, IL 60436` produced a conflicting point-address match in Elwood, IL 60421. Its marker is explicitly labeled `Approximate`; the supplied address is unchanged.
 - The Kent range is pinned at the best `19821 85th Ave S` endpoint candidate and is explicitly labeled approximate; the supplied range remains unchanged.
 - The Plano dual address uses the primary `910 10th St` point candidate and preserves `880 F Ave.` as the unpinned alternate without inventing a ZIP.
-- `6801 N Cotton Ln, Waddell, AZ 85355` remains unpinned because Esri returned conflicting city/ZIP candidates. The directory, details, hours, and address-based Google map remain available without asserting a location.
+- `6801 N Cotton Ln, Waddell, AZ 85355` is pinned at the numbered Esri point address (which the geocoder places in Litchfield Park 85340) and labeled approximate, because Esri returned conflicting city/ZIP candidates along N Cotton Ln within about three miles.
 
 Coordinates support visualization only. “Open in Maps” searches the complete user-provided address rather than treating stored coordinates as authoritative.
 
@@ -80,7 +80,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-The Playwright suite verifies all 27 exact addresses, 26 valid map pins, twelve official records plus fifteen user-provided photos, supplied galleries, 14 site plans, exact local asset responses, four-page selected-facility PDF downloads, all 27 operating-hours records, square thumbnail sizing, uncropped detail media, forced image-error fallback, mobile address wrapping, photo provenance, address/city/state/ZIP/type search and filtering, local status assignment and persistence, the unpinned Waddell detail flow, unavailable property states, light/dark persistence, and basemap switching.
+The Playwright suite verifies all 27 exact addresses, all 27 map pins, twelve official records plus fifteen user-provided photos, supplied galleries, 14 site plans, exact local asset responses, four-page selected-facility PDF downloads, all 27 operating-hours records, square thumbnail sizing, uncropped detail media, forced image-error fallback, mobile address wrapping, photo provenance, address/city/state/ZIP/type search and filtering, local status assignment and persistence, the unpinned Waddell detail flow, unavailable property states, light/dark persistence, and basemap switching.
 
 ## Map attribution
 

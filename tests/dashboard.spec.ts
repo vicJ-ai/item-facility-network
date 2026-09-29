@@ -316,7 +316,7 @@ async function expectFacilitiesInMapBounds(map: Locator, expectedFacilities: rea
 }
 
 async function expectDefaultFacilityStatuses(page: Page) {
-  await expect(page.locator('.location-pin')).toHaveCount(26)
+  await expect(page.locator('.location-pin')).toHaveCount(27)
   const pinColors = await page.locator('.location-pin').evaluateAll((pins) =>
     [...new Set(pins.map((pin) => window.getComputedStyle(pin).backgroundColor))],
   )
@@ -425,14 +425,14 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByTestId('selected-showcase')).toHaveCount(0)
 })
 
-test('opens with the exact 27-address directory beside the 26-pin map and no selected profile', async ({ page }) => {
+test('opens with the exact 27-address directory beside the 27-pin map and no selected profile', async ({ page }) => {
   await expect(page.locator('tbody tr')).toHaveCount(27)
   const table = page.getByRole('table')
   for (const address of suppliedAddresses) await expect(table).toContainText(address)
   expect(facilities).toHaveLength(27)
   expect(facilities.slice(0, 17).every((facility) => facility.status === 'Active' && facility.facilityType === 'UF ONLY')).toBe(true)
   expect(facilities.slice(17).every((facility) => facility.status === 'Active' && facility.facilityType === 'UF/CUBEWORKS')).toBe(true)
-  expect(facilities.filter((facility) => facility.coordinates !== null)).toHaveLength(26)
+  expect(facilities.filter((facility) => facility.coordinates !== null)).toHaveLength(27)
   await expect(page.getByTestId('facility-network-type')).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Facility 01', exact: true })).toHaveCount(0)
   await expect(page.getByTestId('map-open-in-maps')).toHaveCount(0)
@@ -504,7 +504,7 @@ test('Dashboard navigation shows an all-facility map without Locations-only UI o
   await expect(dashboardNav).toHaveAttribute('aria-current', 'page')
   await expect(locationsNav).not.toHaveAttribute('aria-current')
   await expect(page.getByLabel('Facility network map')).toHaveAttribute('data-view', 'dashboard')
-  await expect(page.locator('.location-marker-wrap')).toHaveCount(26)
+  await expect(page.locator('.location-marker-wrap')).toHaveCount(27)
   await expect(page.locator('.location-marker-wrap').first()).toHaveAttribute('aria-label', 'Open facility 01 in Locations')
   await expect(page.locator('.location-marker-wrap[title]')).toHaveCount(0)
   await expect(page.locator('.leaflet-tooltip')).toHaveCount(0)
@@ -519,7 +519,7 @@ test('Dashboard navigation shows an all-facility map without Locations-only UI o
   await expect(page.locator('.map-legend')).toHaveCount(0)
 
   await expect(page.locator('.location-pin.is-dashboard-pin')).toHaveCount(0)
-  await expect(page.locator('.location-pin')).toHaveCount(26)
+  await expect(page.locator('.location-pin')).toHaveCount(27)
   const focusedMarker = page.getByRole('button', { name: 'Open facility 01 in Locations' })
   await focusedMarker.focus()
   await expect(focusedMarker).toBeFocused()
@@ -565,8 +565,38 @@ test('Dashboard marker opens Locations showcase and returning clears detail and 
   await expect(page.getByTestId('selected-showcase')).toHaveCount(0)
   await expect(page.getByTestId('map-open-in-maps')).toHaveCount(0)
   await expect(page.locator('.location-pin.is-selected')).toHaveCount(0)
-  await expect(page.locator('.location-marker-wrap')).toHaveCount(26)
+  await expect(page.locator('.location-marker-wrap')).toHaveCount(27)
   await expectAllFacilitiesInMapBounds(map)
+})
+
+test('every Dashboard region, including Arizona, focuses the map on its pinned facilities', async ({ page }) => {
+  const map = page.getByLabel('Facility network map')
+  const regions = [
+    ['Southern California', [1, 2, 3, 15, 19]],
+    ['Northern California', [21]],
+    ['Texas', [4, 5, 14, 17, 23, 27]],
+    ['Washington', [10, 11, 20]],
+    ['Georgia', [6, 7]],
+    ['South Carolina', [8]],
+    ['Tennessee', [9, 24]],
+    ['Florida', [12]],
+    ['Nevada', [13, 22]],
+    ['Illinois', [16]],
+    ['Arizona', [18]],
+    ['Utah', [25]],
+    ['New Jersey', [26]],
+  ] as const
+
+  await page.getByRole('button', { name: 'Dashboard', exact: true }).click()
+  await page.locator('.dashboard-region-toggle').click()
+  const panel = page.getByRole('complementary', { name: 'Dashboard regions' })
+  for (const [label, numbers] of regions) {
+    const regionFacilities = facilities.filter((facility) => numbers.some((number) => number === facility.number))
+    await panel.getByRole('button', { name: new RegExp(label) }).first().click()
+    await expect(page.locator('.location-marker-wrap')).toHaveCount(regionFacilities.length)
+    await expectFacilitiesInMapBounds(map, regionFacilities)
+    for (const facility of regionFacilities) expect(facility.coordinates).not.toBeNull()
+  }
 })
 
 test('Dashboard Regions softly highlights Southern California, retains a closed-panel selection, and clears cleanly', async ({ page }) => {
@@ -580,7 +610,7 @@ test('Dashboard Regions softly highlights Southern California, retains a closed-
   await expect(page.getByRole('complementary', { name: 'Dashboard regions' })).toHaveCount(0)
   await expect(page.locator('.dashboard-region-focus-area')).toHaveCount(0)
   await expect(page.locator('.dashboard-facility-highlight')).toHaveCount(0)
-  await expect(page.locator('.location-marker-wrap')).toHaveCount(26)
+  await expect(page.locator('.location-marker-wrap')).toHaveCount(27)
 
   await regionsToggle.click()
   const panel = page.getByRole('complementary', { name: 'Dashboard regions' })
@@ -667,7 +697,7 @@ test('Dashboard Regions softly highlights Southern California, retains a closed-
   await expect(map).toHaveAttribute('data-zoom', reopenedZoom!)
 
   await panel.getByRole('button', { name: /All facilities/ }).click()
-  await expect(page.locator('.location-marker-wrap')).toHaveCount(26)
+  await expect(page.locator('.location-marker-wrap')).toHaveCount(27)
   await expect(page.locator('.dashboard-region-focus-area')).toHaveCount(0)
   await expect(highlights).toHaveCount(0)
   await expect(page.getByTestId('dashboard-focus-label')).toHaveCount(0)
@@ -680,7 +710,7 @@ test('Dashboard Regions softly highlights Southern California, retains a closed-
   await panel.locator('[data-facility-id="buena-park-valley-view"]').click()
   await expect(page.getByTestId('selected-showcase')).toContainText(facilities[0].fullAddress)
   await page.getByRole('button', { name: 'Dashboard', exact: true }).click()
-  await expect(page.locator('.location-marker-wrap')).toHaveCount(26)
+  await expect(page.locator('.location-marker-wrap')).toHaveCount(27)
   await expect(page.locator('.dashboard-region-focus-area')).toHaveCount(0)
   await expect(highlights).toHaveCount(0)
   await expect(regionsToggle).toHaveAttribute('aria-expanded', 'false')
@@ -847,7 +877,7 @@ test('mobile Dashboard is map-only and its marker opens the Locations detail flo
 
   const map = page.getByLabel('Facility network map')
   await expect(map).toBeVisible()
-  await expect(page.locator('.location-marker-wrap')).toHaveCount(26)
+  await expect(page.locator('.location-marker-wrap')).toHaveCount(27)
   await expect(page.getByRole('group', { name: 'Explorer view' })).toHaveCount(0)
   await expect(page.getByPlaceholder('Search address, city, state, ZIP...')).toHaveCount(0)
   await expect(page.locator('.leaflet-tooltip')).toHaveCount(0)
@@ -938,10 +968,10 @@ test('ten UF/CUBEWORKS additions preserve supplied addresses, status, and geocod
   expect(additions.every((facility) => facility.status === 'Active')).toBe(true)
 
   const waddell = additions[0]
-  expect(waddell.coordinates).toBeNull()
-  expect(waddell.coordinatePrecision).toBe('Unavailable')
+  expect(waddell.coordinates).toEqual([33.53433209636, -112.425402119954])
+  expect(waddell.coordinatePrecision).toBe('Approximate')
   expect(waddell.geocodeNote).toContain('conflicting candidates')
-  expect(waddell.geocodeNote).toContain('No pin is shown')
+  expect(waddell.geocodeNote).toContain('Litchfield Park 85340')
 
   const kent = additions[2]
   expect(kent.coordinates).toEqual([47.4235533, -122.2273279])
@@ -1261,7 +1291,7 @@ test('facility type filter combines with search and status, clears fully, and st
   await expect(facilityType).toHaveValue('All')
   await expect(facilityType.locator('option')).toHaveText(['All types', 'UF ONLY', 'UF/CUBEWORKS'])
   await expect(rows).toHaveCount(27)
-  await expect(markers).toHaveCount(26)
+  await expect(markers).toHaveCount(27)
 
   await facilityType.selectOption('UF ONLY')
   await expect(rows).toHaveCount(17)
@@ -1269,7 +1299,7 @@ test('facility type filter combines with search and status, clears fully, and st
 
   await facilityType.selectOption('UF/CUBEWORKS')
   await expect(rows).toHaveCount(10)
-  await expect(markers).toHaveCount(9)
+  await expect(markers).toHaveCount(10)
   await expect(page.getByRole('table')).toContainText(suppliedAddresses[17])
   await search.fill('Waddell')
   await expect(rows).toHaveCount(1)
@@ -1286,7 +1316,7 @@ test('facility type filter combines with search and status, clears fully, and st
   await expect(status).toHaveValue('All')
   await expect(facilityType).toHaveValue('All')
   await expect(rows).toHaveCount(27)
-  await expect(markers).toHaveCount(26)
+  await expect(markers).toHaveCount(27)
 
   await page.evaluate(() => localStorage.setItem('facility-status-assignments-v3', JSON.stringify({
     'buena-park-valley-view': 'Planned',
@@ -1310,10 +1340,10 @@ test('facility type filter combines with search and status, clears fully, and st
   await expect(rows).toHaveCount(0)
   await page.getByRole('button', { name: 'Dashboard', exact: true }).click()
   await expect(map).toHaveAttribute('data-view', 'dashboard')
-  await expect(markers).toHaveCount(26)
+  await expect(markers).toHaveCount(27)
 })
 
-test('unpinned Waddell remains fully usable while range and dual-address caveats stay visible', async ({ page }) => {
+test('approximate Waddell pin stays fully usable while range and dual-address caveats stay visible', async ({ page }) => {
   const waddell = facilities[17]
   const kent = facilities[19]
   const plano = facilities[26]
@@ -1326,15 +1356,14 @@ test('unpinned Waddell remains fully usable while range and dual-address caveats
   await expect(showcase.locator('.status-pill')).toHaveText('Active')
   await expect(showcase.getByTestId('operating-hours-overview')).toContainText('8:00 AM–4:30 PM MST M-F')
   await expect(showcase.getByTestId('overview-map-embed')).toHaveAttribute('src', mapsEmbedHref(waddell.fullAddress))
-  await expect(showcase.locator('.overview-map-note')).toContainText('Location unverified')
-  await expect(showcase.locator('.coordinate-section')).toContainText('Unavailable')
-  await expect(page.getByLabel('Facility network map').locator(`.location-marker-wrap[title="${waddell.fullAddress}"]`)).toHaveCount(0)
+  await expect(showcase.locator('.overview-map-note')).toContainText('Approximate placement')
+  await expect(showcase.locator('.coordinate-section')).toContainText('Approximate')
+  await expect(page.getByLabel('Facility network map').locator(`.location-marker-wrap[title="${waddell.fullAddress}"]`)).toHaveCount(1)
 
   await showcase.getByRole('button', { name: 'View Full Details' }).click()
   let drawer = page.getByRole('dialog', { name: 'Waddell, AZ' })
   await expect(drawer.getByRole('link', { name: 'Open in Maps' })).toHaveAttribute('href', mapsHref(waddell.fullAddress))
-  await expect(drawer.getByText('Street View unavailable', { exact: true })).toHaveAttribute('aria-disabled', 'true')
-  await expect(drawer.getByText('Coordinates', { exact: true }).locator('..')).toContainText('Unavailable')
+  await expect(drawer.getByText('Coordinates', { exact: true }).locator('..')).toContainText('33.534332, -112.425402')
   await expect(drawer).toContainText('conflicting candidates')
   await drawer.getByRole('button', { name: 'Close details' }).click()
 
@@ -1513,7 +1542,7 @@ test('selected Overview embeds a keyless Google map and follows facility and tab
   await expect(link).toHaveAttribute('href', mapsHref(nextFacility.fullAddress))
 
   const mainMap = page.getByLabel('Facility network map')
-  await expect(mainMap.locator('.location-marker-wrap')).toHaveCount(26)
+  await expect(mainMap.locator('.location-marker-wrap')).toHaveCount(27)
   await expect(mainMap.locator('.leaflet-tile-pane img')).not.toHaveCount(0)
 })
 

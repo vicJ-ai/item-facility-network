@@ -1009,7 +1009,7 @@ function App() {
           <section className="about-modal" role="dialog" aria-modal="true" aria-labelledby="about-title">
             <div className="modal-head"><div><span className="eyebrow">About this experience</span><h2 id="about-title">Reference prototype</h2></div><button className="icon-button" aria-label="Close about" onClick={() => setAboutOpen(false)}><X /></button></div>
             <p>This screenshot-based prototype uses exactly 27 user-provided facility addresses. It is not connected to WMS, YMS, inventory, facility, or operational APIs.</p>
-            <p>Fourteen facilities have supplied site plans and thirteen have separate user-provided photo galleries. Twelve facilities have official listing media and fifteen have user-provided photos with documented association limits. All 27 records are Active. A changed Local status is saved only in this browser. Twenty-six facilities have address-based map coordinates; Waddell remains unpinned because the geocoder results conflict with its supplied city and ZIP.</p>
+            <p>Fourteen facilities have supplied site plans and thirteen have separate user-provided photo galleries. Twelve facilities have official listing media and fifteen have user-provided photos with documented association limits. All 27 records are Active. A changed Local status is saved only in this browser. All 27 facilities have address-based map coordinates; the Waddell, Kent, and Plano markers are approximate.</p>
             <button className="primary-button" onClick={() => setAboutOpen(false)}>Understood</button>
           </section>
         </div>

@@ -117,9 +117,9 @@ export const facilities: Facility[] = [
   },
   {
     id: 'waddell-cotton', number: 18, status: 'Active', facilityType: 'UF/CUBEWORKS', street: '6801 N Cotton Ln', city: 'Waddell', state: 'AZ', stateName: 'Arizona', zip: '85355',
-    fullAddress: '6801 N Cotton Ln, Waddell, AZ 85355', coordinates: null,
-    coordinateSource: 'Esri World Geocoding Service', coordinatePrecision: 'Unavailable', geocoderMatch: 'No unambiguous candidate matching the supplied city and ZIP',
-    geocodeNote: 'Location unverified; coordinates are unavailable. Esri returned conflicting candidates in Litchfield Park 85340 and Goodyear 85395, plus a street-only Waddell 85355 candidate. No pin is shown rather than silently choosing a conflicting location.',
+    fullAddress: '6801 N Cotton Ln, Waddell, AZ 85355', coordinates: [33.53433209636, -112.425402119954],
+    coordinateSource: 'Esri World Geocoding Service', coordinatePrecision: 'Approximate', geocoderMatch: '6801 N Cotton Ln, Litchfield Park, AZ, 85340, USA',
+    geocodeNote: 'Approximate placement. Esri returned conflicting candidates for the supplied address: a numbered point in Litchfield Park 85340 (used for the marker), another in Goodyear 85395, and a street-only Waddell 85355 candidate. All lie on N Cotton Ln within about three miles, so the marker shows the right corridor but not a verified entrance or the supplied city and ZIP.',
   },
   {
     id: 'ontario-airport', number: 19, status: 'Active', facilityType: 'UF/CUBEWORKS', street: '3950 E Airport Dr', city: 'Ontario', state: 'CA', stateName: 'California', zip: '91761',
