@@ -6,9 +6,13 @@ A responsive React + TypeScript facility-network prototype. It uses real Leaflet
 
 This is a screenshot-based interface prototype, not a live WMS, YMS, facility, inventory, or operations product. The roster contains exactly 27 user-provided facility addresses: the original 17 plus ten UF/CUBEWORKS additions supplied on 2026-09-28. Their original spelling, punctuation, ranges, dual addresses, parenthetical address, building identifiers, and supplied city/state/ZIP fields are preserved.
 
-All 27 facility records carry status `Active`. Users can change the local working status to Unassigned, Active, Coming Soon, or Planned; a changed value is stored only in browser localStorage under `facility-status-assignments-v3`. Property sizes, dock counts, clear heights, site plans, documents, and operational details were not supplied and are not inferred.
+All 27 facility records carry status `Active` in this prototype. Users can change the local working status to Unassigned, Active, Coming Soon, or Planned; a changed value is stored only in browser localStorage under `facility-status-assignments-v3`. Fourteen facilities have user-supplied site plans and sourced plan facts. Those facts describe the supplied drawing or user statement, not current availability or operating capacity, and missing values are not inferred. Operational details are not connected to a live system.
 
 All 27 roster records show media: twelve records use official UNIS directory media and fifteen use user-provided photos. Four of the ten additions have exact address matches in the official directory: West Sacramento, Sparks, Navigation Boulevard in Houston, and Delp Street in Memphis. Their images are address-correlated listing media and do not independently prove building identity. The other six additions (Waddell, Ontario, Kent, Salt Lake City, Somerset, and Plano) have no exact official directory match and use user-provided photos supplied on 2026-09-29. Existing user-photo limitations remain unchanged. Each media record uses a deterministic local square roster thumbnail and a separate uncropped detail asset. URLs or source markers, alt text, retrieval date, dimensions, match rationale, and limitations are recorded in `src/data/facility-media.ts` and [PHOTO-PROVENANCE.md](./PHOTO-PROVENANCE.md). No stock, neighboring-facility, or uncertain building image is substituted.
+
+Thirteen facilities also have separate user-supplied galleries totaling 40 photos. These galleries do not replace the target's 17 roster/detail media records: both are shown separately in the Photos tab with their own provenance. Facility 07 Seabrook retains its user-provided screenshot record and has no substituted gallery or site plan. Gallery metadata lives in `src/data/facility-user-photos.ts`; plan assets and facts live in `src/data/facility-site-plans.ts`.
+
+The Documents tab generates a four-page US-letter facility profile in the browser from the selected facility's current local data. It includes the selected address, contact-unavailable state, supplied plan or an explicit missing-plan state, sourced facts and operating hours with provenance, and the selected facility's gallery or existing media record. Generation uses only same-origin local assets and does not require a backend or database.
 
 The Tennessee address intentionally remains `4550 Quality Drive, TN` because no city or ZIP was supplied. Geocoder-inferred locality data is not added to the user-provided address.
 
@@ -76,7 +80,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-The Playwright suite verifies all 27 exact addresses, 26 valid map pins, twelve official records plus fifteen user-provided photos, all 27 operating-hours records, square thumbnail sizing, uncropped detail media, forced image-error fallback, mobile address wrapping, photo provenance, address/city/state/ZIP/type search and filtering, local status assignment and persistence, the unpinned Waddell detail flow, unavailable property states, light/dark persistence, and basemap switching.
+The Playwright suite verifies all 27 exact addresses, 26 valid map pins, twelve official records plus fifteen user-provided photos, supplied galleries, 14 site plans, exact local asset responses, four-page selected-facility PDF downloads, all 27 operating-hours records, square thumbnail sizing, uncropped detail media, forced image-error fallback, mobile address wrapping, photo provenance, address/city/state/ZIP/type search and filtering, local status assignment and persistence, the unpinned Waddell detail flow, unavailable property states, light/dark persistence, and basemap switching.
 
 ## Map attribution
 
