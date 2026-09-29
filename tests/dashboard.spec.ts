@@ -570,7 +570,31 @@ test('stale v2 non-Active statuses cannot override the intrinsic Active status',
   })).toBe(0)
 })
 
-test('Dashboard navigation shows an all-facility map without Locations-only UI or visible labels', async ({ page }) => {
+test('top navigation exposes the functioning Facilities view once and omits Locations and Inventory on desktop and mobile', async ({ page }) => {
+  const navigation = page.getByRole('navigation', { name: 'Primary navigation' })
+  const expectedItems = ['Dashboard', 'Facilities', 'Operations', 'Analytics', 'Reports']
+
+  await expect(navigation.getByRole('button')).toHaveText(expectedItems)
+  await expect(navigation.getByRole('button', { name: 'Facilities', exact: true })).toHaveCount(1)
+  await expect(navigation.getByRole('button', { name: 'Facilities', exact: true })).toHaveAttribute('aria-current', 'page')
+  await expect(navigation.getByRole('button', { name: 'Locations', exact: true })).toHaveCount(0)
+  await expect(navigation.getByRole('button', { name: 'Inventory', exact: true })).toHaveCount(0)
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.getByRole('button', { name: 'Open navigation' }).click()
+  await expect(navigation).toBeVisible()
+  await expect(navigation.getByRole('button')).toHaveText(expectedItems)
+  await expect(navigation.getByRole('button', { name: 'Facilities', exact: true })).toHaveCount(1)
+  await expect(navigation.getByRole('button', { name: 'Facilities', exact: true })).toHaveAttribute('aria-current', 'page')
+  await expect(navigation.getByRole('button', { name: 'Locations', exact: true })).toHaveCount(0)
+  await expect(navigation.getByRole('button', { name: 'Inventory', exact: true })).toHaveCount(0)
+  const navigationBox = await navigation.boundingBox()
+  expect(navigationBox).not.toBeNull()
+  expect(navigationBox!.x).toBeGreaterThanOrEqual(0)
+  expect(navigationBox!.x + navigationBox!.width).toBeLessThanOrEqual(390)
+})
+
+test('Dashboard navigation shows an all-facility map without Facilities-only UI or visible labels', async ({ page }) => {
   await page.evaluate(() => localStorage.setItem('facility-status-assignments-v3', JSON.stringify({
     'buena-park-valley-view': 'Active',
     'riverside-alessandro': 'Planned',
@@ -581,14 +605,14 @@ test('Dashboard navigation shows an all-facility map without Locations-only UI o
   await expect(page.locator('tbody tr')).toHaveCount(0)
 
   const dashboardNav = page.getByRole('button', { name: 'Dashboard', exact: true })
-  const locationsNav = page.getByRole('button', { name: 'Locations', exact: true })
+  const facilitiesNav = page.getByRole('button', { name: 'Facilities', exact: true })
   await dashboardNav.click()
 
   await expect(dashboardNav).toHaveAttribute('aria-current', 'page')
-  await expect(locationsNav).not.toHaveAttribute('aria-current')
+  await expect(facilitiesNav).not.toHaveAttribute('aria-current')
   await expect(page.getByLabel('Facility network map')).toHaveAttribute('data-view', 'dashboard')
   await expect(page.locator('.location-marker-wrap')).toHaveCount(27)
-  await expect(page.locator('.location-marker-wrap').first()).toHaveAttribute('aria-label', 'Open facility 01 in Locations')
+  await expect(page.locator('.location-marker-wrap').first()).toHaveAttribute('aria-label', 'Open facility 01 in Facilities')
   await expect(page.locator('.location-marker-wrap[title]')).toHaveCount(0)
   await expect(page.locator('.leaflet-tooltip')).toHaveCount(0)
   await expect(page.getByText('Buena Park, CA', { exact: true })).toHaveCount(0)
@@ -603,7 +627,7 @@ test('Dashboard navigation shows an all-facility map without Locations-only UI o
 
   await expect(page.locator('.location-pin.is-dashboard-pin')).toHaveCount(0)
   await expect(page.locator('.location-pin')).toHaveCount(27)
-  const focusedMarker = page.getByRole('button', { name: 'Open facility 01 in Locations' })
+  const focusedMarker = page.getByRole('button', { name: 'Open facility 01 in Facilities' })
   await focusedMarker.focus()
   await expect(focusedMarker).toBeFocused()
 
@@ -625,19 +649,19 @@ test('Dashboard navigation shows an all-facility map without Locations-only UI o
   expect(mapBox?.height).toBeCloseTo(dashboardBox!.height, 0)
 })
 
-test('Dashboard marker opens Locations showcase and returning clears detail and refits all pins', async ({ page }) => {
+test('Dashboard marker opens Facilities showcase and returning clears detail and refits all pins', async ({ page }) => {
   const map = page.getByLabel('Facility network map')
   const dashboardNav = page.getByRole('button', { name: 'Dashboard', exact: true })
-  const locationsNav = page.getByRole('button', { name: 'Locations', exact: true })
+  const facilitiesNav = page.getByRole('button', { name: 'Facilities', exact: true })
   const facility = facilities[11]
 
   await dashboardNav.click()
   await expectAllFacilitiesInMapBounds(map)
   await expect(page.getByTestId('map-open-in-maps')).toHaveCount(0)
-  await page.getByRole('button', { name: 'Open facility 12 in Locations' }).focus()
+  await page.getByRole('button', { name: 'Open facility 12 in Facilities' }).focus()
   await page.keyboard.press('Enter')
 
-  await expect(locationsNav).toHaveAttribute('aria-current', 'page')
+  await expect(facilitiesNav).toHaveAttribute('aria-current', 'page')
   await expect(dashboardNav).not.toHaveAttribute('aria-current')
   await expect(page.getByTestId('selected-showcase')).toContainText(facility.fullAddress)
   await expectMapFocusedOn(map, facility.coordinates)
@@ -748,7 +772,7 @@ test('Dashboard Regions softly highlights Southern California, retains a closed-
   await expect(map).toHaveAttribute('data-center', focusedCenter!)
   await expect(map).toHaveAttribute('data-zoom', focusedZoom!)
 
-  const firstMarker = page.getByRole('button', { name: 'Open facility 01 in Locations' })
+  const firstMarker = page.getByRole('button', { name: 'Open facility 01 in Facilities' })
   await firstMarker.hover()
   await expect(page.locator('[data-testid="dashboard-pin-preview"][data-facility-id="buena-park-valley-view"]')).toBeVisible()
 
@@ -876,10 +900,10 @@ test('Dashboard pin previews show matching decoded photos on hover and focus, th
   const centralFacility = facilities[22]
   const nextFacility = facilities[7]
   const tennesseeFacility = facilities[8]
-  const firstMarker = page.getByRole('button', { name: 'Open facility 15 in Locations' })
-  const centralMarker = page.getByRole('button', { name: 'Open facility 23 in Locations' })
-  const nextMarker = page.getByRole('button', { name: 'Open facility 08 in Locations' })
-  const tennesseeMarker = page.getByRole('button', { name: 'Open facility 09 in Locations' })
+  const firstMarker = page.getByRole('button', { name: 'Open facility 15 in Facilities' })
+  const centralMarker = page.getByRole('button', { name: 'Open facility 23 in Facilities' })
+  const nextMarker = page.getByRole('button', { name: 'Open facility 08 in Facilities' })
+  const tennesseeMarker = page.getByRole('button', { name: 'Open facility 09 in Facilities' })
 
   await expect(page.getByTestId('dashboard-pin-preview')).toHaveCount(0)
   await expect(page.locator('.dashboard-pin-preview-address')).toHaveCount(0)
@@ -938,7 +962,7 @@ test('Dashboard pin preview disables motion and keeps token contrast when reduce
   await page.getByTestId('theme-toggle').click()
   await page.getByRole('button', { name: 'Dashboard', exact: true }).click()
 
-  const marker = page.getByRole('button', { name: 'Open facility 15 in Locations' })
+  const marker = page.getByRole('button', { name: 'Open facility 15 in Facilities' })
   await marker.hover()
   await expect(marker.locator('.location-pin')).toHaveCSS('transition-duration', '0s')
   const preview = page.getByTestId('dashboard-pin-preview')
@@ -952,7 +976,7 @@ test('Dashboard pin preview disables motion and keeps token contrast when reduce
   expect(contrast.background).not.toBe(contrast.text)
 })
 
-test('mobile Dashboard is map-only and its marker opens the Locations detail flow', async ({ page }) => {
+test('mobile Dashboard is map-only and its marker opens the Facilities detail flow', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.reload()
   await page.getByRole('button', { name: 'Open navigation' }).click()
@@ -973,12 +997,12 @@ test('mobile Dashboard is map-only and its marker opens the Locations detail flo
   expect(dimensions.content).toBeLessThanOrEqual(dimensions.viewport)
 
   const tappedFacility = facilities[14]
-  const firstMarker = page.getByRole('button', { name: 'Open facility 15 in Locations' })
+  const firstMarker = page.getByRole('button', { name: 'Open facility 15 in Facilities' })
   for (const [facility, markerName] of [
-    [facilities[14], 'Open facility 15 in Locations'],
-    [facilities[3], 'Open facility 04 in Locations'],
-    [facilities[7], 'Open facility 08 in Locations'],
-    [facilities[16], 'Open facility 17 in Locations'],
+    [facilities[14], 'Open facility 15 in Facilities'],
+    [facilities[3], 'Open facility 04 in Facilities'],
+    [facilities[7], 'Open facility 08 in Facilities'],
+    [facilities[16], 'Open facility 17 in Facilities'],
   ] as const) {
     await page.getByRole('button', { name: markerName }).focus()
     await expectDashboardPreviewLayout(page, map, facility, true)
@@ -986,7 +1010,7 @@ test('mobile Dashboard is map-only and its marker opens the Locations detail flo
   await firstMarker.focus()
   await firstMarker.click()
   await page.getByRole('button', { name: 'Open navigation' }).click()
-  await expect(page.getByRole('button', { name: 'Locations', exact: true })).toHaveAttribute('aria-current', 'page')
+  await expect(page.getByRole('button', { name: 'Facilities', exact: true })).toHaveAttribute('aria-current', 'page')
   await expect(page.getByRole('group', { name: 'Explorer view' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'List' })).toHaveAttribute('aria-pressed', 'true')
   await expect(page.getByTestId('selected-showcase')).toContainText(tappedFacility.fullAddress)
@@ -1060,7 +1084,7 @@ test('Dashboard preview without a site plan shows only the pending available-spa
   await page.getByRole('button', { name: 'Dashboard', exact: true }).click()
   const map = page.getByLabel('Facility network map')
   const waddell = facilities[17]
-  await page.getByRole('button', { name: 'Open facility 18 in Locations' }).hover()
+  await page.getByRole('button', { name: 'Open facility 18 in Facilities' }).hover()
   const preview = await expectDashboardPreviewLayout(page, map, waddell)
   await expect(preview.getByTestId('square-footage-total')).toHaveCount(0)
   await expect(preview.getByTestId('square-footage-available')).toBeVisible()
@@ -2290,7 +2314,7 @@ test('Street basemap is the initial default and manual layer selection persists 
   const satelliteTiles = page.locator('.leaflet-tile-pane img[src*="/World_Imagery/"]')
   await expect.poll(() => satelliteTiles.count()).toBeGreaterThan(0)
 
-  await page.getByRole('button', { name: 'Locations', exact: true }).click()
+  await page.getByRole('button', { name: 'Facilities', exact: true }).click()
   await expect(page.getByLabel('Facility network map')).toHaveAttribute('data-view', 'locations')
   await expect(satellite).toHaveAttribute('aria-pressed', 'true')
   await expect(street).toHaveAttribute('aria-pressed', 'false')
