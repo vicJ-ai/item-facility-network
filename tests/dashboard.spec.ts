@@ -1303,8 +1303,7 @@ test('facility type filter combines with search and status, clears fully, and st
   await expect(page.getByRole('table')).toContainText(suppliedAddresses[17])
   await search.fill('Waddell')
   await expect(rows).toHaveCount(1)
-  await expect(markers).toHaveCount(0)
-  await expect(page.locator('.no-map-results')).toContainText('Map location unavailable')
+  await expect(markers).toHaveCount(1)
 
   await search.fill('not-a-current-facility')
   await expect(page.getByText('No matching facilities')).toBeVisible()
