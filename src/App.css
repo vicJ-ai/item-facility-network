@@ -419,7 +419,11 @@ td:last-child { width: 20px; padding-left: 0; }
 .operations-contact-copy address a { color: var(--primary); text-decoration: none; }
 .operations-contact-copy address a:hover { color: var(--primary-strong); text-decoration: underline; }
 .operations-contact-copy address svg { flex: 0 0 auto; }
+.operations-contact-copy address a small { min-width: 34px; color: var(--muted); font-size: 8px; font-weight: 700; text-transform: uppercase; }
 .operations-contact-missing { color: var(--muted); }
+.operations-contacts-empty { margin: 5px 12px 0; padding: 24px 18px; display: grid; justify-items: center; gap: 5px; border: 1px dashed var(--border); border-radius: 7px; color: var(--muted); background: var(--surface-2); text-align: center; }
+.operations-contacts-empty strong { color: var(--text); font-size: 13px; }
+.operations-contacts-empty span { font-size: 10px; line-height: 1.45; }
 
 .toast { position: fixed; z-index: 3000; top: 72px; left: 50%; transform: translateX(-50%); padding: 10px 15px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--border); border-radius: 7px; color: var(--text); background: var(--surface); box-shadow: var(--shadow); font-size: 12px; }
 .toast svg { color: var(--active); }

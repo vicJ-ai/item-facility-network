@@ -9,6 +9,7 @@ import {
 import type { Facility } from '../data/facilities'
 import { formatOperatingHours, type FacilityOperatingHours } from '../data/facility-hours'
 import type { FacilityMedia } from '../data/facility-media'
+import type { FacilityContact, FacilityOperations } from '../data/facility-operations'
 import type { FacilitySitePlan, FacilitySitePlanFact } from '../data/facility-site-plans'
 import type { UserProvidedFacilityPhoto, UserProvidedFacilityPhotos } from '../data/facility-user-photos'
 
@@ -17,6 +18,7 @@ export type FacilityProfileData = {
   facilityTitle: string
   operatingHours: FacilityOperatingHours
   media?: FacilityMedia
+  operations?: FacilityOperations
   sitePlan?: FacilitySitePlan
   userPhotos?: UserProvidedFacilityPhotos
 }
@@ -273,7 +275,7 @@ function operatingHoursSource(hours: FacilityOperatingHours) {
 }
 
 function pageOneFacts(data: FacilityProfileData) {
-  const facts: Array<{ label: string; value: string; note?: string }> = data.sitePlan?.facts.slice(0, 4).map((fact) => ({ label: fact.label, value: formatFact(fact), note: fact.note })) ?? []
+  const facts: Array<{ label: string; value: string; note?: string }> = data.sitePlan?.facts.slice(0, 4).map((fact) => ({ label: fact.label, value: formatFact(fact) })) ?? []
   if (facts.length === 0) {
     facts.push(
       { label: 'Facility', value: `Facility ${facilityNumber(data.facility)}` },
@@ -281,6 +283,67 @@ function pageOneFacts(data: FacilityProfileData) {
     )
   }
   return facts
+}
+
+function contactPhoneText(contact: FacilityContact) {
+  if (contact.phones?.length) return contact.phones.map((phone) => `${phone.label}: ${phone.display}`).join(' · ')
+  if (contact.phone) return `Phone: ${contact.phone}`
+  return ''
+}
+
+function drawContactDirectory(page: PDFPage, fonts: Fonts, data: FacilityProfileData, box: { x: number; y: number; width: number; height: number }) {
+  page.drawRectangle({ ...box, color: NAVY_SOFT })
+  page.drawText('CONTACT DIRECTORY', { x: box.x + 15, y: box.y + box.height - 22, size: 7, font: fonts.bold, color: rgb(0.76, 0.82, 0.88) })
+
+  if (!data.operations) {
+    page.drawText('Contacts pending review', { x: box.x + 15, y: box.y + box.height - 57, size: 15, font: fonts.bold, color: WHITE })
+    drawWrappedText(page, 'No staff contacts were confidently matched to this facility.', {
+      x: box.x + 15,
+      y: box.y + box.height - 80,
+      width: box.width - 30,
+      font: fonts.regular,
+      size: 8.5,
+      color: rgb(0.84, 0.88, 0.92),
+      maxLines: 2,
+    })
+    return
+  }
+
+  drawWrappedText(page, data.operations.source, {
+    x: box.x + 15,
+    y: box.y + box.height - 36,
+    width: box.width - 30,
+    font: fonts.regular,
+    size: 6.2,
+    color: rgb(0.76, 0.82, 0.88),
+    maxLines: 1,
+  })
+
+  const contacts = data.operations.contacts.slice(0, 6)
+  const rows = Math.ceil(contacts.length / 2)
+  const columnGap = 18
+  const columnWidth = (box.width - 30 - columnGap) / 2
+  const cardsTop = box.y + box.height - 52
+  const cardsBottom = box.y + 10
+  const rowHeight = (cardsTop - cardsBottom) / Math.max(1, rows)
+
+  contacts.forEach((contact, index) => {
+    const column = index < rows ? 0 : 1
+    const row = column === 0 ? index : index - rows
+    const x = box.x + 15 + column * (columnWidth + columnGap)
+    const top = cardsTop - row * rowHeight
+    const phone = contactPhoneText(contact)
+    drawWrappedText(page, contact.role, { x, y: top - 8, width: columnWidth, font: fonts.bold, size: 5.8, color: rgb(0.76, 0.82, 0.88), lineHeight: 6.6, maxLines: 1 })
+    drawWrappedText(page, contact.name, { x, y: top - 22, width: columnWidth, font: fonts.bold, size: 8.8, color: WHITE, maxLines: 1 })
+    drawWrappedText(page, contact.email, { x, y: top - 35, width: columnWidth, font: fonts.regular, size: 6.3, color: rgb(0.88, 0.91, 0.94), maxLines: 1 })
+    if (phone) drawWrappedText(page, phone, { x, y: top - 47, width: columnWidth, font: fonts.regular, size: 6.2, color: rgb(0.88, 0.91, 0.94), maxLines: 1 })
+    if (row < rows - 1) page.drawLine({ start: { x, y: top - rowHeight + 5 }, end: { x: x + columnWidth, y: top - rowHeight + 5 }, thickness: 0.45, color: rgb(0.27, 0.37, 0.47) })
+  })
+
+  if (contacts.length > rows) {
+    const dividerX = box.x + box.width / 2
+    page.drawLine({ start: { x: dividerX, y: cardsBottom }, end: { x: dividerX, y: cardsTop }, thickness: 0.45, color: rgb(0.27, 0.37, 0.47) })
+  }
 }
 
 async function drawOverviewPage(pdf: PDFDocument, fonts: Fonts, data: FacilityProfileData, loadAsset: ReturnType<typeof createAssetLoader>) {
@@ -291,12 +354,12 @@ async function drawOverviewPage(pdf: PDFDocument, fonts: Fonts, data: FacilityPr
 
   const coverUrl = data.userPhotos?.photos.find((photo) => photo.id === data.userPhotos?.coverPhotoId)?.assetUrl ?? data.media?.detail.assetUrl
   const cover = coverUrl ? await loadAsset(coverUrl, 'photo') : null
-  const heroBox = { x: MARGIN, y: 405, width: PAGE_WIDTH - MARGIN * 2, height: 210 }
+  const heroBox = { x: MARGIN, y: 485, width: PAGE_WIDTH - MARGIN * 2, height: 130 }
   if (cover) drawContainedImage(page, cover, heroBox)
   else drawImagePlaceholder(page, fonts, heroBox, 'Photo not provided', 'Facility profile remains available without media.')
 
-  page.drawRectangle({ x: MARGIN, y: 360, width: PAGE_WIDTH - MARGIN * 2, height: 45, color: NAVY })
-  drawWrappedText(page, data.facility.fullAddress, { x: MARGIN + 15, y: 383, width: PAGE_WIDTH - MARGIN * 2 - 30, font: fonts.bold, size: 10.5, color: WHITE, maxLines: 2 })
+  page.drawRectangle({ x: MARGIN, y: 445, width: PAGE_WIDTH - MARGIN * 2, height: 40, color: NAVY })
+  drawWrappedText(page, data.facility.fullAddress, { x: MARGIN + 15, y: 468, width: PAGE_WIDTH - MARGIN * 2 - 30, font: fonts.bold, size: 9.5, color: WHITE, maxLines: 2 })
 
   const facts = pageOneFacts(data)
   const gap = 8
@@ -304,13 +367,10 @@ async function drawOverviewPage(pdf: PDFDocument, fonts: Fonts, data: FacilityPr
   facts.slice(0, 4).forEach((fact, index) => {
     const row = Math.floor(index / 2)
     const col = index % 2
-    drawFactCard(page, fonts, fact, { x: MARGIN + col * (cardWidth + gap), y: 265 - row * 70, width: cardWidth, height: 62 })
+    drawFactCard(page, fonts, fact, { x: MARGIN + col * (cardWidth + gap), y: 382 - row * 56, width: cardWidth, height: 52 })
   })
 
-  page.drawRectangle({ x: MARGIN, y: 73, width: PAGE_WIDTH - MARGIN * 2, height: 105, color: NAVY_SOFT })
-  page.drawText('CONTACT', { x: MARGIN + 16, y: 151, size: 7, font: fonts.bold, color: rgb(0.76, 0.82, 0.88) })
-  page.drawText('Contact information coming soon', { x: MARGIN + 16, y: 124, size: 15, font: fonts.bold, color: WHITE })
-  page.drawText('Name, email, and phone were not supplied.', { x: MARGIN + 16, y: 100, size: 8.5, font: fonts.regular, color: rgb(0.84, 0.88, 0.92) })
+  drawContactDirectory(page, fonts, data, { x: MARGIN, y: 58, width: PAGE_WIDTH - MARGIN * 2, height: 254 })
   drawFooter(page, fonts, 1, `${photoSource(data)} · Generated from current portal data`)
 }
 
@@ -459,6 +519,9 @@ async function drawPhotosPage(pdf: PDFDocument, fonts: Fonts, data: FacilityProf
 function metadataKeywords(data: FacilityProfileData) {
   const facts = data.sitePlan?.facts.flatMap((fact) => [fact.label, formatFact(fact), fact.note ?? '']) ?? []
   const photoLabels = data.userPhotos?.photos.map((photo) => photo.label) ?? []
+  const contacts = data.operations
+    ? [data.operations.source, ...data.operations.contacts.flatMap((contact) => [contact.role, contact.name, contact.email, contactPhoneText(contact)])]
+    : ['Contacts pending review']
   return [
     `Facility ${facilityNumber(data.facility)}`,
     data.facility.id,
@@ -471,6 +534,7 @@ function metadataKeywords(data: FacilityProfileData) {
     operatingHoursSource(data.operatingHours),
     data.sitePlan?.sourceNote ?? '',
     ...facts,
+    ...contacts,
     ...photoLabels,
   ].filter(Boolean)
 }

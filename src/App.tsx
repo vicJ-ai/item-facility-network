@@ -3,7 +3,7 @@ import {
   ArrowLeft, Bell, Box, Building2, Camera, Check, ChevronRight, CircleHelp, ClipboardList, Clock,
   ExternalLink, FileQuestion, FileText, Grid2X2, Info, Layers3, LocateFixed, Mail, Maximize2,
   Map as MapIcon, MapPin, Menu, Moon, PackageSearch, Phone, Search, ShieldCheck,
-  SlidersHorizontal, Sun, Truck, Warehouse, X,
+  SlidersHorizontal, Sun, Warehouse, X,
 } from 'lucide-react'
 import L from 'leaflet'
 import { CircleMarker, MapContainer, Marker, TileLayer, Tooltip, useMap, useMapEvents, ZoomControl } from 'react-leaflet'
@@ -710,10 +710,8 @@ function App() {
                   ? <SitePlanContent facility={selected} sitePlan={selectedSitePlan} />
                   : <EmptyState icon={MapIcon} title="Site plan not provided" body="No site plan was supplied for this facility." />)}
                 {tab === 'Photos' && <PhotosContent facility={selected} media={selectedMedia} userPhotos={selectedUserPhotos} />}
-                {tab === 'Documents' && <FacilityDocuments key={selected.id} facility={selected} facilityTitle={getFacilityTitle(selected)} operatingHours={getFacilityOperatingHours(selected.id)} media={selectedMedia} sitePlan={selectedSitePlan} userPhotos={selectedUserPhotos} />}
-                {tab === 'Operations' && (selectedOperations
-                  ? <OperationsContent facility={selected} operations={selectedOperations} />
-                  : <EmptyState icon={Truck} title="Operations data unavailable" body="This prototype does not connect to WMS, YMS, inventory, or operational systems." />)}
+                {tab === 'Documents' && <FacilityDocuments key={selected.id} facility={selected} facilityTitle={getFacilityTitle(selected)} operatingHours={getFacilityOperatingHours(selected.id)} media={selectedMedia} operations={selectedOperations} sitePlan={selectedSitePlan} userPhotos={selectedUserPhotos} />}
+                {tab === 'Operations' && <OperationsContent facility={selected} operations={selectedOperations} />}
               </div>
               <div className="detail-footer"><button className="secondary-button" onClick={() => setAboutOpen(true)}><CircleHelp size={16} />About data</button><button className="primary-button" onClick={() => setDetailsOpen(true)}>View Full Details <ChevronRight size={17} /></button></div>
             </aside>
@@ -1049,6 +1047,10 @@ function SitePlanContent({ facility, sitePlan }: { facility: Facility; sitePlan:
 }
 
 function OperationsContactCard({ contact }: { contact: FacilityContact }) {
+  const phones = contact.phones ?? (contact.phone && contact.phoneHref
+    ? [{ label: 'Phone' as const, display: contact.phone, href: contact.phoneHref }]
+    : [])
+
   return (
     <article className="operations-contact-card" data-contact-id={contact.id}>
       {contact.photoUrl ? (
@@ -1061,8 +1063,14 @@ function OperationsContactCard({ contact }: { contact: FacilityContact }) {
         <h3>{contact.name}</h3>
         <address>
           <a href={`mailto:${contact.email}`}><Mail size={14} />{contact.email}</a>
-          {contact.phone && contact.phoneHref ? (
-            <a href={`tel:${contact.phoneHref}`}><Phone size={14} />{contact.phone}</a>
+          {phones.length > 0 ? (
+            phones.map((phone) => (
+              <a href={`tel:${phone.href}`} key={`${phone.label}-${phone.href}`}>
+                <Phone size={14} />
+                {phones.length > 1 && <small>{phone.label}</small>}
+                {phone.display}
+              </a>
+            ))
           ) : (
             <span className="operations-contact-missing"><Phone size={14} />Phone not provided</span>
           )}
@@ -1072,32 +1080,45 @@ function OperationsContactCard({ contact }: { contact: FacilityContact }) {
   )
 }
 
-function OperationsContent({ facility, operations }: { facility: Facility; operations: FacilityOperations }) {
-  const accountContacts = operations.contacts.filter((contact) => contact.group === 'account-management')
-  const operationsContacts = operations.contacts.filter((contact) => contact.group === 'operations')
+function OperationsContent({ facility, operations }: { facility: Facility; operations?: FacilityOperations }) {
+  const accountContacts = operations?.contacts.filter((contact) => contact.group === 'account-management') ?? []
+  const operationsContacts = operations?.contacts.filter((contact) => contact.group === 'operations') ?? []
 
   return (
     <section className="facility-operations" aria-label={`Operations contacts for ${facility.fullAddress}`}>
       <header className="operations-heading">
         <div><span className="eyebrow">Facility operations</span><h2>Hours & contact heads</h2></div>
-        <span>{operations.source}</span>
+        <span>{operations?.source ?? 'Contact match pending review'}</span>
       </header>
       <section className="operations-hours" aria-labelledby="operations-hours-title">
-        <div><Clock size={19} /><span><small>Facility 01</small><h3 id="operations-hours-title">Operating hours</h3></span></div>
+        <div><Clock size={19} /><span><small>Facility {String(facility.number).padStart(2, '0')}</small><h3 id="operations-hours-title">Operating hours</h3></span></div>
         <OperatingHoursDisplay facilityId={facility.id} variant="operations" />
       </section>
-      <section className="operations-contact-group" aria-labelledby="account-contacts-title">
-        <header><span className="eyebrow">Client team</span><h3 id="account-contacts-title">Account management</h3></header>
-        <div className="operations-contact-grid">
-          {accountContacts.map((contact) => <OperationsContactCard key={contact.id} contact={contact} />)}
+      {operations ? (
+        <>
+          {accountContacts.length > 0 && (
+            <section className="operations-contact-group" aria-labelledby="account-contacts-title">
+              <header><span className="eyebrow">Client team</span><h3 id="account-contacts-title">Account management</h3></header>
+              <div className="operations-contact-grid">
+                {accountContacts.map((contact) => <OperationsContactCard key={contact.id} contact={contact} />)}
+              </div>
+            </section>
+          )}
+          {operationsContacts.length > 0 && (
+            <section className="operations-contact-group" aria-labelledby="operations-leaders-title">
+              <header><span className="eyebrow">Facility team</span><h3 id="operations-leaders-title">Operations leaders</h3></header>
+              <div className="operations-contact-grid">
+                {operationsContacts.map((contact) => <OperationsContactCard key={contact.id} contact={contact} />)}
+              </div>
+            </section>
+          )}
+        </>
+      ) : (
+        <div className="operations-contacts-empty" role="status">
+          <strong>Contacts pending review</strong>
+          <span>No staff contacts were confidently matched to this facility.</span>
         </div>
-      </section>
-      <section className="operations-contact-group" aria-labelledby="operations-leaders-title">
-        <header><span className="eyebrow">Facility team</span><h3 id="operations-leaders-title">Operations leaders</h3></header>
-        <div className="operations-contact-grid">
-          {operationsContacts.map((contact) => <OperationsContactCard key={contact.id} contact={contact} />)}
-        </div>
-      </section>
+      )}
     </section>
   )
 }

@@ -3,6 +3,7 @@ import { CheckCircle2, Download, FileText, LoaderCircle, TriangleAlert } from 'l
 import type { Facility } from '../data/facilities'
 import type { FacilityOperatingHours } from '../data/facility-hours'
 import type { FacilityMedia } from '../data/facility-media'
+import type { FacilityOperations } from '../data/facility-operations'
 import type { FacilitySitePlan } from '../data/facility-site-plans'
 import type { UserProvidedFacilityPhotos } from '../data/facility-user-photos'
 
@@ -11,6 +12,7 @@ type FacilityDocumentsProps = {
   facilityTitle: string
   operatingHours: FacilityOperatingHours
   media?: FacilityMedia
+  operations?: FacilityOperations
   sitePlan?: FacilitySitePlan
   userPhotos?: UserProvidedFacilityPhotos
 }
@@ -21,7 +23,7 @@ function existingMediaLabel(media: FacilityMedia) {
   return media.verification.startsWith('user-provided') ? 'Existing user-provided photo' : 'Official listing photo'
 }
 
-export function FacilityDocuments({ facility, facilityTitle, operatingHours, media, sitePlan, userPhotos }: FacilityDocumentsProps) {
+export function FacilityDocuments({ facility, facilityTitle, operatingHours, media, operations, sitePlan, userPhotos }: FacilityDocumentsProps) {
   const [state, setState] = useState<DownloadState>('idle')
   const [errorMessage, setErrorMessage] = useState('')
 
@@ -32,7 +34,7 @@ export function FacilityDocuments({ facility, facilityTitle, operatingHours, med
     await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
     try {
       const { generateFacilityProfilePdf, getFacilityProfileFilename } = await import('../pdf/facility-profile')
-      const bytes = await generateFacilityProfilePdf({ facility, facilityTitle, operatingHours, media, sitePlan, userPhotos })
+      const bytes = await generateFacilityProfilePdf({ facility, facilityTitle, operatingHours, media, operations, sitePlan, userPhotos })
       const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' })
       const objectUrl = URL.createObjectURL(blob)
       const anchor = document.createElement('a')
@@ -58,7 +60,7 @@ export function FacilityDocuments({ facility, facilityTitle, operatingHours, med
         <h2 id="facility-documents-title">Facility profile PDF</h2>
         <p>A four-page profile generated from the current portal data for this facility.</p>
         <ul aria-label="Profile contents">
-          <li>Facility overview and contact status</li>
+          <li>Facility overview and {operations ? 'contact details' : 'contact review status'}</li>
           <li>{sitePlan ? 'Supplied site plan and recorded facts' : 'Explicit site-plan unavailable state'}</li>
           <li>{userPhotos ? `${userPhotos.photos.length} user-provided photo${userPhotos.photos.length === 1 ? '' : 's'}` : media ? existingMediaLabel(media) : 'Explicit photo unavailable state'}</li>
         </ul>
