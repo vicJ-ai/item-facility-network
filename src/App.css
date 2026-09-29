@@ -133,6 +133,11 @@ body.is-resizing-explorer, body.is-resizing-explorer * { cursor: col-resize !imp
 
 /* Dashboard regions */
 .dashboard-facility-highlight { pointer-events: none; }
+.region-highlight-mask, .region-highlight-area { animation: region-highlight-in .7s cubic-bezier(.22, 1, .36, 1) both; }
+.region-highlight-area { filter: drop-shadow(0 0 4px rgba(167, 139, 250, .55)); }
+@keyframes region-highlight-in { from { opacity: 0; } }
+.location-marker-wrap.is-out-of-region { opacity: .4; filter: grayscale(.85); transition: opacity .3s ease, filter .3s ease; }
+.location-marker-wrap.is-out-of-region:hover, .location-marker-wrap.is-out-of-region:focus, .location-marker-wrap.is-out-of-region:focus-visible { opacity: .9; filter: none; }
 .dashboard-facility-highlight-outer { filter: drop-shadow(0 0 10px color-mix(in srgb, var(--primary) 36%, transparent)); }
 .dashboard-region-toggle { position: absolute; z-index: 720; top: 18px; left: 18px; min-width: 124px; max-width: min(300px, calc(100% - 310px)); min-height: 44px; padding: 0 12px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); background: var(--surface); box-shadow: var(--shadow); font-size: 13px; font-weight: 700; transition: border-color var(--fast) var(--ease), color var(--fast) var(--ease); }
 .dashboard-region-toggle:hover { color: var(--primary-ink); border-color: color-mix(in srgb, var(--primary) 45%, var(--border)); }
@@ -666,6 +671,8 @@ tbody tr:hover td:last-child, tbody tr.selected td:last-child { color: var(--pri
   .map-stage[data-view='dashboard'] .location-pin { transition: none; }
   .dashboard-pin-preview-content { animation: none; }
   .daynight-live-dot.is-live { animation: none; }
+  .region-highlight-mask, .region-highlight-area { animation: none; }
+  .location-marker-wrap.is-out-of-region { transition: none; }
 }
 @media (max-width: 720px) {
   .dashboard { padding-top: 52px; }

@@ -14,6 +14,8 @@ import {
 } from 'cesium'
 import 'cesium/Build/Cesium/Widgets/widgets.css'
 import type { Facility } from '../data/facilities'
+import type { RegionBoundary } from '../data/region-boundaries'
+import { regionHighlightLayer } from './region-highlight-imagery'
 
 declare const CESIUM_BASE_URL: string
 ;(window as Window & { CESIUM_BASE_URL?: string }).CESIUM_BASE_URL = CESIUM_BASE_URL
@@ -36,6 +38,7 @@ const NIGHT_LIGHTS_BRIGHTNESS = 2.4
 const HOME_VIEW = { longitude: -96, latitude: 37, height: 15_000_000 }
 const PIN_ANCHOR = { x: 15, y: 36 }
 const PREVIEW_GAP = 14
+const REGION_FADE_MS = 700
 
 function esriLayer(layer: GlobeLayer) {
   return new ImageryLayer(new UrlTemplateImageryProvider({ url: ESRI_TILE_URLS[layer], tilingScheme: new WebMercatorTilingScheme(), maximumLevel: 19, credit: new Credit(ESRI_ATTRIBUTIONS[layer], true) }))
@@ -48,17 +51,20 @@ function nightLightsLayer() {
 }
 
 /**
- * Padded bounds for a region flight; small regions keep enough context to read as a place on the
- * planet. `coveredLeft` is the fraction of the view hidden by the Regions panel, so the bounds are
- * widened westward and the region lands in the visible part of the globe.
+ * Padded bounds for a region flight, covering its facilities and its highlighted boundary; small
+ * regions keep enough context to read as a place on the planet. `coveredLeft` is the fraction of the
+ * view hidden by the Regions panel, so the bounds are widened westward and the region lands in the
+ * visible part of the globe.
  */
-function regionRectangle(facilities: readonly MappableFacility[], coveredLeft: number) {
-  const latitudes = facilities.map((facility) => facility.coordinates[0])
-  const longitudes = facilities.map((facility) => facility.coordinates[1])
+function regionRectangle(facilities: readonly MappableFacility[], boundary: RegionBoundary | null, coveredLeft: number) {
+  const outline = (boundary ?? []).flatMap((polygon) => polygon[0])
+  const latitudes = [...facilities.map((facility) => facility.coordinates[0]), ...outline.map(([, latitude]) => latitude)]
+  const longitudes = [...facilities.map((facility) => facility.coordinates[1]), ...outline.map(([longitude]) => longitude)]
   const [south, north] = [Math.min(...latitudes), Math.max(...latitudes)]
   const [west, east] = [Math.min(...longitudes), Math.max(...longitudes)]
-  const latitudePadding = Math.max((north - south) * 0.35, 2.5)
-  const longitudePadding = Math.max((east - west) * 0.35, 3.5)
+  // A boundary already gives the region its size, so it needs only a thin margin.
+  const latitudePadding = boundary ? Math.max((north - south) * 0.12, 0.8) : Math.max((north - south) * 0.35, 2.5)
+  const longitudePadding = boundary ? Math.max((east - west) * 0.12, 1.2) : Math.max((east - west) * 0.35, 3.5)
   const paddedWest = west - longitudePadding
   const paddedEast = east + longitudePadding
   const panelAllowance = ((paddedEast - paddedWest) * coveredLeft) / (1 - coveredLeft)
@@ -70,7 +76,11 @@ function prefersReducedMotion() {
 }
 
 type DashboardGlobeProps = {
+  /** Every pin shown on the globe. */
   facilities: readonly MappableFacility[]
+  /** The active region's facilities: camera flights frame these, and pins outside the region are faded. */
+  targets: readonly MappableFacility[]
+  regionBoundary: RegionBoundary | null
   time: number
   shading: boolean
   layer: GlobeLayer
@@ -87,7 +97,7 @@ type DashboardGlobeProps = {
 
 type PinPoint = { x: number; y: number; visible: boolean }
 
-export default function DashboardGlobe({ facilities, time, shading, layer, flySignal, regionActive, panelOpen, pinMarkup, pinLabel, isOpen, renderPreview, onChoose, onUnavailable }: DashboardGlobeProps) {
+export default function DashboardGlobe({ facilities, targets, regionBoundary, time, shading, layer, flySignal, regionActive, panelOpen, pinMarkup, pinLabel, isOpen, renderPreview, onChoose, onUnavailable }: DashboardGlobeProps) {
   const stageRef = useRef<HTMLDivElement>(null)
   const canvasHostRef = useRef<HTMLDivElement>(null)
   const creditsRef = useRef<HTMLDivElement>(null)
@@ -100,13 +110,13 @@ export default function DashboardGlobe({ facilities, time, shading, layer, flySi
   const positions = useRef(new Map<string, Cartesian3>())
   const hoveredRef = useRef<string | null>(null)
   const initialProps = useRef({ time, shading, onUnavailable })
-  const flightTarget = useRef({ facilities, regionActive, panelOpen })
+  const flightTarget = useRef({ targets, regionBoundary, regionActive, panelOpen })
   const currentLayer = useRef(layer)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
 
   // Layout effects run before the passive effects below, so flights and previews read current props.
   useLayoutEffect(() => {
-    flightTarget.current = { facilities, regionActive, panelOpen }
+    flightTarget.current = { targets, regionBoundary, regionActive, panelOpen }
     hoveredRef.current = hoveredId
   })
 
@@ -251,14 +261,40 @@ export default function DashboardGlobe({ facilities, time, shading, layer, flySi
 
   useEffect(() => {
     const viewer = viewerRef.current
+    if (!viewer || !regionBoundary) return
+    // Drawn above the base imagery and night lights, and faded in while the camera flies there.
+    const layer = regionHighlightLayer(regionBoundary)
+    viewer.imageryLayers.add(layer)
+    const stage = stageRef.current
+    if (stage) stage.dataset.regionHighlight = 'true'
+    const start = performance.now()
+    let frame = 0
+    const fade = (now: number) => {
+      const progress = prefersReducedMotion() ? 1 : Math.min(1, (now - start) / REGION_FADE_MS)
+      layer.alpha = 1 - (1 - progress) ** 3
+      viewer.scene.requestRender()
+      if (progress < 1) frame = window.requestAnimationFrame(fade)
+    }
+    frame = window.requestAnimationFrame(fade)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      if (stage) stage.dataset.regionHighlight = 'false'
+      if (viewer.isDestroyed()) return
+      viewer.imageryLayers.remove(layer, true)
+      viewer.scene.requestRender()
+    }
+  }, [regionBoundary])
+
+  useEffect(() => {
+    const viewer = viewerRef.current
     if (!viewer || flySignal === 0) return
     // Each signal is one flight request, aimed at whatever region is active when it arrives.
-    const { facilities: targets, regionActive: toRegion, panelOpen: panelShown } = flightTarget.current
+    const { targets: flightTargets, regionBoundary: flightBoundary, regionActive: toRegion, panelOpen: panelShown } = flightTarget.current
     const duration = prefersReducedMotion() ? 0 : 1.6
     const width = stageRef.current?.clientWidth ?? 0
     // Matches the desktop Regions panel (18px inset + 334px wide); on mobile it is a bottom sheet instead.
     const coveredLeft = panelShown && width > 720 ? Math.min(0.45, 370 / width) : 0
-    if (toRegion && targets.length > 0) viewer.camera.flyTo({ destination: regionRectangle(targets, coveredLeft), duration })
+    if (toRegion && flightTargets.length > 0) viewer.camera.flyTo({ destination: regionRectangle(flightTargets, flightBoundary, coveredLeft), duration })
     else viewer.camera.flyTo({ destination: Cartesian3.fromDegrees(HOME_VIEW.longitude, HOME_VIEW.latitude, HOME_VIEW.height), duration })
   }, [flySignal])
 
@@ -276,6 +312,7 @@ export default function DashboardGlobe({ facilities, time, shading, layer, flySi
   }
 
   const hovered = facilities.find((facility) => facility.id === hoveredId)
+  const regionIds = new Set(targets.map((facility) => facility.id))
 
   return (
     <div ref={stageRef} className="globe-stage" data-testid="dashboard-globe" data-lighting={shading}>
@@ -289,7 +326,7 @@ export default function DashboardGlobe({ facilities, time, shading, layer, flySi
               else pinElements.current.delete(facility.id)
             }}
             type="button"
-            className={`location-marker-wrap globe-pin ${isOpen(facility) ? 'is-open' : 'is-closed'}${regionActive ? ' is-highlighted' : ''}`}
+            className={`location-marker-wrap globe-pin ${isOpen(facility) ? 'is-open' : 'is-closed'}${regionActive ? (regionIds.has(facility.id) ? ' is-highlighted' : ' is-out-of-region') : ''}`}
             data-facility-id={facility.id}
             aria-label={pinLabel(facility)}
             style={{ visibility: 'hidden' }}

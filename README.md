@@ -45,6 +45,12 @@ Facility pins are HTML elements placed over the globe, so they keep the same sty
 
 The button below the recenter control switches between the globe and the flat Leaflet map. The choice is saved in browser localStorage under `dashboard-projection-v1`. Browsers without WebGL fall back to the flat map automatically. CesiumJS is about 4 MB, so it loads only when the globe is first shown, and its workers and assets are copied to `/cesium/` at build time by `vite-plugin-static-copy`. The Locations view keeps the Leaflet map.
 
+## Region highlight
+
+Choosing a Dashboard region outlines it in brand purple, tints it lightly, and dims everything outside it; the highlight fades in as the camera moves there. Both the globe and the flat map frame the whole region, not only its facilities. The other regions' pins stay on the map, faded, and remain clickable. On the flat map the highlight is an SVG Leaflet layer (`src/components/RegionHighlightLayer.tsx`); on the globe it is a canvas-drawn imagery layer (`src/components/region-highlight-imagery.ts`), so it follows the globe's lighting.
+
+Region shapes come from US Census cartographic boundaries via the public-domain [us-atlas](https://github.com/topojson/us-atlas) 1:10m county file, simplified to about 200 m and stored in `src/data/region-boundaries.json`. State regions use the state outline. Southern California is the ten counties conventionally grouped as SoCal (Imperial, Kern, Los Angeles, Orange, Riverside, San Bernardino, San Diego, San Luis Obispo, Santa Barbara, Ventura); Northern California is the remaining 48. The shapes are for visual grouping only. To regenerate them after changing the regions, run `node scripts/build-region-boundaries.mjs`.
+
 ## Day and night
 
 The map shades the night side of the Earth for the current time and marks the point where the sun is overhead. The shade deepens through civil, nautical, and astronomical twilight, so the terminator reads as a soft band rather than a hard edge. Sun position comes from a low-precision solar ephemeris in `src/lib/solar.ts` (accurate to about 0.01° for 1950–2050); no data service is called.

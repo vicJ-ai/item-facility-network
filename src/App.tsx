@@ -11,6 +11,7 @@ import 'leaflet/dist/leaflet.css'
 import './App.css'
 import { DayNightControl } from './components/DayNightControl'
 import { DayNightLayer } from './components/DayNightLayer'
+import { RegionHighlightLayer } from './components/RegionHighlightLayer'
 import { FacilityDocuments } from './components/FacilityDocuments'
 import { FacilityPhoto } from './components/FacilityPhoto'
 import { UserProvidedPhotoGallery } from './components/UserProvidedPhotoGallery'
@@ -27,6 +28,7 @@ import { getFacilityOperations, type FacilityContact, type FacilityOperations } 
 import { getFacilitySitePlan, type FacilitySitePlan, type FacilitySitePlanFact } from './data/facility-site-plans'
 import { formatAvailableSpaceMonth, getFacilitySquareFootage } from './data/facility-space'
 import { getUserProvidedFacilityPhotos, type UserProvidedFacilityPhotos } from './data/facility-user-photos'
+import { getRegionBoundary, type RegionBoundary } from './data/region-boundaries'
 import { getFacilityOpenState, type FacilityOpenState } from './lib/facility-open'
 import { isValidTimeZone } from './lib/time-zone'
 
@@ -271,9 +273,9 @@ function pinMarkup(facility: Facility, status: DisplayStatus, selected: boolean)
   return `<span class="location-pin${selected ? ' is-selected' : ''}${facility.coordinatePrecision === 'Approximate' ? ' is-approximate' : ''}" style="--pin:${statusColor[status]}"><span></span></span><i class="pin-open-badge" aria-hidden="true"></i>`
 }
 
-function pinIcon(facility: Facility, status: DisplayStatus, selected: boolean, open: boolean) {
+function pinIcon(facility: Facility, status: DisplayStatus, selected: boolean, open: boolean, outOfRegion = false) {
   return L.divIcon({
-    className: `location-marker-wrap ${open ? 'is-open' : 'is-closed'}`,
+    className: `location-marker-wrap ${open ? 'is-open' : 'is-closed'}${outOfRegion ? ' is-out-of-region' : ''}`,
     html: pinMarkup(facility, status, selected),
     iconSize: [30, 38],
     iconAnchor: [15, 36],
@@ -288,7 +290,7 @@ function dashboardPreviewDirection(facility: MappableFacility): 'left' | 'right'
   return 'top'
 }
 
-function getDashboardRegionBounds(regionFacilities: readonly MappableFacility[]) {
+function getDashboardRegionBounds(regionFacilities: readonly MappableFacility[], boundary: RegionBoundary | null) {
   const latitudes = regionFacilities.map((facility) => facility.coordinates[0])
   const longitudes = regionFacilities.map((facility) => facility.coordinates[1])
   const minLatitude = Math.min(...latitudes)
@@ -297,10 +299,13 @@ function getDashboardRegionBounds(regionFacilities: readonly MappableFacility[])
   const maxLongitude = Math.max(...longitudes)
   const latitudePadding = Math.max((maxLatitude - minLatitude) * 0.18, 0.1)
   const longitudePadding = Math.max((maxLongitude - minLongitude) * 0.18, 0.12)
-  return L.latLngBounds(
+  const bounds = L.latLngBounds(
     [minLatitude - latitudePadding, minLongitude - longitudePadding],
     [maxLatitude + latitudePadding, maxLongitude + longitudePadding],
   )
+  // Frame the whole highlighted region, not just its facilities.
+  for (const polygon of boundary ?? []) for (const [longitude, latitude] of polygon[0]) bounds.extend([latitude, longitude])
+  return bounds
 }
 
 function MapFocus({ selected, focusSignal, recenterSignal, cameraMode, visibilityKey }: { selected: Facility | null; focusSignal: number; recenterSignal: number; cameraMode: 'overview' | 'site'; visibilityKey: string }) {
@@ -351,7 +356,7 @@ function getMapViewport(map: L.Map): MapViewport {
   }
 }
 
-function DashboardOverview({ active, signal, targets, regionActive, panelOpen, onViewChange }: { active: boolean; signal: number; targets: readonly Facility[]; regionActive: boolean; panelOpen: boolean; onViewChange: (view: MapViewport) => void }) {
+function DashboardOverview({ active, signal, targets, regionActive, regionBoundary, panelOpen, onViewChange }: { active: boolean; signal: number; targets: readonly Facility[]; regionActive: boolean; regionBoundary: RegionBoundary | null; panelOpen: boolean; onViewChange: (view: MapViewport) => void }) {
   const map = useMap()
   const cameraRequestRef = useRef(0)
 
@@ -378,7 +383,7 @@ function DashboardOverview({ active, signal, targets, regionActive, panelOpen, o
         const basePadding = mobile ? 28 : Math.min(80, Math.round(container.clientWidth * 0.055))
         const paddingTopLeft: L.PointExpression = [!mobile && panelOpen ? 370 : basePadding, basePadding]
         const paddingBottomRight: L.PointExpression = [basePadding, mobile && panelOpen ? Math.min(390, Math.round(container.clientHeight * 0.5)) : basePadding]
-        const bounds = regionActive ? getDashboardRegionBounds(mappableTargets) : L.latLngBounds(coordinates)
+        const bounds = regionActive ? getDashboardRegionBounds(mappableTargets, regionBoundary) : L.latLngBounds(coordinates)
         const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
         map.fitBounds(bounds, {
           animate: regionActive && !reduceMotion,
@@ -396,7 +401,7 @@ function DashboardOverview({ active, signal, targets, regionActive, panelOpen, o
       window.cancelAnimationFrame(fitFrame)
       map.stop()
     }
-  }, [active, map, onViewChange, panelOpen, regionActive, signal, targets])
+  }, [active, map, onViewChange, panelOpen, regionActive, regionBoundary, signal, targets])
 
   return null
 }
@@ -612,6 +617,10 @@ function App() {
     })
   }, [facilityTypeFilter, search, statusAssignments, statusFilter])
   const mappableDashboardFacilities = useMemo(() => dashboardFacilities.filter(hasUsableCoordinates), [dashboardFacilities])
+  // With a region active, the other regions' pins stay on the map, faded, for network context.
+  const mappableDashboardPins = useMemo(() => facilities.filter(hasUsableCoordinates), [])
+  const dashboardRegionIds = useMemo(() => new Set(mappableDashboardFacilities.map((facility) => facility.id)), [mappableDashboardFacilities])
+  const activeRegionBoundary = useMemo(() => activeRegion ? getRegionBoundary(activeRegion.id) : null, [activeRegion])
   const mappableFilteredFacilities = useMemo(() => filtered.filter(hasUsableCoordinates), [filtered])
 
   const mapTime = customTime ?? now
@@ -939,9 +948,11 @@ function App() {
               signal={dashboardOverviewSignal}
               targets={dashboardFacilities}
               regionActive={activeRegion !== null}
+              regionBoundary={activeRegionBoundary}
               panelOpen={regionPanelOpen}
               onViewChange={setMapView}
             />
+            <RegionHighlightLayer regionId={appView === 'dashboard' && !globeActive ? activeRegion?.id ?? null : null} boundary={activeRegionBoundary} />
             <MapLifecycle resizeKey={`${appView}:${mobileView}:${globeActive}`} onViewChange={setMapView} />
             {appView === 'locations' && <MapSplitResize resizeKey={directoryWidth} selected={selected} preserveSiteFocus={cameraMode === 'site'} onViewChange={setMapView} />}
             {appView === 'dashboard' && activeRegion && mappableDashboardFacilities.flatMap((facility) => [
@@ -962,13 +973,15 @@ function App() {
                 pathOptions={{ fill: true, fillColor: '#6b46c1', fillOpacity: 0.18, interactive: false, stroke: false }}
               />,
             ])}
-            {(globeActive ? [] : appView === 'dashboard' ? mappableDashboardFacilities : mappableFilteredFacilities).map((facility) => {
+            {(globeActive ? [] : appView === 'dashboard' ? mappableDashboardPins : mappableFilteredFacilities).map((facility) => {
               const currentStatus = facilityStatus(facility)
+              const outOfRegion = appView === 'dashboard' && activeRegion !== null && !dashboardRegionIds.has(facility.id)
               return (
                 <Marker
                   key={`${appView}-${facility.id}`}
                   position={facility.coordinates}
-                  icon={pinIcon(facility, currentStatus, facility.id === selected?.id, openStates[facility.id].isOpen)}
+                  icon={pinIcon(facility, currentStatus, facility.id === selected?.id, openStates[facility.id].isOpen, outOfRegion)}
+                  zIndexOffset={outOfRegion ? -1000 : 0}
                   eventHandlers={{
                     add: (event) => (event.target as L.Marker).getElement()?.setAttribute('aria-label', appView === 'dashboard' ? `Open facility ${String(facility.number).padStart(2, '0')} in Locations` : `Show ${facility.fullAddress} on map`),
                     click: () => chooseFacility(facility),
@@ -996,7 +1009,9 @@ function App() {
           {globeActive && (
             <Suspense fallback={<div className="globe-loading" role="status"><Earth size={22} />Loading globe…</div>}>
               <DashboardGlobe
-                facilities={mappableDashboardFacilities}
+                facilities={mappableDashboardPins}
+                targets={mappableDashboardFacilities}
+                regionBoundary={activeRegionBoundary}
                 time={mapTime}
                 shading={dayNight.shading}
                 layer={globeLayer}

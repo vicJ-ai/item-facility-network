@@ -79,8 +79,11 @@ test('regions fly the globe camera to their facilities and back home', async ({ 
 
   await page.locator('.dashboard-region-toggle').click()
   await page.getByRole('complementary', { name: 'Dashboard regions' }).getByRole('button', { name: /Arizona/ }).click()
-  await expect(globe.locator('.globe-pin')).toHaveCount(1)
+  // Other regions' pins stay on the globe, faded, while Arizona is outlined and everything around it dimmed.
+  await expect(globe.locator('.globe-pin')).toHaveCount(facilities.length)
+  await expect(globe.locator('.globe-pin.is-out-of-region')).toHaveCount(facilities.length - 1)
   await expect(globe.getByRole('button', { name: 'Open facility 18 in Locations' })).toHaveClass(/is-highlighted/)
+  await expect(globe).toHaveAttribute('data-region-highlight', 'true')
   const waddell = facilities.find((facility) => facility.id === 'waddell-cotton')!
   await expect.poll(async () => (await cameraOf(page)).height, { timeout: 15_000 }).toBeLessThan(3_000_000)
   const regional = await cameraOf(page)
@@ -90,6 +93,8 @@ test('regions fly the globe camera to their facilities and back home', async ({ 
 
   await page.getByRole('button', { name: 'All facilities' }).click()
   await expect(globe.locator('.globe-pin')).toHaveCount(facilities.length)
+  await expect(globe.locator('.globe-pin.is-out-of-region')).toHaveCount(0)
+  await expect(globe).toHaveAttribute('data-region-highlight', 'false')
   await expect.poll(async () => (await cameraOf(page)).height, { timeout: 15_000 }).toBeGreaterThan(10_000_000)
 
   const before = (await cameraOf(page)).height
