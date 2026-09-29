@@ -30,10 +30,10 @@ The selected facility's Overview tab uses Google's keyless `www.google.com/maps?
 - Riverside and both El Paso records resolved at `StreetAddress` precision.
 - Building 2 / Building 5 identifiers were not independently resolved and are documented in the matching record.
 - `369 N Cypress (410 Tradeport Dr.)` matched the parenthetical `410 Tradeport Dr.` address.
-- `3901 Brandon Rd., Joliet, IL 60436` produced a conflicting point-address match in Elwood, IL 60421. Its marker is explicitly labeled `Approximate`; the supplied address is unchanged.
-- The Kent range is pinned at the best `19821 85th Ave S` endpoint candidate and is explicitly labeled approximate; the supplied range remains unchanged.
+- `3901 Brandon Rd., Joliet, IL 60436` is pinned at the Esri point-address match (which the geocoder places in Elwood, IL 60421). The pin was confirmed correct in September 2026 and is treated as precise; the supplied address is unchanged.
+- The Kent range is pinned at the `19821 85th Ave S` endpoint candidate. The pin was confirmed correct in September 2026 and is treated as precise; the supplied range remains unchanged.
 - The Plano dual address uses the primary `910 10th St` point candidate and preserves `880 F Ave.` as the unpinned alternate without inventing a ZIP.
-- `6801 N Cotton Ln, Waddell, AZ 85355` is pinned at the numbered Esri point address (which the geocoder places in Litchfield Park 85340) and labeled approximate, because Esri returned conflicting city/ZIP candidates along N Cotton Ln within about three miles.
+- `6801 N Cotton Ln, Waddell, AZ 85355` is pinned at the numbered Esri point address (which the geocoder places in Litchfield Park 85340). The pin was confirmed correct in September 2026 and is treated as precise; the supplied city and ZIP are unchanged.
 
 Coordinates support visualization only. “Open in Maps” searches the complete user-provided address rather than treating stored coordinates as authoritative.
 
