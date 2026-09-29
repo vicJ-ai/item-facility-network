@@ -501,6 +501,8 @@ async function expectLocationFilterLayout(page: Page, mobile = false) {
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     if (!localStorage.getItem('locations-theme')) localStorage.setItem('locations-theme', 'light')
+    // These suites cover the flat Dashboard map; tests/globe.spec.ts covers the 3D globe.
+    if (!localStorage.getItem('dashboard-projection-v1')) localStorage.setItem('dashboard-projection-v1', 'map')
   })
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Facility directory' })).toBeVisible()

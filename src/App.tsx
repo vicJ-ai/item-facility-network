@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import {
-  ArrowLeft, Bell, Box, Building2, Camera, Check, ChevronRight, CircleHelp, ClipboardList, Clock,
+  ArrowLeft, Bell, Box, Building2, Camera, Check, ChevronRight, CircleHelp, ClipboardList, Clock, Earth,
   ExternalLink, FileQuestion, FileText, Grid2X2, Info, Layers3, LocateFixed, Mail, Maximize2,
   Map as MapIcon, MapPin, Menu, Moon, PackageSearch, Phone, Search, ShieldCheck,
   SlidersHorizontal, Sun, Warehouse, X,
@@ -9,6 +9,8 @@ import L from 'leaflet'
 import { CircleMarker, MapContainer, Marker, TileLayer, Tooltip, useMap, useMapEvents, ZoomControl } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import './App.css'
+import { DayNightControl } from './components/DayNightControl'
+import { DayNightLayer } from './components/DayNightLayer'
 import { FacilityDocuments } from './components/FacilityDocuments'
 import { FacilityPhoto } from './components/FacilityPhoto'
 import { UserProvidedPhotoGallery } from './components/UserProvidedPhotoGallery'
@@ -25,6 +27,11 @@ import { getFacilityOperations, type FacilityContact, type FacilityOperations } 
 import { getFacilitySitePlan, type FacilitySitePlan, type FacilitySitePlanFact } from './data/facility-site-plans'
 import { formatAvailableSpaceMonth, getFacilitySquareFootage } from './data/facility-space'
 import { getUserProvidedFacilityPhotos, type UserProvidedFacilityPhotos } from './data/facility-user-photos'
+import { getFacilityOpenState, type FacilityOpenState } from './lib/facility-open'
+import { isValidTimeZone } from './lib/time-zone'
+
+// CesiumJS is large, so the 3D globe loads only when the Dashboard first shows it.
+const DashboardGlobe = lazy(() => import('./components/DashboardGlobe'))
 
 type Tab = 'Overview' | 'Site Plan' | 'Photos' | 'Documents' | 'Operations'
 type Theme = 'light' | 'dark'
@@ -33,9 +40,14 @@ type StatusFilter = 'All' | DisplayStatus
 type FacilityTypeFilter = 'All' | FacilityType
 type StatusAssignments = Record<string, DisplayStatus>
 type MapViewport = { lat: number; lng: number; zoom: number; south: number; west: number; north: number; east: number }
+type DayNightPreferences = { shading: boolean; expanded: boolean; timeZone: string | null }
+type DashboardProjection = 'globe' | 'map'
 
 const STATUS_STORAGE_KEY = 'facility-status-assignments-v3'
 const DIRECTORY_WIDTH_STORAGE_KEY = 'facility-directory-width-v1'
+const DAY_NIGHT_STORAGE_KEY = 'map-day-night-v1'
+const DASHBOARD_PROJECTION_STORAGE_KEY = 'dashboard-projection-v1'
+const CLOCK_TICK_MS = 30_000
 const SITE_FOCUS_ZOOM = 16
 const DEFAULT_DIRECTORY_RATIO = 0.36
 const MIN_DIRECTORY_RATIO = 0.25
@@ -50,7 +62,7 @@ const assignableStatuses: DisplayStatus[] = ['Unassigned', 'Active', 'Coming Soo
 const statusColor: Record<DisplayStatus, string> = {
   Active: '#13a663',
   'Coming Soon': '#f4b71b',
-  Planned: '#753bbd',
+  Planned: '#6b46c1',
   Unassigned: '#7a8798',
 }
 const dashboardRegions = [
@@ -89,6 +101,37 @@ function getInitialStatuses(): StatusAssignments {
     ) as StatusAssignments
   } catch {
     return {}
+  }
+}
+
+function getInitialDayNight(): DayNightPreferences {
+  const defaults = { shading: true, expanded: window.innerWidth > 820, timeZone: null }
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(DAY_NIGHT_STORAGE_KEY) ?? 'null') as Partial<DayNightPreferences> | null
+    return {
+      shading: typeof saved?.shading === 'boolean' ? saved.shading : defaults.shading,
+      expanded: typeof saved?.expanded === 'boolean' ? saved.expanded : defaults.expanded,
+      timeZone: typeof saved?.timeZone === 'string' && isValidTimeZone(saved.timeZone) ? saved.timeZone : defaults.timeZone,
+    }
+  } catch {
+    return defaults
+  }
+}
+
+function getInitialProjection(): DashboardProjection {
+  try {
+    return window.localStorage.getItem(DASHBOARD_PROJECTION_STORAGE_KEY) === 'map' ? 'map' : 'globe'
+  } catch {
+    return 'globe'
+  }
+}
+
+function hasWebGl() {
+  try {
+    const canvas = document.createElement('canvas')
+    return Boolean(canvas.getContext('webgl2') ?? canvas.getContext('webgl'))
+  } catch {
+    return false
   }
 }
 
@@ -155,6 +198,19 @@ function SquareFootagePreview({ facilityId }: { facilityId: string }) {
   )
 }
 
+function OpenStateBadge({ state, variant }: { state: FacilityOpenState; variant: 'compact' | 'full' }) {
+  const Icon = state.isOpen ? Sun : Moon
+  return (
+    <span className={`open-state open-state-${variant} ${state.isOpen ? 'is-open' : 'is-closed'}`} data-testid="open-state" data-open={state.isOpen} title={`${state.summary} · ${state.localTime} at facility`}>
+      <Icon size={variant === 'compact' ? 12 : 13} aria-hidden="true" />
+      <span>
+        <b>{variant === 'compact' ? (state.isOpen ? 'Open' : 'Closed') : state.summary}</b>
+        {variant === 'full' && <small>{state.localTime} at facility</small>}
+      </span>
+    </span>
+  )
+}
+
 function googleMapsUrl(facility: Facility) {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(facility.fullAddress)}`
 }
@@ -210,10 +266,15 @@ function getInitialDirectoryWidth() {
   return clampDirectoryWidth(totalWidth * DEFAULT_DIRECTORY_RATIO, totalWidth)
 }
 
-function pinIcon(facility: Facility, status: DisplayStatus, selected: boolean) {
+/** Pin markup shared by the Leaflet map and the 3D globe, so both render identical pins. */
+function pinMarkup(facility: Facility, status: DisplayStatus, selected: boolean) {
+  return `<span class="location-pin${selected ? ' is-selected' : ''}${facility.coordinatePrecision === 'Approximate' ? ' is-approximate' : ''}" style="--pin:${statusColor[status]}"><span></span></span><i class="pin-open-badge" aria-hidden="true"></i>`
+}
+
+function pinIcon(facility: Facility, status: DisplayStatus, selected: boolean, open: boolean) {
   return L.divIcon({
-    className: 'location-marker-wrap',
-    html: `<span class="location-pin${selected ? ' is-selected' : ''}${facility.coordinatePrecision === 'Approximate' ? ' is-approximate' : ''}" style="--pin:${statusColor[status]}"><span></span></span>`,
+    className: `location-marker-wrap ${open ? 'is-open' : 'is-closed'}`,
+    html: pinMarkup(facility, status, selected),
     iconSize: [30, 38],
     iconAnchor: [15, 36],
     tooltipAnchor: [14, -19],
@@ -411,6 +472,8 @@ function App() {
   const [statusAssignments, setStatusAssignments] = useState<StatusAssignments>(getInitialStatuses)
   const [tab, setTab] = useState<Tab>('Overview')
   const [layer, setLayer] = useState<'street' | 'satellite'>('street')
+  // The globe opens on satellite imagery so it reads as the planet; its choice is independent of the flat map.
+  const [globeLayer, setGlobeLayer] = useState<'street' | 'satellite'>('satellite')
   const [directoryWidth, setDirectoryWidth] = useState(getInitialDirectoryWidth)
   const [isResizing, setIsResizing] = useState(false)
   const [focusSignal, setFocusSignal] = useState(0)
@@ -424,6 +487,11 @@ function App() {
   const [aboutOpen, setAboutOpen] = useState(false)
   const [mobileNav, setMobileNav] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  const [now, setNow] = useState(() => Date.now())
+  const [customTime, setCustomTime] = useState<number | null>(null)
+  const [dayNight, setDayNight] = useState<DayNightPreferences>(getInitialDayNight)
+  const [projection, setProjection] = useState<DashboardProjection>(getInitialProjection)
+  const [globeUnavailable, setGlobeUnavailable] = useState(() => !hasWebGl())
   const [mapView, setMapView] = useState<MapViewport>({ lat: 37.8, lng: -96.2, zoom: 4, south: 23.4, west: -127.4, north: 49.8, east: -65 })
   const dashboardRef = useRef<HTMLElement>(null)
   const regionToggleRef = useRef<HTMLButtonElement>(null)
@@ -455,6 +523,27 @@ function App() {
     }
     window.addEventListener('resize', clampForViewport)
     return () => window.removeEventListener('resize', clampForViewport)
+  }, [])
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(DAY_NIGHT_STORAGE_KEY, JSON.stringify(dayNight))
+    } catch {
+      // The day/night preference is optional; the map keeps working without persistence.
+    }
+  }, [dayNight])
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(DASHBOARD_PROJECTION_STORAGE_KEY, projection)
+    } catch {
+      // The projection preference is optional; the Dashboard still opens without persistence.
+    }
+  }, [projection])
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), CLOCK_TICK_MS)
+    return () => window.clearInterval(timer)
   }, [])
 
   useEffect(() => {
@@ -505,6 +594,7 @@ function App() {
   const selectedSitePlan = selected ? getFacilitySitePlan(selected.id) : undefined
   const selectedUserPhotos = selected ? getUserProvidedFacilityPhotos(selected.id) : undefined
   const dashboardHighlightRenderer = useMemo(() => L.svg({ pane: 'overlayPane' }), [])
+  const globeActive = appView === 'dashboard' && projection === 'globe' && !globeUnavailable
   const activeRegion = dashboardRegions.find((region) => region.id === activeRegionId) ?? null
   const dashboardFacilities = useMemo(() => {
     if (!activeRegion) return facilities
@@ -524,6 +614,13 @@ function App() {
   const mappableDashboardFacilities = useMemo(() => dashboardFacilities.filter(hasUsableCoordinates), [dashboardFacilities])
   const mappableFilteredFacilities = useMemo(() => filtered.filter(hasUsableCoordinates), [filtered])
 
+  const mapTime = customTime ?? now
+  const openStates = useMemo(() => {
+    const at = new Date(mapTime)
+    return Object.fromEntries(facilities.map((facility) => [facility.id, getFacilityOpenState(facility, getFacilityOperatingHours(facility.id), at)])) as Record<string, FacilityOpenState>
+  }, [mapTime])
+  const openCount = facilities.filter((facility) => openStates[facility.id].isOpen).length
+
   const counts = useMemo(() => {
     const statuses = facilities.map((facility) => resolveFacilityStatus(facility, statusAssignments))
     return {
@@ -534,6 +631,20 @@ function App() {
       unassigned: statuses.filter((item) => item === 'Unassigned').length,
     }
   }, [statusAssignments])
+
+  const dashboardPreviewContent = (facility: Facility) => (
+    <div className="dashboard-pin-preview-content" data-testid="dashboard-pin-preview" data-facility-id={facility.id}>
+      <FacilityPhoto media={getFacilityMedia(facility.id)} variant="thumbnail" />
+      <span>
+        <small>Facility {String(facility.number).padStart(2, '0')}</small>
+        <strong>{getFacilityTitle(facility)}</strong>
+        <span className="dashboard-pin-preview-address">{facility.fullAddress}</span>
+        <OperatingHoursDisplay facilityId={facility.id} variant="preview" />
+        <OpenStateBadge state={openStates[facility.id]} variant="full" />
+        <SquareFootagePreview facilityId={facility.id} />
+      </span>
+    </div>
+  )
 
   const chooseFacility = (facility: Facility) => {
     setAppView('locations')
@@ -598,6 +709,11 @@ function App() {
     setCameraMode('overview')
     if (appView === 'dashboard') setDashboardOverviewSignal((value) => value + 1)
     else setRecenterSignal((value) => value + 1)
+  }
+
+  const toggleProjection = () => {
+    setProjection((current) => current === 'globe' ? 'map' : 'globe')
+    setDashboardOverviewSignal((value) => value + 1)
   }
 
   const showDashboard = () => {
@@ -724,7 +840,7 @@ function App() {
                 {tabs.map((item) => <button key={item} role="tab" aria-selected={tab === item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item}</button>)}
               </div>
               <div className="detail-content">
-                {tab === 'Overview' && <OverviewContent facility={selected} sitePlan={selectedSitePlan} status={selectedStatus} onStatusChange={(value) => assignStatus(selected, value)} />}
+                {tab === 'Overview' && <OverviewContent facility={selected} sitePlan={selectedSitePlan} status={selectedStatus} openState={openStates[selected.id]} onStatusChange={(value) => assignStatus(selected, value)} />}
                 {tab === 'Site Plan' && (selectedSitePlan
                   ? <SitePlanContent facility={selected} sitePlan={selectedSitePlan} />
                   : <EmptyState icon={MapIcon} title="Site plan not provided" body="No site plan was supplied for this facility." />)}
@@ -768,7 +884,7 @@ function App() {
                             </button>
                           </td>
                           <td>{facility.city ? `${facility.city}, ${facility.state}` : `City not provided · ${facility.state}`}</td>
-                          <td><span className={`status-pill ${statusClass(currentStatus)}`}>{currentStatus}</span></td>
+                          <td><span className="roster-status"><span className={`status-pill ${statusClass(currentStatus)}`}>{currentStatus}</span><OpenStateBadge state={openStates[facility.id]} variant="compact" /></span></td>
                           <td><ChevronRight size={15} /></td>
                         </tr>
                       )
@@ -801,9 +917,10 @@ function App() {
         ><span aria-hidden="true" /></div>}
 
         <section
-          className={`map-stage ${appView === 'locations' && mobileView === 'list' ? 'mobile-hidden' : ''}`}
+          className={`map-stage${appView === 'locations' && mobileView === 'list' ? ' mobile-hidden' : ''}${globeActive ? ' is-globe' : ''}`}
           aria-label="Facility network map"
           data-view={appView}
+          data-projection={appView === 'dashboard' ? (globeActive ? 'globe' : 'map') : undefined}
           data-center={`${mapView.lat.toFixed(6)},${mapView.lng.toFixed(6)}`}
           data-zoom={mapView.zoom.toFixed(2)}
           data-bounds={`${mapView.south.toFixed(6)},${mapView.west.toFixed(6)},${mapView.north.toFixed(6)},${mapView.east.toFixed(6)}`}
@@ -814,17 +931,18 @@ function App() {
             ) : (
               <TileLayer key="satellite" attribution='Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics' url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />
             )}
+            <DayNightLayer time={mapTime} visible={dayNight.shading && !globeActive} />
             <ZoomControl position="topright" />
             <MapFocus selected={selected} focusSignal={focusSignal} recenterSignal={recenterSignal} cameraMode={cameraMode} visibilityKey={`${appView}:${mobileView}`} />
             <DashboardOverview
-              active={appView === 'dashboard'}
+              active={appView === 'dashboard' && !globeActive}
               signal={dashboardOverviewSignal}
               targets={dashboardFacilities}
               regionActive={activeRegion !== null}
               panelOpen={regionPanelOpen}
               onViewChange={setMapView}
             />
-            <MapLifecycle resizeKey={`${appView}:${mobileView}`} onViewChange={setMapView} />
+            <MapLifecycle resizeKey={`${appView}:${mobileView}:${globeActive}`} onViewChange={setMapView} />
             {appView === 'locations' && <MapSplitResize resizeKey={directoryWidth} selected={selected} preserveSiteFocus={cameraMode === 'site'} onViewChange={setMapView} />}
             {appView === 'dashboard' && activeRegion && mappableDashboardFacilities.flatMap((facility) => [
               <CircleMarker
@@ -833,7 +951,7 @@ function App() {
                 center={facility.coordinates}
                 radius={38}
                 interactive={false}
-                pathOptions={{ fill: true, fillColor: '#753bbd', fillOpacity: 0.08, interactive: false, stroke: false }}
+                pathOptions={{ fill: true, fillColor: '#6b46c1', fillOpacity: 0.08, interactive: false, stroke: false }}
               />,
               <CircleMarker
                 key={`${facility.id}-highlight-inner`}
@@ -841,16 +959,16 @@ function App() {
                 center={facility.coordinates}
                 radius={22}
                 interactive={false}
-                pathOptions={{ fill: true, fillColor: '#753bbd', fillOpacity: 0.18, interactive: false, stroke: false }}
+                pathOptions={{ fill: true, fillColor: '#6b46c1', fillOpacity: 0.18, interactive: false, stroke: false }}
               />,
             ])}
-            {(appView === 'dashboard' ? mappableDashboardFacilities : mappableFilteredFacilities).map((facility) => {
+            {(globeActive ? [] : appView === 'dashboard' ? mappableDashboardFacilities : mappableFilteredFacilities).map((facility) => {
               const currentStatus = facilityStatus(facility)
               return (
                 <Marker
                   key={`${appView}-${facility.id}`}
                   position={facility.coordinates}
-                  icon={pinIcon(facility, currentStatus, facility.id === selected?.id)}
+                  icon={pinIcon(facility, currentStatus, facility.id === selected?.id, openStates[facility.id].isOpen)}
                   eventHandlers={{
                     add: (event) => (event.target as L.Marker).getElement()?.setAttribute('aria-label', appView === 'dashboard' ? `Open facility ${String(facility.number).padStart(2, '0')} in Locations` : `Show ${facility.fullAddress} on map`),
                     click: () => chooseFacility(facility),
@@ -865,16 +983,7 @@ function App() {
                 >
                   {appView === 'dashboard' ? (
                     <Tooltip direction={dashboardPreviewDirection(facility)} offset={[0, -18]} className="dashboard-pin-preview" opacity={1} interactive={false}>
-                      <div className="dashboard-pin-preview-content" data-testid="dashboard-pin-preview" data-facility-id={facility.id}>
-                        <FacilityPhoto media={getFacilityMedia(facility.id)} variant="thumbnail" />
-                        <span>
-                          <small>Facility {String(facility.number).padStart(2, '0')}</small>
-                          <strong>{getFacilityTitle(facility)}</strong>
-                          <span className="dashboard-pin-preview-address">{facility.fullAddress}</span>
-                          <OperatingHoursDisplay facilityId={facility.id} variant="preview" />
-                          <SquareFootagePreview facilityId={facility.id} />
-                        </span>
-                      </div>
+                      {dashboardPreviewContent(facility)}
                     </Tooltip>
                   ) : (
                     <Tooltip permanent direction="right" className="pin-label" opacity={1}>#{facility.number} {facility.city ?? 'TN'}{facility.coordinatePrecision === 'Approximate' ? ' · approx.' : ''}</Tooltip>
@@ -883,6 +992,29 @@ function App() {
               )
             })}
           </MapContainer>
+
+          {globeActive && (
+            <Suspense fallback={<div className="globe-loading" role="status"><Earth size={22} />Loading globe…</div>}>
+              <DashboardGlobe
+                facilities={mappableDashboardFacilities}
+                time={mapTime}
+                shading={dayNight.shading}
+                layer={globeLayer}
+                flySignal={dashboardOverviewSignal}
+                regionActive={activeRegion !== null}
+                panelOpen={regionPanelOpen}
+                pinMarkup={(facility) => pinMarkup(facility, facilityStatus(facility), false)}
+                pinLabel={(facility) => `Open facility ${String(facility.number).padStart(2, '0')} in Locations`}
+                isOpen={(facility) => openStates[facility.id].isOpen}
+                renderPreview={dashboardPreviewContent}
+                onChoose={chooseFacility}
+                onUnavailable={() => {
+                  setGlobeUnavailable(true)
+                  setNotice('The 3D globe is unavailable in this browser, so the flat map is shown.')
+                }}
+              />
+            </Suspense>
+          )}
 
           {appView === 'dashboard' && (
             <>
@@ -977,14 +1109,42 @@ function App() {
           <div className="map-tools" aria-label="Map layers">
             <span><Layers3 size={16} />Layers</span>
             <div className="layer-switch" role="group" aria-label="Map layer">
-              <button className={layer === 'street' ? 'active' : ''} aria-pressed={layer === 'street'} onClick={() => setLayer('street')}>Street</button>
-              <button className={layer === 'satellite' ? 'active' : ''} aria-pressed={layer === 'satellite'} onClick={() => setLayer('satellite')}>Satellite</button>
+              {(['street', 'satellite'] as const).map((option) => {
+                const current = globeActive ? globeLayer : layer
+                return (
+                  <button key={option} className={current === option ? 'active' : ''} aria-pressed={current === option} onClick={() => (globeActive ? setGlobeLayer : setLayer)(option)}>
+                    {option === 'street' ? 'Street' : 'Satellite'}
+                  </button>
+                )
+              })}
             </div>
           </div>
+          {appView === 'dashboard' && !globeUnavailable && (
+            <button className="projection-control" type="button" aria-label={globeActive ? 'Show flat map' : 'Show globe'} title={globeActive ? 'Show flat map' : 'Show 3D globe'} onClick={toggleProjection}>
+              {globeActive ? <MapIcon size={18} /> : <Earth size={18} />}
+            </button>
+          )}
           <button className="recenter-control" aria-label="Recenter map" title={activeRegion ? `View ${activeRegion.label} facilities` : 'View all facilities'} onClick={showOverview}><LocateFixed size={18} /></button>
           {appView === 'locations' && <div className="map-legend" aria-label="Local facility status legend">
             {assignableStatuses.map((item) => <span key={item}><i style={{ background: statusColor[item] }} />{item}</span>)}
           </div>}
+          <DayNightControl
+            time={mapTime}
+            live={customTime === null}
+            shading={dayNight.shading}
+            expanded={dayNight.expanded}
+            timeZone={dayNight.timeZone}
+            openCount={openCount}
+            total={facilities.length}
+            onShadingChange={(shading) => setDayNight((current) => ({ ...current, shading }))}
+            onExpandedChange={(expanded) => setDayNight((current) => ({ ...current, expanded }))}
+            onTimeZoneChange={(timeZone) => setDayNight((current) => ({ ...current, timeZone }))}
+            onTimeChange={setCustomTime}
+            onReturnToNow={() => {
+              setNow(Date.now())
+              setCustomTime(null)
+            }}
+          />
           {appView === 'locations' && filtered.length === 0 && <div className="no-map-results"><Search size={20} /><strong>No facilities found</strong><button onClick={() => { setSearch(''); setStatusFilter('All'); setFacilityTypeFilter('All') }}>Clear filters</button></div>}
           {appView === 'locations' && filtered.length > 0 && mappableFilteredFacilities.length === 0 && <div className="no-map-results"><MapPin size={20} /><strong>Map location unavailable</strong><span>The matching facility has no verified coordinates.</span></div>}
         </section>
@@ -1014,7 +1174,7 @@ function App() {
                 <div><dt>City</dt><dd>{selected.city ?? 'Not provided'}</dd></div>
                 <div><dt>State</dt><dd>{selected.state} · {selected.stateName}</dd></div>
                 <div><dt>ZIP</dt><dd>{selected.zip ?? 'Not provided'}</dd></div>
-                <div className="detail-list-hours"><dt>Operating hours</dt><dd><OperatingHoursDisplay facilityId={selected.id} variant="drawer" /></dd></div>
+                <div className="detail-list-hours"><dt>Operating hours</dt><dd><OperatingHoursDisplay facilityId={selected.id} variant="drawer" /><OpenStateBadge state={openStates[selected.id]} variant="full" /></dd></div>
                 <div><dt>Coordinates</dt><dd>{selected.coordinates ? selected.coordinates.map((value) => value.toFixed(6)).join(', ') : 'Unavailable'}</dd></div>
                 <div><dt>Coordinate precision</dt><dd>{selected.coordinatePrecision}</dd></div>
                 <div><dt>Coordinate source</dt><dd>{selected.coordinateSource}</dd></div>
@@ -1205,7 +1365,7 @@ function PhotosContent({ facility, media, userPhotos }: { facility: Facility; me
   )
 }
 
-function OverviewContent({ facility, sitePlan, status, onStatusChange }: { facility: Facility; sitePlan?: FacilitySitePlan; status: DisplayStatus; onStatusChange: (status: DisplayStatus) => void }) {
+function OverviewContent({ facility, sitePlan, status, openState, onStatusChange }: { facility: Facility; sitePlan?: FacilitySitePlan; status: DisplayStatus; openState: FacilityOpenState; onStatusChange: (status: DisplayStatus) => void }) {
   return (
     <>
       <section
@@ -1233,7 +1393,7 @@ function OverviewContent({ facility, sitePlan, status, onStatusChange }: { facil
           <div><dt>City</dt><dd>{facility.city ?? 'Not provided'}</dd></div>
           <div><dt>State</dt><dd>{facility.state} · {facility.stateName}</dd></div>
           <div><dt>ZIP</dt><dd>{facility.zip ?? 'Not provided'}</dd></div>
-          <div className="known-details-hours"><dt>Operating hours</dt><dd><OperatingHoursDisplay facilityId={facility.id} variant="overview" /></dd></div>
+          <div className="known-details-hours"><dt>Operating hours</dt><dd><OperatingHoursDisplay facilityId={facility.id} variant="overview" /><OpenStateBadge state={openState} variant="full" /></dd></div>
         </dl>
       </section>
 

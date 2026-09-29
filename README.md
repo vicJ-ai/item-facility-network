@@ -37,10 +37,26 @@ The selected facility's Overview tab uses Google's keyless `www.google.com/maps?
 
 Coordinates support visualization only. “Open in Maps” searches the complete user-provided address rather than treating stored coordinates as authoritative.
 
+## Dashboard globe
+
+The Dashboard opens on a 3D globe built with [CesiumJS](https://cesium.com/platform/cesiumjs/) (`src/components/DashboardGlobe.tsx`). Daytime imagery is Esri World Imagery (Satellite, the globe default) or World Street Map. The night side shows NASA's VIIRS Black Marble city lights from NASA GIBS. Cesium lights the globe from the real sun position at the time shown in the time control, so the terminator, twilight, and city lights all follow the clock. No Cesium ion account or API key is used.
+
+Facility pins are HTML elements placed over the globe, so they keep the same styling, open/closed badges, keyboard focus, hover previews, and "Open facility NN in Locations" behavior as the flat map. Pins on the far side of the planet are hidden. Choosing a region flies the camera to that region, leaving room for the Regions panel, and the recenter button flies back to the whole network.
+
+The button below the recenter control switches between the globe and the flat Leaflet map. The choice is saved in browser localStorage under `dashboard-projection-v1`. Browsers without WebGL fall back to the flat map automatically. CesiumJS is about 4 MB, so it loads only when the globe is first shown, and its workers and assets are copied to `/cesium/` at build time by `vite-plugin-static-copy`. The Locations view keeps the Leaflet map.
+
+## Day and night
+
+The map shades the night side of the Earth for the current time and marks the point where the sun is overhead. The shade deepens through civil, nautical, and astronomical twilight, so the terminator reads as a soft band rather than a hard edge. Sun position comes from a low-precision solar ephemeris in `src/lib/solar.ts` (accurate to about 0.01° for 1950–2050); no data service is called.
+
+The time control in the lower-right corner of the map shows the time and UTC, and how many facilities are inside their supplied operating hours. The Zone picker sets which time zone the clock, date field, and slider use: the viewer's device zone by default, the five facility zones and UTC first, then every IANA zone the browser supports. Changing the zone relabels the current map time rather than moving it (`src/lib/time-zone.ts`). A date-and-time field accepts any date from 1950 through 2050, a slider scrubs the time of day, and "Back to now" returns to the live clock, which updates every 30 seconds. Shading can be turned off, and that choice, the chosen zone, and the panel's collapsed state are saved in browser localStorage under `map-day-night-v1`.
+
+Open or closed status is computed in `src/lib/facility-open.ts` from each facility's supplied hours and time-zone label, read as local wall-clock time. PST, CST, and EST map to their IANA zones and follow daylight saving time. MST maps to `America/Phoenix` for Arizona, which does not observe daylight saving time, and to `America/Denver` elsewhere. Holidays and exceptions are not modeled. Status appears as a sun or moon badge on each pin, in the roster, in pin previews, and in the Overview and Full Details hours.
+
 ## Brand
 
 - The official ITEM SVG lockup is used without recoloring.
-- Primary purple `#753bbd` comes from the supplied brand tokens.
+- Colors follow the ITEM design system at design.item.com: purple `#6B46C1` is the primary brand color, and orange `#F97316` marks "open now" and the sun. Tokens, type scale, and component rules are documented in [DESIGN.md](./DESIGN.md).
 - Satoshi Variable and Satoshi Variable Italic are loaded from the supplied brand kit.
 
 ## Run locally
@@ -70,7 +86,7 @@ docker build -t locations-network .
 docker run --rm -p 8080:8080 locations-network
 ```
 
-No runtime environment variables, API keys, credentials, database, or backend services are required. Main-map basemap tiles are loaded in the browser from Esri, and the selected Overview map loads from Google Maps; both require outbound client network access.
+No runtime environment variables, API keys, credentials, database, or backend services are required. Main-map basemap tiles are loaded in the browser from Esri, globe night lights from NASA GIBS, and the selected Overview map from Google Maps; all require outbound client network access.
 
 ## Quality checks
 
@@ -82,8 +98,12 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-The Playwright suite verifies all 27 exact addresses, all 27 map pins, twelve official records plus fifteen user-provided photos, supplied galleries, 14 site plans, exact local asset responses, four-page selected-facility PDF downloads, all 27 operating-hours records, 18 matched Operations records and nine contact-review states, square thumbnail sizing, uncropped detail media, forced image-error fallback, mobile address wrapping, photo provenance, address/city/state/ZIP/type search and filtering, local status assignment and persistence, the unpinned Waddell detail flow, unavailable property states, light/dark persistence, and basemap switching.
+The Playwright suite verifies all 27 exact addresses, all 27 map pins, twelve official records plus fifteen user-provided photos, supplied galleries, 14 site plans, exact local asset responses, four-page selected-facility PDF downloads, all 27 operating-hours records, 18 matched Operations records and nine contact-review states, square-footage hover previews, square thumbnail sizing, uncropped detail media, forced image-error fallback, mobile address wrapping, photo provenance, address/city/state/ZIP/type search and filtering, local status assignment and persistence, the confirmed Waddell and Kent pins, unavailable property states, light/dark persistence, and basemap switching.
+
+The existing Dashboard tests run against the flat map. `tests/globe.spec.ts` covers the globe: imagery and night-light requests, all 27 pins, hover previews, opening a facility, region flights, zoom and recenter, lighting and layer controls, the persisted globe/flat toggle, and the fallback when WebGL is unavailable. Headless Chromium renders WebGL with SwiftShader, enabled in `playwright.config.ts`.
+
+`tests/daynight.spec.ts` checks the subsolar point against the 2026 equinox and solstices, the twilight shading curve, and open/closed rules across daylight saving time, Arizona, weekends, and boundary minutes. With a fake browser clock, it also checks shade opacity under individual pins against the solar model, time and date scrubbing, the open count, shading and panel persistence, and that the time control never overlaps other map controls on desktop or mobile.
 
 ## Map attribution
 
-Leaflet displays Esri attribution for the street and satellite basemaps. Network access is required for basemap tiles; the application data and brand assets are local.
+Leaflet displays Esri attribution for the street and satellite basemaps. The globe shows Esri and NASA Black Marble credits in its lower-left corner, along with the CesiumJS logo. Network access is required for basemap tiles; the application data and brand assets are local. The public Esri tile endpoints are used without an API key; confirm Esri's terms of use, or move to an ArcGIS Location Platform key, before production use.
