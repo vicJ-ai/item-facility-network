@@ -17,6 +17,7 @@ import {
   searchableFacilityText,
   type DisplayStatus,
   type Facility,
+  type FacilityType,
 } from './data/facilities'
 import { getFacilityMedia, type FacilityMedia } from './data/facility-media'
 import { getFacilityOperatingHours } from './data/facility-hours'
@@ -28,6 +29,7 @@ type Tab = 'Overview' | 'Site Plan' | 'Photos' | 'Documents' | 'Operations'
 type Theme = 'light' | 'dark'
 type AppView = 'dashboard' | 'locations'
 type StatusFilter = 'All' | DisplayStatus
+type FacilityTypeFilter = 'All' | FacilityType
 type StatusAssignments = Record<string, DisplayStatus>
 type MapViewport = { lat: number; lng: number; zoom: number; south: number; west: number; north: number; east: number }
 
@@ -51,15 +53,19 @@ const statusColor: Record<DisplayStatus, string> = {
   Unassigned: '#7a8798',
 }
 const dashboardRegions = [
-  { id: 'southern-california', label: 'Southern California', facilityNumbers: [1, 2, 3, 15] },
-  { id: 'texas', label: 'Texas', facilityNumbers: [4, 5, 14, 17] },
-  { id: 'washington', label: 'Washington', facilityNumbers: [10, 11] },
+  { id: 'southern-california', label: 'Southern California', facilityNumbers: [1, 2, 3, 15, 19] },
+  { id: 'northern-california', label: 'Northern California', facilityNumbers: [21] },
+  { id: 'texas', label: 'Texas', facilityNumbers: [4, 5, 14, 17, 23, 27] },
+  { id: 'washington', label: 'Washington', facilityNumbers: [10, 11, 20] },
   { id: 'georgia', label: 'Georgia', facilityNumbers: [6, 7] },
   { id: 'south-carolina', label: 'South Carolina', facilityNumbers: [8] },
-  { id: 'tennessee', label: 'Tennessee', facilityNumbers: [9] },
+  { id: 'tennessee', label: 'Tennessee', facilityNumbers: [9, 24] },
   { id: 'florida', label: 'Florida', facilityNumbers: [12] },
-  { id: 'nevada', label: 'Nevada', facilityNumbers: [13] },
+  { id: 'nevada', label: 'Nevada', facilityNumbers: [13, 22] },
   { id: 'illinois', label: 'Illinois', facilityNumbers: [16] },
+  { id: 'arizona', label: 'Arizona', facilityNumbers: [18] },
+  { id: 'utah', label: 'Utah', facilityNumbers: [25] },
+  { id: 'new-jersey', label: 'New Jersey', facilityNumbers: [26] },
 ] as const
 type DashboardRegionId = (typeof dashboardRegions)[number]['id']
 
@@ -139,11 +145,13 @@ function googleMapsEmbedUrl(facility: Facility) {
 }
 
 function streetViewUrl(facility: Facility) {
+  if (!hasUsableCoordinates(facility)) return null
   const [latitude, longitude] = facility.coordinates
   return `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${latitude},${longitude}`
 }
 
 function googleMapsPhotoLookupUrl(facility: Facility) {
+  if (!hasUsableCoordinates(facility)) return googleMapsUrl(facility)
   const [latitude, longitude] = facility.coordinates
   return `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`
 }
@@ -152,8 +160,11 @@ function statusClass(status: DisplayStatus) {
   return status.toLowerCase().replaceAll(' ', '-')
 }
 
-function hasUsableCoordinates(facility: Facility | null): facility is Facility {
+type MappableFacility = Facility & { coordinates: [number, number] }
+
+function hasUsableCoordinates(facility: Facility | null): facility is MappableFacility {
   if (!facility) return false
+  if (!facility.coordinates) return false
   const [latitude, longitude] = facility.coordinates
   return Number.isFinite(latitude) && Number.isFinite(longitude) && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180
 }
@@ -190,14 +201,14 @@ function pinIcon(facility: Facility, status: DisplayStatus, selected: boolean) {
   })
 }
 
-function dashboardPreviewDirection(facility: Facility): 'left' | 'right' | 'top' {
+function dashboardPreviewDirection(facility: MappableFacility): 'left' | 'right' | 'top' {
   const longitude = facility.coordinates[1]
   if (longitude <= -110) return 'right'
   if (longitude >= -90) return 'left'
   return 'top'
 }
 
-function getDashboardRegionBounds(regionFacilities: readonly Facility[]) {
+function getDashboardRegionBounds(regionFacilities: readonly MappableFacility[]) {
   const latitudes = regionFacilities.map((facility) => facility.coordinates[0])
   const longitudes = regionFacilities.map((facility) => facility.coordinates[1])
   const minLatitude = Math.min(...latitudes)
@@ -217,12 +228,13 @@ function MapFocus({ selected, focusSignal, recenterSignal, cameraMode, visibilit
 
   useEffect(() => {
     if (cameraMode !== 'site' || focusSignal === 0 || !hasUsableCoordinates(selected)) return
+    const coordinates = selected.coordinates
     let focusFrame = 0
     const resizeFrame = window.requestAnimationFrame(() => {
       const container = map.getContainer()
       if (container.clientWidth === 0 || container.clientHeight === 0) return
       map.invalidateSize()
-      focusFrame = window.requestAnimationFrame(() => map.flyTo(selected.coordinates, SITE_FOCUS_ZOOM, { duration: 0.8 }))
+      focusFrame = window.requestAnimationFrame(() => map.flyTo(coordinates, SITE_FOCUS_ZOOM, { duration: 0.8 }))
     })
     return () => {
       window.cancelAnimationFrame(resizeFrame)
@@ -261,23 +273,32 @@ function getMapViewport(map: L.Map): MapViewport {
 
 function DashboardOverview({ active, signal, targets, regionActive, panelOpen, onViewChange }: { active: boolean; signal: number; targets: readonly Facility[]; regionActive: boolean; panelOpen: boolean; onViewChange: (view: MapViewport) => void }) {
   const map = useMap()
+  const cameraRequestRef = useRef(0)
 
   useEffect(() => {
-    if (!active || signal === 0) return
+    const cameraRequest = ++cameraRequestRef.current
+    if (!active) {
+      map.stop()
+      return
+    }
+    if (signal === 0) return
     map.stop()
     let fitFrame = 0
     const resizeFrame = window.requestAnimationFrame(() => {
+      if (cameraRequest !== cameraRequestRef.current) return
       const container = map.getContainer()
       if (container.clientWidth === 0 || container.clientHeight === 0) return
       map.invalidateSize({ pan: false })
       fitFrame = window.requestAnimationFrame(() => {
-        const coordinates = targets.filter(hasUsableCoordinates).map((facility) => facility.coordinates)
+        if (cameraRequest !== cameraRequestRef.current) return
+        const mappableTargets = targets.filter(hasUsableCoordinates)
+        const coordinates = mappableTargets.map((facility) => facility.coordinates)
         if (coordinates.length === 0) return
         const mobile = container.clientWidth <= 720
         const basePadding = mobile ? 28 : Math.min(80, Math.round(container.clientWidth * 0.055))
         const paddingTopLeft: L.PointExpression = [!mobile && panelOpen ? 370 : basePadding, basePadding]
         const paddingBottomRight: L.PointExpression = [basePadding, mobile && panelOpen ? Math.min(390, Math.round(container.clientHeight * 0.5)) : basePadding]
-        const bounds = regionActive ? getDashboardRegionBounds(targets) : L.latLngBounds(coordinates)
+        const bounds = regionActive ? getDashboardRegionBounds(mappableTargets) : L.latLngBounds(coordinates)
         const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
         map.fitBounds(bounds, {
           animate: regionActive && !reduceMotion,
@@ -290,8 +311,10 @@ function DashboardOverview({ active, signal, targets, regionActive, panelOpen, o
       })
     })
     return () => {
+      if (cameraRequest === cameraRequestRef.current) cameraRequestRef.current += 1
       window.cancelAnimationFrame(resizeFrame)
       window.cancelAnimationFrame(fitFrame)
+      map.stop()
     }
   }, [active, map, onViewChange, panelOpen, regionActive, signal, targets])
 
@@ -341,6 +364,7 @@ function MapSplitResize({ resizeKey, selected, preserveSiteFocus, onViewChange }
 }
 
 function ApproximateStreetViewNote({ facility }: { facility: Facility }) {
+  if (!hasUsableCoordinates(facility)) return <p className="street-view-caveat"><Info size={13} />Street View is unavailable because this facility does not have verified map coordinates.</p>
   if (facility.coordinatePrecision !== 'Approximate') return null
   return <p className="street-view-caveat"><Info size={13} />Street-level imagery may be near, not exactly at, this facility.</p>
 }
@@ -364,6 +388,7 @@ function App() {
   const [mobileView, setMobileView] = useState<'list' | 'map'>('list')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('All')
+  const [facilityTypeFilter, setFacilityTypeFilter] = useState<FacilityTypeFilter>('All')
   const [statusAssignments, setStatusAssignments] = useState<StatusAssignments>(getInitialStatuses)
   const [tab, setTab] = useState<Tab>('Overview')
   const [layer, setLayer] = useState<'street' | 'satellite'>('street')
@@ -457,6 +482,7 @@ function App() {
   const selectedStatus = selected ? facilityStatus(selected) : 'Active'
   const selectedMedia = selected ? getFacilityMedia(selected.id) : undefined
   const selectedOperations = selected ? getFacilityOperations(selected.id) : undefined
+  const selectedStreetViewUrl = selected ? streetViewUrl(selected) : null
   const selectedSitePlan = selected ? getFacilitySitePlan(selected.id) : undefined
   const selectedUserPhotos = selected ? getUserProvidedFacilityPhotos(selected.id) : undefined
   const dashboardHighlightRenderer = useMemo(() => L.svg({ pane: 'overlayPane' }), [])
@@ -471,10 +497,13 @@ function App() {
     const isStateAbbreviation = query.length === 2 && facilities.some((facility) => facility.state.toLowerCase() === query)
     return facilities.filter((facility) => {
       const matchesText = !query || (isStateAbbreviation ? facility.state.toLowerCase() === query : searchableFacilityText(facility).includes(query))
+      const matchesFacilityType = facilityTypeFilter === 'All' || facility.facilityType === facilityTypeFilter
       const currentStatus = resolveFacilityStatus(facility, statusAssignments)
-      return matchesText && (statusFilter === 'All' || currentStatus === statusFilter)
+      return matchesText && matchesFacilityType && (statusFilter === 'All' || currentStatus === statusFilter)
     })
-  }, [search, statusAssignments, statusFilter])
+  }, [facilityTypeFilter, search, statusAssignments, statusFilter])
+  const mappableDashboardFacilities = useMemo(() => dashboardFacilities.filter(hasUsableCoordinates), [dashboardFacilities])
+  const mappableFilteredFacilities = useMemo(() => filtered.filter(hasUsableCoordinates), [filtered])
 
   const counts = useMemo(() => {
     const statuses = facilities.map((facility) => resolveFacilityStatus(facility, statusAssignments))
@@ -662,8 +691,8 @@ function App() {
               </div>
               <div className="facility-identity">
                 <FacilityPhoto media={selectedMedia} variant="detail" />
-                <div><span className="eyebrow">Facility {String(selected.number).padStart(2, '0')}</span><strong>{getFacilityTitle(selected)}</strong><small>Logistics network location</small></div>
-                <span className={`precision-chip ${selected.coordinatePrecision === 'Approximate' ? 'approximate' : ''}`}><ShieldCheck size={13} />{selected.coordinatePrecision}</span>
+                <div><span className="eyebrow">Facility {String(selected.number).padStart(2, '0')}</span><strong>{getFacilityTitle(selected)}</strong><small>Logistics network location</small><small className="facility-network-type" data-testid="facility-network-type">{selected.facilityType}</small></div>
+                <span className={`precision-chip ${selected.coordinatePrecision === 'Approximate' ? 'approximate' : selected.coordinatePrecision === 'Unavailable' ? 'unavailable' : ''}`}><ShieldCheck size={13} />{selected.coordinatePrecision}</span>
               </div>
               <div className="detail-header">
                 <div className="title-line"><MapPin /><h1>Facility {String(selected.number).padStart(2, '0')}</h1><span className={`status-pill ${statusClass(selectedStatus)}`}>{selectedStatus}</span></div>
@@ -699,6 +728,9 @@ function App() {
                 <select aria-label="Filter by status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}>
                   <option value="All">All statuses</option><option>Active</option><option>Coming Soon</option><option>Planned</option><option>Unassigned</option>
                 </select>
+                <select aria-label="Filter by facility type" value={facilityTypeFilter} onChange={(event) => setFacilityTypeFilter(event.target.value as FacilityTypeFilter)}>
+                  <option value="All">All types</option><option>UF ONLY</option><option>UF/CUBEWORKS</option>
+                </select>
               </div>
               <div className="table-wrap">
                 <table>
@@ -726,7 +758,7 @@ function App() {
                     })}
                   </tbody>
                 </table>
-                {filtered.length === 0 && <EmptyState icon={Search} title="No matching facilities" body="Try a street, city, state name or abbreviation, ZIP, or another status." />}
+                {filtered.length === 0 && <EmptyState icon={Search} title="No matching facilities" body="Try a street, city, state name or abbreviation, ZIP, status, or facility type." />}
               </div>
             </div>
           )}
@@ -777,7 +809,7 @@ function App() {
             />
             <MapLifecycle resizeKey={`${appView}:${mobileView}`} onViewChange={setMapView} />
             {appView === 'locations' && <MapSplitResize resizeKey={directoryWidth} selected={selected} preserveSiteFocus={cameraMode === 'site'} onViewChange={setMapView} />}
-            {appView === 'dashboard' && activeRegion && dashboardFacilities.flatMap((facility) => [
+            {appView === 'dashboard' && activeRegion && mappableDashboardFacilities.flatMap((facility) => [
               <CircleMarker
                 key={`${facility.id}-highlight-outer`}
                 {...{ className: 'dashboard-facility-highlight dashboard-facility-highlight-outer', renderer: dashboardHighlightRenderer }}
@@ -795,7 +827,7 @@ function App() {
                 pathOptions={{ fill: true, fillColor: '#753bbd', fillOpacity: 0.18, interactive: false, stroke: false }}
               />,
             ])}
-            {(appView === 'dashboard' ? dashboardFacilities : filtered).map((facility) => {
+            {(appView === 'dashboard' ? mappableDashboardFacilities : mappableFilteredFacilities).map((facility) => {
               const currentStatus = facilityStatus(facility)
               return (
                 <Marker
@@ -905,11 +937,11 @@ function App() {
                       )
                     })}
                   </div>
-                  <div className="dashboard-focus-key"><i aria-hidden="true" /><span>Highlighted facilities</span><small>Illustrative</small></div>
+                    {mappableDashboardFacilities.length > 0 && <div className="dashboard-focus-key"><i aria-hidden="true" /><span>Highlighted facilities</span><small>Illustrative</small></div>}
                 </aside>
               )}
 
-              {activeRegion && !regionPanelOpen && (
+              {activeRegion && mappableDashboardFacilities.length > 0 && !regionPanelOpen && (
                 <div className="dashboard-focus-badge" data-testid="dashboard-focus-label"><i aria-hidden="true" />Highlighted facilities <small>Illustrative</small></div>
               )}
             </>
@@ -935,7 +967,8 @@ function App() {
           {appView === 'locations' && <div className="map-legend" aria-label="Local facility status legend">
             {assignableStatuses.map((item) => <span key={item}><i style={{ background: statusColor[item] }} />{item}</span>)}
           </div>}
-          {appView === 'locations' && filtered.length === 0 && <div className="no-map-results"><Search size={20} /><strong>No facilities found</strong><button onClick={() => { setSearch(''); setStatusFilter('All') }}>Clear filters</button></div>}
+          {appView === 'locations' && filtered.length === 0 && <div className="no-map-results"><Search size={20} /><strong>No facilities found</strong><button onClick={() => { setSearch(''); setStatusFilter('All'); setFacilityTypeFilter('All') }}>Clear filters</button></div>}
+          {appView === 'locations' && filtered.length > 0 && mappableFilteredFacilities.length === 0 && <div className="no-map-results"><MapPin size={20} /><strong>Map location unavailable</strong><span>The matching facility has no verified coordinates.</span></div>}
         </section>
       </main>
 
@@ -950,7 +983,11 @@ function App() {
               <div className="drawer-banner"><Warehouse /><div><strong>{selected.fullAddress}</strong><span>User-provided facility address</span></div></div>
               <div className="drawer-map-actions">
                 <a className="secondary-button" href={googleMapsUrl(selected)} target="_blank" rel="noopener noreferrer">Open in Maps <ExternalLink size={14} /></a>
-                <a className="secondary-button" href={streetViewUrl(selected)} target="_blank" rel="noopener noreferrer" title={selected.coordinatePrecision === 'Approximate' ? 'Street-level imagery may be near, not exactly at, this facility.' : undefined}><Camera size={14} />Street View</a>
+                {selectedStreetViewUrl ? (
+                  <a className="secondary-button" href={selectedStreetViewUrl} target="_blank" rel="noopener noreferrer" title={selected.coordinatePrecision === 'Approximate' ? 'Street-level imagery may be near, not exactly at, this facility.' : undefined}><Camera size={14} />Street View</a>
+                ) : (
+                  <span className="secondary-button is-disabled" aria-disabled="true"><Camera size={14} />Street View unavailable</span>
+                )}
               </div>
               <ApproximateStreetViewNote facility={selected} />
               <dl className="detail-list">
@@ -960,7 +997,7 @@ function App() {
                 <div><dt>State</dt><dd>{selected.state} · {selected.stateName}</dd></div>
                 <div><dt>ZIP</dt><dd>{selected.zip ?? 'Not provided'}</dd></div>
                 <div className="detail-list-hours"><dt>Operating hours</dt><dd><OperatingHoursDisplay facilityId={selected.id} variant="drawer" /></dd></div>
-                <div><dt>Coordinates</dt><dd>{selected.coordinates.map((value) => value.toFixed(6)).join(', ')}</dd></div>
+                <div><dt>Coordinates</dt><dd>{selected.coordinates ? selected.coordinates.map((value) => value.toFixed(6)).join(', ') : 'Unavailable'}</dd></div>
                 <div><dt>Coordinate precision</dt><dd>{selected.coordinatePrecision}</dd></div>
                 <div><dt>Coordinate source</dt><dd>{selected.coordinateSource}</dd></div>
               </dl>
@@ -975,8 +1012,8 @@ function App() {
         <div className="modal-backdrop centered" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setAboutOpen(false) }}>
           <section className="about-modal" role="dialog" aria-modal="true" aria-labelledby="about-title">
             <div className="modal-head"><div><span className="eyebrow">About this experience</span><h2 id="about-title">Reference prototype</h2></div><button className="icon-button" aria-label="Close about" onClick={() => setAboutOpen(false)}><X /></button></div>
-            <p>This screenshot-based prototype uses exactly 17 user-provided facility addresses. It is not connected to WMS, YMS, inventory, facility, or operational APIs.</p>
-            <p>Fourteen facilities have supplied site plans and thirteen have separate user-provided photo galleries. The target's eight official listing records and nine user-provided screenshot records remain separate and unchanged. All 17 facilities have media and operating hours in this prototype. A changed Local status is saved only in this browser. Coordinates were geocoded for map placement; source and precision are shown in Full Details.</p>
+            <p>This screenshot-based prototype uses exactly 27 user-provided facility addresses. It is not connected to WMS, YMS, inventory, facility, or operational APIs.</p>
+            <p>Fourteen facilities have supplied site plans and thirteen have separate user-provided photo galleries. Twelve facilities have official listing media and fifteen have user-provided photos with documented association limits. All 27 records are Active. A changed Local status is saved only in this browser. All 27 facilities have address-based map coordinates; the Waddell, Kent, and Plano markers are approximate.</p>
             <button className="primary-button" onClick={() => setAboutOpen(false)}>Understood</button>
           </section>
         </div>
@@ -1131,19 +1168,20 @@ function OverviewContent({ facility, sitePlan, status, onStatusChange }: { facil
   return (
     <>
       <section
-        className={`overview-map-card${facility.coordinatePrecision === 'Approximate' ? ' has-approximate-note' : ''}`}
+        className={`overview-map-card${facility.coordinatePrecision === 'Approximate' || !hasUsableCoordinates(facility) ? ' has-approximate-note' : ''}`}
         data-testid="overview-map-preview"
         data-facility-id={facility.id}
-        data-latitude={facility.coordinates[0]}
-        data-longitude={facility.coordinates[1]}
+        data-latitude={facility.coordinates?.[0]}
+        data-longitude={facility.coordinates?.[1]}
         aria-label={`Map preview for ${facility.fullAddress}`}
       >
         <GoogleMapsOverview facility={facility} />
         {facility.coordinatePrecision === 'Approximate' && <p className="overview-map-note"><Info size={14} />Approximate placement: the marker may be near, not exactly at, this facility.</p>}
+        {!hasUsableCoordinates(facility) && <p className="overview-map-note"><Info size={14} />Location unverified: this facility is not pinned on the network map because its geocoder candidates conflict.</p>}
       </section>
 
       <section className="status-assignment">
-        <div><span className="eyebrow">Local planning field</span><h2>Facility status</h2><p>All facility records are Active in this prototype data.</p></div>
+        <div><span className="eyebrow">Local planning field</span><h2>Facility status</h2><p>All facilities are Active by default; the status can be changed locally.</p></div>
         <label><span>Local status</span><select aria-label={`Set status for ${facility.fullAddress}`} value={status} onChange={(event) => onStatusChange(event.target.value as DisplayStatus)}>{assignableStatuses.map((item) => <option key={item}>{item}</option>)}</select></label>
       </section>
 
@@ -1175,7 +1213,7 @@ function OverviewContent({ facility, sitePlan, status, onStatusChange }: { facil
 
       <section className="coordinate-section info-section">
         <h2><ShieldCheck />Map placement</h2>
-        <div className="coordinate-row"><span className={`precision-chip ${facility.coordinatePrecision === 'Approximate' ? 'approximate' : ''}`}>{facility.coordinatePrecision}</span><span>{facility.coordinateSource}</span></div>
+        <div className="coordinate-row"><span className={`precision-chip ${facility.coordinatePrecision === 'Approximate' ? 'approximate' : facility.coordinatePrecision === 'Unavailable' ? 'unavailable' : ''}`}>{facility.coordinatePrecision}</span><span>{facility.coordinateSource}</span></div>
         {facility.geocodeNote && <p className="geocode-warning"><Info size={14} />{facility.geocodeNote}</p>}
       </section>
     </>
