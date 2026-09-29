@@ -21,6 +21,16 @@ const suppliedAddresses = [
   '2131 West Willow St., Long Beach, CA 90810',
   '3901 Brandon Rd., Joliet, IL 60436',
   '12102 Emerald Pass Ave., Building 5, El Paso, TX 79928',
+  '6801 N Cotton Ln, Waddell, AZ 85355',
+  '3950 E Airport Dr, Ontario, CA 91761',
+  '19801-19821 85th Ave, Kent, WA 98031',
+  '1500 Overland Ct, West Sacramento, CA 95691',
+  '250 Vista Blvd, Sparks, NV 89434',
+  '3401 Navigation Blvd, Houston, TX 77003',
+  '4444 Delp St, Memphis, TN 38118',
+  '485 N Jimmy Doolittle Rd, Salt Lake City, UT 84116',
+  '101 Cottontail Ln, Somerset, NJ 08873',
+  '910 10th Street / 880 F Ave., Plano, TX',
 ]
 
 const expectedOfficialThumbnails = {
@@ -32,6 +42,10 @@ const expectedOfficialThumbnails = {
   'long-beach-willow': ['/media/thumbnails/long-beach-willow.png', 'https://cdn.unisco.com/api/media/file/unis-long-beach-500x500.png'],
   'joliet-brandon': ['/media/thumbnails/joliet-brandon.webp', 'https://cdn.unisco.com/api/media/file/joliet-il-500x500.webp'],
   'summerville-cypress-tradeport': ['/media/thumbnails/summerville-cypress-tradeport.png', 'https://cdn.unisco.com/api/media/file/unis-summerville-500x500.png'],
+  'west-sacramento-overland': ['/media/thumbnails/west-sacramento-overland.webp', 'https://cdn.unisco.com/api/media/file/sacramento-ca-500x500.webp'],
+  'sparks-vista': ['/media/thumbnails/sparks-vista.webp', 'https://cdn.unisco.com/api/media/file/sparks-500x500.webp'],
+  'houston-navigation': ['/media/thumbnails/houston-navigation.webp', 'https://cdn.unisco.com/api/media/file/houston-tx-500x500.webp'],
+  'memphis-delp': ['/media/thumbnails/memphis-delp.webp', 'https://cdn.unisco.com/api/media/file/memphis-tn-500x500.webp'],
 } as const
 
 const expectedProvidedHours = {
@@ -55,6 +69,19 @@ const expectedConfirmedHours = {
   'las-vegas-marion-building-5': 'PST',
   'el-paso-emerald-12100': 'MST',
   'el-paso-emerald-12102-building-5': 'MST',
+} as const
+
+const expectedExpansionHours = {
+  'waddell-cotton': 'MST',
+  'ontario-airport': 'PST',
+  'kent-85th-avenue-range': 'PST',
+  'west-sacramento-overland': 'PST',
+  'sparks-vista': 'PST',
+  'houston-navigation': 'CST',
+  'memphis-delp': 'CST',
+  'salt-lake-city-jimmy-doolittle': 'MST',
+  'somerset-cottontail': 'EST',
+  'plano-10th-f-avenue': 'CST',
 } as const
 
 function boxesOverlap(a: { x: number; y: number; width: number; height: number }, b: { x: number; y: number; width: number; height: number }) {
@@ -192,9 +219,11 @@ async function expectAllFacilitiesInMapBounds(map: Locator) {
     const bounds = (await map.getAttribute('data-bounds'))?.split(',').map(Number) ?? []
     if (bounds.length !== 4) return false
     const [south, west, north, east] = bounds
-    return facilities.every(({ coordinates: [latitude, longitude] }) =>
-      latitude > south && latitude < north && longitude > west && longitude < east,
-    )
+    return facilities.every((facility) => {
+      if (!facility.coordinates) return true
+      const [latitude, longitude] = facility.coordinates
+      return latitude > south && latitude < north && longitude > west && longitude < east
+    })
   }).toBe(true)
   await expect.poll(async () => Number(await map.getAttribute('data-zoom'))).toBeLessThanOrEqual(6)
 }
@@ -204,20 +233,22 @@ async function expectFacilitiesInMapBounds(map: Locator, expectedFacilities: rea
     const bounds = (await map.getAttribute('data-bounds'))?.split(',').map(Number) ?? []
     if (bounds.length !== 4) return false
     const [south, west, north, east] = bounds
-    return expectedFacilities.every(({ coordinates: [latitude, longitude] }) =>
-      latitude > south && latitude < north && longitude > west && longitude < east,
-    )
+    return expectedFacilities.every((facility) => {
+      if (!facility.coordinates) return true
+      const [latitude, longitude] = facility.coordinates
+      return latitude > south && latitude < north && longitude > west && longitude < east
+    })
   }).toBe(true)
 }
 
-async function expectAllFacilitiesActive(page: Page) {
-  await expect(page.locator('.location-pin')).toHaveCount(17)
+async function expectDefaultFacilityStatuses(page: Page) {
+  await expect(page.locator('.location-pin')).toHaveCount(26)
   const pinColors = await page.locator('.location-pin').evaluateAll((pins) =>
     [...new Set(pins.map((pin) => window.getComputedStyle(pin).backgroundColor))],
   )
-  expect(pinColors).toEqual(['rgb(19, 166, 99)'])
+  expect(pinColors).toEqual(['rgb(19, 166, 99)', 'rgb(122, 135, 152)'])
   await expect(page.locator('.status-pill.active')).toHaveCount(17)
-  await expect(page.locator('.status-pill.unassigned')).toHaveCount(0)
+  await expect(page.locator('.status-pill.unassigned')).toHaveCount(10)
   await expectFacilitySummary(page)
 }
 
@@ -227,9 +258,87 @@ async function expectFacilitySummary(page: Page) {
   await expect(summary).toBeVisible()
   await expect(overviewMetrics).toHaveCount(3)
   await expect(overviewMetrics.locator('span')).toHaveText(['Facilities', 'Active', 'Coming Soon'])
-  await expect(overviewMetrics.locator('b')).toHaveText(['17', '17', '0'])
+  await expect(overviewMetrics.locator('b')).toHaveText(['27', '27', '0'])
   await expect(summary.getByText('Planned', { exact: true })).toHaveCount(0)
   await expect(summary.getByText('Unassigned', { exact: true })).toHaveCount(0)
+}
+
+async function expectFacilityTypeLayout(page: Page) {
+  const showcase = page.getByTestId('selected-showcase')
+  const identity = showcase.locator('.facility-identity')
+  const copy = identity.locator(':scope > div')
+  const subtitle = copy.getByText('Logistics network location', { exact: true })
+  const facilityType = copy.getByTestId('facility-network-type')
+  const photo = identity.getByTestId('facility-photo')
+  const precision = identity.locator(':scope > .precision-chip')
+  const address = showcase.locator('.address-line')
+  const tabs = showcase.getByRole('tablist', { name: 'Facility details' })
+
+  await expect(copy.locator(':scope > small')).toHaveText(['Logistics network location', 'UF ONLY'])
+  await expect(facilityType).toHaveText('UF ONLY')
+  await expect(showcase.getByText('UF/CUBEWORKS', { exact: true })).toHaveCount(0)
+
+  const [identityBox, copyBox, subtitleBox, typeBox, photoBox, precisionBox, addressBox, tabsBox, rendering] = await Promise.all([
+    identity.boundingBox(),
+    copy.boundingBox(),
+    subtitle.boundingBox(),
+    facilityType.boundingBox(),
+    photo.boundingBox(),
+    precision.boundingBox(),
+    address.boundingBox(),
+    tabs.boundingBox(),
+    facilityType.evaluate((element) => ({
+      horizontalClipping: element.scrollWidth > element.clientWidth + 1,
+      verticalClipping: element.scrollHeight > element.clientHeight + 1,
+    })),
+  ])
+  expect(identityBox).not.toBeNull()
+  expect(copyBox).not.toBeNull()
+  expect(subtitleBox).not.toBeNull()
+  expect(typeBox).not.toBeNull()
+  expect(typeBox!.y).toBeGreaterThanOrEqual(subtitleBox!.y + subtitleBox!.height)
+  expect(typeBox!.x).toBeGreaterThanOrEqual(copyBox!.x)
+  expect(typeBox!.x + typeBox!.width).toBeLessThanOrEqual(copyBox!.x + copyBox!.width)
+  expect(typeBox!.y + typeBox!.height).toBeLessThanOrEqual(identityBox!.y + identityBox!.height)
+  expect(rendering).toEqual({ horizontalClipping: false, verticalClipping: false })
+  expect(photoBox && typeBox ? boxesOverlap(photoBox, typeBox) : true).toBe(false)
+  expect(precisionBox && typeBox ? boxesOverlap(precisionBox, typeBox) : true).toBe(false)
+  expect(addressBox && typeBox ? boxesOverlap(addressBox, typeBox) : true).toBe(false)
+  expect(tabsBox && typeBox ? boxesOverlap(tabsBox, typeBox) : true).toBe(false)
+}
+
+async function expectLocationFilterLayout(page: Page, mobile = false) {
+  const filters = page.locator('.list-filters')
+  const search = page.getByPlaceholder('Search street, city, state, ZIP...').locator('..')
+  const status = page.getByLabel('Filter by status')
+  const facilityType = page.getByLabel('Filter by facility type')
+  const [filtersBox, searchBox, statusBox, typeBox] = await Promise.all([
+    filters.boundingBox(),
+    search.boundingBox(),
+    status.boundingBox(),
+    facilityType.boundingBox(),
+  ])
+
+  for (const box of [filtersBox, searchBox, statusBox, typeBox]) expect(box).not.toBeNull()
+  for (const box of [searchBox!, statusBox!, typeBox!]) {
+    expect(box.x).toBeGreaterThanOrEqual(filtersBox!.x)
+    expect(box.x + box.width).toBeLessThanOrEqual(filtersBox!.x + filtersBox!.width)
+    expect(box.height).toBeGreaterThanOrEqual(mobile ? 40 : 31)
+  }
+  expect(boxesOverlap(statusBox!, typeBox!)).toBe(false)
+  if (mobile) {
+    expect(searchBox!.y + searchBox!.height).toBeLessThanOrEqual(statusBox!.y)
+    expect(searchBox!.y + searchBox!.height).toBeLessThanOrEqual(typeBox!.y)
+  } else {
+    expect(boxesOverlap(searchBox!, statusBox!)).toBe(false)
+    expect(boxesOverlap(searchBox!, typeBox!)).toBe(false)
+  }
+
+  const dimensions = await page.evaluate(() => ({
+    viewport: document.documentElement.clientWidth,
+    content: document.documentElement.scrollWidth,
+  }))
+  expect(dimensions.content).toBeLessThanOrEqual(dimensions.viewport)
 }
 
 test.beforeEach(async ({ page }) => {
@@ -242,19 +351,25 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByTestId('selected-showcase')).toHaveCount(0)
 })
 
-test('opens with the exact 17-address directory beside the map and no selected profile', async ({ page }) => {
-  await expect(page.locator('tbody tr')).toHaveCount(17)
+test('opens with the exact 27-address directory beside the 26-pin map and no selected profile', async ({ page }) => {
+  await expect(page.locator('tbody tr')).toHaveCount(27)
   const table = page.getByRole('table')
   for (const address of suppliedAddresses) await expect(table).toContainText(address)
-  expect(facilities).toHaveLength(17)
-  expect(facilities.every((facility) => facility.status === 'Active')).toBe(true)
+  expect(facilities).toHaveLength(27)
+  expect(facilities.slice(0, 17).every((facility) => facility.status === 'Active' && facility.facilityType === 'UF ONLY')).toBe(true)
+  expect(facilities.slice(17).every((facility) => facility.status === 'Active' && facility.facilityType === 'UF/CUBEWORKS')).toBe(true)
+  expect(facilities.filter((facility) => facility.coordinates !== null)).toHaveLength(26)
+  await expect(page.getByTestId('facility-network-type')).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Facility 01', exact: true })).toHaveCount(0)
   await expect(page.getByTestId('map-open-in-maps')).toHaveCount(0)
   await expect(page.getByTestId('overview-map-preview')).toHaveCount(0)
-  await expectAllFacilitiesActive(page)
+  await expectDefaultFacilityStatuses(page)
   await expect(page.getByLabel('Filter by status').locator('option')).toHaveText(['All statuses', 'Active', 'Coming Soon', 'Planned', 'Unassigned'])
+  await expect(page.getByLabel('Filter by facility type')).toHaveValue('All')
+  await expect(page.getByLabel('Filter by facility type').locator('option')).toHaveText(['All types', 'UF ONLY', 'UF/CUBEWORKS'])
   await expect(page.getByLabel('Local facility status legend')).toContainText('Planned')
   await expect(page.getByLabel('Local facility status legend')).toContainText('Unassigned')
+  await expectLocationFilterLayout(page)
 
   const [directoryBox, mapBox] = await Promise.all([
     page.getByRole('region', { name: 'Facility directory', exact: true }).boundingBox(),
@@ -274,7 +389,7 @@ test('stale v1 status storage cannot override the intrinsic Active status', asyn
   })
   await page.reload()
 
-  await expectAllFacilitiesActive(page)
+  await expectDefaultFacilityStatuses(page)
   await expect.poll(async () => page.evaluate(() => {
     const saved = JSON.parse(localStorage.getItem('facility-status-assignments-v3') ?? '{}') as Record<string, string>
     return Object.keys(saved).length
@@ -291,7 +406,7 @@ test('stale v2 non-Active statuses cannot override the intrinsic Active status',
   })
   await page.reload()
 
-  await expectAllFacilitiesActive(page)
+  await expectDefaultFacilityStatuses(page)
   await expect.poll(async () => page.evaluate(() => {
     const saved = JSON.parse(localStorage.getItem('facility-status-assignments-v3') ?? '{}') as Record<string, string>
     return Object.keys(saved).length
@@ -315,7 +430,7 @@ test('Dashboard navigation shows an all-facility map without Locations-only UI o
   await expect(dashboardNav).toHaveAttribute('aria-current', 'page')
   await expect(locationsNav).not.toHaveAttribute('aria-current')
   await expect(page.getByLabel('Facility network map')).toHaveAttribute('data-view', 'dashboard')
-  await expect(page.locator('.location-marker-wrap')).toHaveCount(17)
+  await expect(page.locator('.location-marker-wrap')).toHaveCount(26)
   await expect(page.locator('.location-marker-wrap').first()).toHaveAttribute('aria-label', 'Open facility 01 in Locations')
   await expect(page.locator('.location-marker-wrap[title]')).toHaveCount(0)
   await expect(page.locator('.leaflet-tooltip')).toHaveCount(0)
@@ -330,14 +445,14 @@ test('Dashboard navigation shows an all-facility map without Locations-only UI o
   await expect(page.locator('.map-legend')).toHaveCount(0)
 
   await expect(page.locator('.location-pin.is-dashboard-pin')).toHaveCount(0)
-  await expect(page.locator('.location-pin')).toHaveCount(17)
+  await expect(page.locator('.location-pin')).toHaveCount(26)
   const focusedMarker = page.getByRole('button', { name: 'Open facility 01 in Locations' })
   await focusedMarker.focus()
   await expect(focusedMarker).toBeFocused()
 
   for (const control of [
-    page.getByRole('button', { name: 'Street' }),
-    page.getByRole('button', { name: 'Satellite' }),
+    page.getByRole('button', { name: 'Street', exact: true }),
+    page.getByRole('button', { name: 'Satellite', exact: true }),
     page.getByRole('button', { name: 'Zoom in' }),
     page.getByRole('button', { name: 'Zoom out' }),
     page.getByRole('button', { name: 'Recenter map' }),
@@ -376,14 +491,14 @@ test('Dashboard marker opens Locations showcase and returning clears detail and 
   await expect(page.getByTestId('selected-showcase')).toHaveCount(0)
   await expect(page.getByTestId('map-open-in-maps')).toHaveCount(0)
   await expect(page.locator('.location-pin.is-selected')).toHaveCount(0)
-  await expect(page.locator('.location-marker-wrap')).toHaveCount(17)
+  await expect(page.locator('.location-marker-wrap')).toHaveCount(26)
   await expectAllFacilitiesInMapBounds(map)
 })
 
 test('Dashboard Regions softly highlights Southern California, retains a closed-panel selection, and clears cleanly', async ({ page }) => {
   const map = page.getByLabel('Facility network map')
   const regionsToggle = page.locator('.dashboard-region-toggle')
-  const southernCalifornia = [facilities[0], facilities[1], facilities[2], facilities[14]]
+  const southernCalifornia = [facilities[0], facilities[1], facilities[2], facilities[14], facilities[18]]
 
   await page.getByRole('button', { name: 'Dashboard', exact: true }).click()
   await expect(regionsToggle).toBeVisible()
@@ -391,14 +506,14 @@ test('Dashboard Regions softly highlights Southern California, retains a closed-
   await expect(page.getByRole('complementary', { name: 'Dashboard regions' })).toHaveCount(0)
   await expect(page.locator('.dashboard-region-focus-area')).toHaveCount(0)
   await expect(page.locator('.dashboard-facility-highlight')).toHaveCount(0)
-  await expect(page.locator('.location-marker-wrap')).toHaveCount(17)
+  await expect(page.locator('.location-marker-wrap')).toHaveCount(26)
 
   await regionsToggle.click()
   const panel = page.getByRole('complementary', { name: 'Dashboard regions' })
   await expect(panel).toBeVisible()
   await expect(regionsToggle).toHaveAttribute('aria-expanded', 'true')
-  await expect(panel).not.toContainText('Northern California')
-  await expect(panel).not.toContainText('Memphis')
+  await expect(panel).toContainText('Northern California')
+  await expect(panel).toContainText('Tennessee')
   const southernCaliforniaHeading = panel.getByRole('button', { name: /Southern California/ })
   await expect(southernCaliforniaHeading).toHaveAttribute('aria-expanded', 'false')
   await expect(southernCaliforniaHeading).toHaveAttribute('aria-pressed', 'false')
@@ -406,25 +521,30 @@ test('Dashboard Regions softly highlights Southern California, retains a closed-
   await southernCaliforniaHeading.click()
   await expect(southernCaliforniaHeading).toHaveAttribute('aria-expanded', 'true')
   await expect(southernCaliforniaHeading).toHaveAttribute('aria-pressed', 'true')
-  await expect(page.locator('.location-marker-wrap')).toHaveCount(4)
+  await expect(page.locator('.location-marker-wrap')).toHaveCount(5)
   await expectFacilitiesInMapBounds(map, southernCalifornia)
 
   const rows = panel.getByTestId('dashboard-region-facility')
-  await expect(rows).toHaveCount(4)
+  await expect(rows).toHaveCount(5)
   for (const facility of southernCalifornia) {
     const row = panel.locator(`[data-facility-id="${facility.id}"]`)
-    const image = row.locator('img')
     await expect(row).toContainText(`Facility ${String(facility.number).padStart(2, '0')}`)
     await expect(row).toContainText(facility.fullAddress)
-    await expect(image).toHaveAttribute('src', facilityMedia[facility.id].thumbnail.assetUrl)
-    await expect.poll(() => image.evaluate((element: HTMLImageElement) => element.complete && element.naturalWidth > 0)).toBe(true)
+    const media = facilityMedia[facility.id]
+    if (media) {
+      const image = row.locator('img')
+      await expect(image).toHaveAttribute('src', media.thumbnail.assetUrl)
+      await expect.poll(() => image.evaluate((element: HTMLImageElement) => element.complete && element.naturalWidth > 0)).toBe(true)
+    } else {
+      await expect(row.getByTestId('photo-fallback')).toBeVisible()
+    }
   }
 
   await expect(page.locator('.dashboard-region-focus-area')).toHaveCount(0)
   const highlights = page.locator('.dashboard-facility-highlight')
-  await expect(highlights).toHaveCount(8)
-  await expect(page.locator('.dashboard-facility-highlight-outer')).toHaveCount(4)
-  await expect(page.locator('.dashboard-facility-highlight-inner')).toHaveCount(4)
+  await expect(highlights).toHaveCount(10)
+  await expect(page.locator('.dashboard-facility-highlight-outer')).toHaveCount(5)
+  await expect(page.locator('.dashboard-facility-highlight-inner')).toHaveCount(5)
   expect(await highlights.evaluateAll((elements) => elements.every((element) => window.getComputedStyle(element).pointerEvents === 'none'))).toBe(true)
   await expect(panel).toContainText('Highlighted facilities')
   await expect(panel).toContainText('Illustrative')
@@ -436,8 +556,8 @@ test('Dashboard Regions softly highlights Southern California, retains a closed-
   await expect(southernCaliforniaHeading).toHaveAttribute('aria-expanded', 'false')
   await expect(southernCaliforniaHeading).toHaveAttribute('aria-pressed', 'true')
   await expect(rows).toHaveCount(0)
-  await expect(page.locator('.location-marker-wrap')).toHaveCount(4)
-  await expect(highlights).toHaveCount(8)
+  await expect(page.locator('.location-marker-wrap')).toHaveCount(5)
+  await expect(highlights).toHaveCount(10)
   await expect(map).toHaveAttribute('data-center', focusedCenter!)
   await expect(map).toHaveAttribute('data-zoom', focusedZoom!)
 
@@ -447,29 +567,33 @@ test('Dashboard Regions softly highlights Southern California, retains a closed-
 
   await panel.getByRole('button', { name: 'Close regions' }).click()
   await expect(panel).toHaveCount(0)
-  await expect(page.locator('.location-marker-wrap')).toHaveCount(4)
-  await expect(highlights).toHaveCount(8)
+  await expect(page.locator('.location-marker-wrap')).toHaveCount(5)
+  await expect(highlights).toHaveCount(10)
   await expect(regionsToggle).toContainText('Southern California')
   await expect(page.getByTestId('dashboard-focus-label')).toContainText('Illustrative')
 
   await regionsToggle.click()
   await expect(southernCaliforniaHeading).toHaveAttribute('aria-expanded', 'false')
   await expect(southernCaliforniaHeading).toHaveAttribute('aria-pressed', 'true')
+  await expectFacilitiesInMapBounds(map, southernCalifornia)
+  await page.waitForTimeout(800)
+  const reopenedCenter = await map.getAttribute('data-center')
+  const reopenedZoom = await map.getAttribute('data-zoom')
   await southernCaliforniaHeading.focus()
   await page.keyboard.press('Enter')
   await expect(southernCaliforniaHeading).toHaveAttribute('aria-expanded', 'true')
-  await expect(rows).toHaveCount(4)
+  await expect(rows).toHaveCount(5)
   await page.keyboard.press('Space')
   await expect(southernCaliforniaHeading).toHaveAttribute('aria-expanded', 'false')
   await expect(rows).toHaveCount(0)
   await page.keyboard.press('Space')
   await expect(southernCaliforniaHeading).toHaveAttribute('aria-expanded', 'true')
-  await expect(rows).toHaveCount(4)
-  await expect(map).toHaveAttribute('data-center', focusedCenter!)
-  await expect(map).toHaveAttribute('data-zoom', focusedZoom!)
+  await expect(rows).toHaveCount(5)
+  await expect(map).toHaveAttribute('data-center', reopenedCenter!)
+  await expect(map).toHaveAttribute('data-zoom', reopenedZoom!)
 
   await panel.getByRole('button', { name: /All facilities/ }).click()
-  await expect(page.locator('.location-marker-wrap')).toHaveCount(17)
+  await expect(page.locator('.location-marker-wrap')).toHaveCount(26)
   await expect(page.locator('.dashboard-region-focus-area')).toHaveCount(0)
   await expect(highlights).toHaveCount(0)
   await expect(page.getByTestId('dashboard-focus-label')).toHaveCount(0)
@@ -482,7 +606,7 @@ test('Dashboard Regions softly highlights Southern California, retains a closed-
   await panel.locator('[data-facility-id="buena-park-valley-view"]').click()
   await expect(page.getByTestId('selected-showcase')).toContainText(facilities[0].fullAddress)
   await page.getByRole('button', { name: 'Dashboard', exact: true }).click()
-  await expect(page.locator('.location-marker-wrap')).toHaveCount(17)
+  await expect(page.locator('.location-marker-wrap')).toHaveCount(26)
   await expect(page.locator('.dashboard-region-focus-area')).toHaveCount(0)
   await expect(highlights).toHaveCount(0)
   await expect(regionsToggle).toHaveAttribute('aria-expanded', 'false')
@@ -527,32 +651,32 @@ test('mobile Dashboard Regions sheet stays in bounds and leaves map controls usa
 
   const southernCaliforniaHeading = panel.getByRole('button', { name: /Southern California/ })
   await southernCaliforniaHeading.click()
-  await expect(page.locator('.location-marker-wrap')).toHaveCount(4)
+  await expect(page.locator('.location-marker-wrap')).toHaveCount(5)
   await expect(page.locator('.dashboard-region-focus-area')).toHaveCount(0)
-  await expect(page.locator('.dashboard-facility-highlight')).toHaveCount(8)
-  await expectFacilitiesInMapBounds(map, [facilities[0], facilities[1], facilities[2], facilities[14]])
+  await expect(page.locator('.dashboard-facility-highlight')).toHaveCount(10)
+  await expectFacilitiesInMapBounds(map, [facilities[0], facilities[1], facilities[2], facilities[14], facilities[18]])
 
   await southernCaliforniaHeading.focus()
   await page.keyboard.press('Space')
   await expect(southernCaliforniaHeading).toHaveAttribute('aria-expanded', 'false')
   await expect(southernCaliforniaHeading).toHaveAttribute('aria-pressed', 'true')
   await expect(panel.getByTestId('dashboard-region-facility')).toHaveCount(0)
-  await expect(page.locator('.location-marker-wrap')).toHaveCount(4)
-  await expect(page.locator('.dashboard-facility-highlight')).toHaveCount(8)
+  await expect(page.locator('.location-marker-wrap')).toHaveCount(5)
+  await expect(page.locator('.dashboard-facility-highlight')).toHaveCount(10)
   await page.keyboard.press('Enter')
   await expect(southernCaliforniaHeading).toHaveAttribute('aria-expanded', 'true')
-  await expect(panel.getByTestId('dashboard-region-facility')).toHaveCount(4)
+  await expect(panel.getByTestId('dashboard-region-facility')).toHaveCount(5)
 
-  await page.getByRole('button', { name: 'Satellite' }).click()
-  await expect(page.getByRole('button', { name: 'Satellite' })).toHaveAttribute('aria-pressed', 'true')
+  await page.getByRole('button', { name: 'Satellite', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Satellite', exact: true })).toHaveAttribute('aria-pressed', 'true')
   await expect.poll(() => page.locator('.leaflet-tile-pane img[src*="/World_Imagery/"]').count()).toBeGreaterThan(0)
-  await page.getByRole('button', { name: 'Street' }).click()
-  await expect(page.getByRole('button', { name: 'Street' })).toHaveAttribute('aria-pressed', 'true')
+  await page.getByRole('button', { name: 'Street', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Street', exact: true })).toHaveAttribute('aria-pressed', 'true')
   await expect.poll(() => page.locator('.leaflet-tile-pane img[src*="/World_Street_Map/"]').count()).toBeGreaterThan(0)
 
   await page.keyboard.press('Escape')
   await expect(panel).toHaveCount(0)
-  await expect(page.locator('.location-marker-wrap')).toHaveCount(4)
+  await expect(page.locator('.location-marker-wrap')).toHaveCount(5)
   await expect(regionsToggle).toBeFocused()
   const dimensions = await page.evaluate(() => ({ viewport: document.documentElement.clientWidth, content: document.documentElement.scrollWidth }))
   expect(dimensions.content).toBeLessThanOrEqual(dimensions.viewport)
@@ -562,11 +686,11 @@ test('Dashboard pin previews show matching decoded photos on hover and focus, th
   await page.getByRole('button', { name: 'Dashboard', exact: true }).click()
   const map = page.getByLabel('Facility network map')
   const firstFacility = facilities[14]
-  const centralFacility = facilities[3]
+  const centralFacility = facilities[22]
   const nextFacility = facilities[7]
   const tennesseeFacility = facilities[8]
   const firstMarker = page.getByRole('button', { name: 'Open facility 15 in Locations' })
-  const centralMarker = page.getByRole('button', { name: 'Open facility 04 in Locations' })
+  const centralMarker = page.getByRole('button', { name: 'Open facility 23 in Locations' })
   const nextMarker = page.getByRole('button', { name: 'Open facility 08 in Locations' })
   const tennesseeMarker = page.getByRole('button', { name: 'Open facility 09 in Locations' })
 
@@ -599,13 +723,15 @@ test('Dashboard pin previews show matching decoded photos on hover and focus, th
   await expect(nextPreview).toContainText('Summerville, SC')
   await expect(nextPreview.locator('.dashboard-pin-preview-address')).toHaveText('369 N Cypress (410 Tradeport Dr.), Summerville, SC')
 
-  await tennesseeMarker.hover()
+  await page.mouse.move(0, 0)
   await expect(nextPreview).toBeHidden()
+  await tennesseeMarker.focus()
+  await expect(tennesseeMarker).toBeFocused()
   const tennesseePreview = await expectDashboardPreviewLayout(page, map, tennesseeFacility)
   await expect(tennesseePreview.locator('.dashboard-pin-preview-address')).toHaveText('4550 Quality Drive, TN')
   await expect(tennesseePreview).not.toContainText('Memphis')
 
-  await page.getByRole('button', { name: 'Satellite' }).hover()
+  await page.getByRole('button', { name: 'Satellite', exact: true }).focus()
   await expect(page.getByTestId('dashboard-pin-preview')).toHaveCount(0)
 
   await firstMarker.focus()
@@ -647,7 +773,7 @@ test('mobile Dashboard is map-only and its marker opens the Locations detail flo
 
   const map = page.getByLabel('Facility network map')
   await expect(map).toBeVisible()
-  await expect(page.locator('.location-marker-wrap')).toHaveCount(17)
+  await expect(page.locator('.location-marker-wrap')).toHaveCount(26)
   await expect(page.getByRole('group', { name: 'Explorer view' })).toHaveCount(0)
   await expect(page.getByPlaceholder('Search address, city, state, ZIP...')).toHaveCount(0)
   await expect(page.locator('.leaflet-tooltip')).toHaveCount(0)
@@ -730,11 +856,39 @@ test('desktop divider supports bounded pointer and keyboard resizing and persist
   await expect.poll(async () => (await page.getByRole('region', { name: 'Facility directory', exact: true }).boundingBox())?.width ?? 0).toBeCloseTo(persistedWidth, 0)
 })
 
-test('operating-hours sidecar maps thirteen original rows and four follow-up confirmations', () => {
-  expect(facilities).toHaveLength(17)
+test('ten UF/CUBEWORKS additions preserve supplied addresses, status, and geocode limitations', () => {
+  const additions = facilities.slice(17)
+  expect(additions.map((facility) => facility.fullAddress)).toEqual(suppliedAddresses.slice(17))
+  expect(additions.map((facility) => facility.number)).toEqual([18, 19, 20, 21, 22, 23, 24, 25, 26, 27])
+  expect(additions.every((facility) => facility.facilityType === 'UF/CUBEWORKS')).toBe(true)
+  expect(additions.every((facility) => facility.status === 'Active')).toBe(true)
+
+  const waddell = additions[0]
+  expect(waddell.coordinates).toBeNull()
+  expect(waddell.coordinatePrecision).toBe('Unavailable')
+  expect(waddell.geocodeNote).toContain('conflicting candidates')
+  expect(waddell.geocodeNote).toContain('No pin is shown')
+
+  const kent = additions[2]
+  expect(kent.coordinates).toEqual([47.4235533, -122.2273279])
+  expect(kent.coordinatePrecision).toBe('Approximate')
+  expect(kent.geocodeNote).toContain('19821 endpoint')
+  expect(kent.fullAddress).toContain('19801-19821')
+
+  const plano = additions[9]
+  expect(plano.coordinates).toEqual([33.0123245, -96.7025856])
+  expect(plano.zip).toBeUndefined()
+  expect(plano.fullAddress).toBe('910 10th Street / 880 F Ave., Plano, TX')
+  expect(plano.geocodeNote).toContain('primary 910 10th St')
+  expect(plano.geocodeNote).toContain('alternate 880 F Ave.')
+})
+
+test('operating-hours sidecar maps all 27 original, follow-up, and expansion confirmations', () => {
+  expect(facilities).toHaveLength(27)
   expect(Object.keys(facilityOperatingHours).sort()).toEqual(facilities.map((facility) => facility.id).sort())
   expect(Object.keys(expectedProvidedHours)).toHaveLength(13)
   expect(Object.keys(expectedConfirmedHours)).toHaveLength(4)
+  expect(Object.keys(expectedExpansionHours)).toHaveLength(10)
 
   for (const [facilityId, timezone] of Object.entries(expectedProvidedHours)) {
     const hours = facilityOperatingHours[facilityId]
@@ -773,14 +927,30 @@ test('operating-hours sidecar maps thirteen original rows and four follow-up con
     expect(hours.matchNote).toContain('separate from the original 26-row list')
   }
 
+  for (const [facilityId, timezone] of Object.entries(expectedExpansionHours)) {
+    const hours = facilityOperatingHours[facilityId]
+    expect(hours.status).toBe('confirmed')
+    expect(hours).toMatchObject({
+      facilityId,
+      startTime: '8:00 AM',
+      endTime: '4:30 PM',
+      timezone,
+      days: 'M-F',
+      source: CONFIRMED_OPERATING_HOURS_SOURCE,
+    })
+    expect(hours.sourceRowLabel).toContain(facilities.find((facility) => facility.id === facilityId)!.state)
+    expect(hours.matchNote).toContain('ten-site roster expansion on 2026-09-28')
+    expect(formatOperatingHours(hours)).toBe(`8:00 AM–4:30 PM ${timezone} M-F`)
+  }
+
   expect(Object.values(facilityOperatingHours).every((hours) => ['provided', 'confirmed'].includes(hours.status))).toBe(true)
   expect(JSON.stringify(facilityOperatingHours)).not.toContain('assumed')
   expect(JSON.stringify(facilityOperatingHours)).not.toContain('Not provided')
   expect(JSON.stringify(facilityOperatingHours)).not.toContain('Needs confirmation')
 })
 
-test('media sidecar distinguishes eight official records from nine user-provided photos', () => {
-  expect(Object.keys(facilityMedia).sort()).toEqual([...Object.keys(expectedOfficialThumbnails), 'moreno-valley-heacock', 'houston-citypark', 'pooler-morgan-lakes', 'pooler-seabrook-building-2', 'jacksonville-ignition', 'tennessee-quality-drive', 'las-vegas-marion-building-5', 'el-paso-emerald-12100', 'el-paso-emerald-12102-building-5'].sort())
+test('media sidecar distinguishes twelve official records, fifteen user-provided photos, and no fallbacks', () => {
+  expect(Object.keys(facilityMedia).sort()).toEqual([...Object.keys(expectedOfficialThumbnails), 'moreno-valley-heacock', 'houston-citypark', 'pooler-morgan-lakes', 'pooler-seabrook-building-2', 'jacksonville-ignition', 'tennessee-quality-drive', 'las-vegas-marion-building-5', 'el-paso-emerald-12100', 'el-paso-emerald-12102-building-5', 'waddell-cotton', 'ontario-airport', 'kent-85th-avenue-range', 'salt-lake-city-jimmy-doolittle', 'somerset-cottontail', 'plano-10th-f-avenue'].sort())
   for (const [facilityId, [assetUrl, sourceUrl]] of Object.entries(expectedOfficialThumbnails)) {
     const media = facilityMedia[facilityId]
     expect(media.thumbnail.assetUrl).toBe(assetUrl)
@@ -915,15 +1085,43 @@ test('media sidecar distinguishes eight official records from nine user-provided
   expect(facilityMedia['summerville-cypress-tradeport'].matchNote).toContain('does not verify building or coordinate identity')
   expect(facilityMedia['long-beach-willow'].thumbnail.alt).toContain('Port of Long Beach')
   expect(facilityMedia['long-beach-willow'].matchNote).toContain('not a verified exterior')
+  for (const facilityId of ['west-sacramento-overland', 'sparks-vista', 'houston-navigation', 'memphis-delp']) {
+    expect(facilityMedia[facilityId]).toMatchObject({
+      retrievedDate: '2026-09-28',
+      verification: 'official-source-address-correlated',
+      sourcePage: 'https://www.unisco.com/locations',
+    })
+    expect(facilityMedia[facilityId].matchNote).toContain('exact supplied address matches')
+    expect(facilityMedia[facilityId].matchNote).toContain('not independently established')
+  }
+  for (const [facilityId, detailWidth, detailHeight] of [
+    ['waddell-cotton', 1323, 880],
+    ['ontario-airport', 650, 433],
+    ['kent-85th-avenue-range', 883, 588],
+    ['salt-lake-city-jimmy-doolittle', 882, 588],
+    ['somerset-cottontail', 1323, 876],
+    ['plano-10th-f-avenue', 882, 588],
+  ] as const) {
+    expect(facilityMedia[facilityId]).toMatchObject({
+      verification: 'user-provided-address-user-verified',
+      retrievedDate: '2026-09-29',
+      sourcePage: 'user-provided screenshot (no public source URL)',
+      thumbnail: { assetUrl: `/media/thumbnails/${facilityId}.webp`, width: 500, height: 500 },
+      detail: { assetUrl: `/media/${facilityId}.jpg`, width: detailWidth, height: detailHeight },
+    })
+    expect(facilityMedia[facilityId].matchNote).toContain('not official UNIS listing media')
+  }
 })
 
-test('shows media previews for all seventeen facilities with no roster fallbacks', async ({ page }) => {
+test('shows 27 address-sourced previews and no roster fallbacks', async ({ page }) => {
   const rows = page.locator('tbody')
-  await expect(rows.getByTestId('facility-photo')).toHaveCount(17)
+  await expect(rows.getByTestId('facility-photo')).toHaveCount(27)
   await expect(rows.getByTestId('photo-fallback')).toHaveCount(0)
 
-  for (const address of suppliedAddresses) {
-    await expect(page.getByRole('button', { name: `Select ${address}` }).getByTestId('facility-photo')).toHaveCount(1)
+  for (const facility of facilities) {
+    const row = page.getByRole('button', { name: `Select ${facility.fullAddress}` })
+    if (facilityMedia[facility.id]) await expect(row.getByTestId('facility-photo')).toHaveCount(1)
+    else await expect(row.getByTestId('photo-fallback')).toHaveCount(1)
   }
   await expect(rows.getByText('Photo not available')).toHaveCount(0)
   await expect(page.getByRole('button', { name: `Select ${suppliedAddresses[2]}` }).locator('img')).toHaveAttribute('src', '/media/thumbnails/moreno-valley-heacock.webp')
@@ -965,17 +1163,126 @@ test('global and list search match address, city, state name, abbreviation, and 
   await expect(page.getByRole('table')).toContainText('2619 Ignition Dr.')
 
   await globalSearch.fill('California')
-  await expect(page.locator('tbody tr')).toHaveCount(4)
+  await expect(page.locator('tbody tr')).toHaveCount(6)
   await globalSearch.fill('79928')
   await expect(page.locator('tbody tr')).toHaveCount(2)
   await globalSearch.fill('WA')
-  await expect(page.locator('tbody tr')).toHaveCount(2)
+  await expect(page.locator('tbody tr')).toHaveCount(3)
 
   await globalSearch.fill('')
   const listSearch = page.getByPlaceholder('Search street, city, state, ZIP...')
   await listSearch.fill('Brandon Rd')
   await expect(page.locator('tbody tr')).toHaveCount(1)
   await expect(page.getByRole('table')).toContainText('3901 Brandon Rd., Joliet, IL 60436')
+})
+
+test('facility type filter combines with search and status, clears fully, and stays independent from Dashboard', async ({ page }) => {
+  const map = page.getByLabel('Facility network map')
+  const rows = page.locator('tbody tr')
+  const markers = map.locator('.location-marker-wrap')
+  const search = page.getByPlaceholder('Search street, city, state, ZIP...')
+  const status = page.getByLabel('Filter by status')
+  const facilityType = page.getByLabel('Filter by facility type')
+
+  await expect(facilityType).toHaveValue('All')
+  await expect(facilityType.locator('option')).toHaveText(['All types', 'UF ONLY', 'UF/CUBEWORKS'])
+  await expect(rows).toHaveCount(27)
+  await expect(markers).toHaveCount(26)
+
+  await facilityType.selectOption('UF ONLY')
+  await expect(rows).toHaveCount(17)
+  await expect(markers).toHaveCount(17)
+
+  await facilityType.selectOption('UF/CUBEWORKS')
+  await expect(rows).toHaveCount(10)
+  await expect(markers).toHaveCount(9)
+  await expect(page.getByRole('table')).toContainText(suppliedAddresses[17])
+  await search.fill('Waddell')
+  await expect(rows).toHaveCount(1)
+  await expect(markers).toHaveCount(0)
+  await expect(page.locator('.no-map-results')).toContainText('Map location unavailable')
+
+  await search.fill('not-a-current-facility')
+  await expect(page.getByText('No matching facilities')).toBeVisible()
+  await expect(page.locator('.table-wrap .empty-state')).toContainText('facility type')
+  await expect(page.locator('.no-map-results')).toContainText('No facilities found')
+
+  await page.getByRole('button', { name: 'Clear filters' }).click()
+  await expect(search).toHaveValue('')
+  await expect(status).toHaveValue('All')
+  await expect(facilityType).toHaveValue('All')
+  await expect(rows).toHaveCount(27)
+  await expect(markers).toHaveCount(26)
+
+  await page.evaluate(() => localStorage.setItem('facility-status-assignments-v3', JSON.stringify({
+    'buena-park-valley-view': 'Planned',
+  })))
+  await page.reload()
+  await search.fill('California')
+  await status.selectOption('Planned')
+  await facilityType.selectOption('UF ONLY')
+  await expect(rows).toHaveCount(1)
+  await expect(markers).toHaveCount(1)
+  await expect(page.getByRole('table')).toContainText(suppliedAddresses[0])
+
+  await chooseFromDirectory(page, suppliedAddresses[0])
+  await returnToDirectory(page)
+  await expect(search).toHaveValue('California')
+  await expect(status).toHaveValue('Planned')
+  await expect(facilityType).toHaveValue('UF ONLY')
+  await expect(rows).toHaveCount(1)
+
+  await facilityType.selectOption('UF/CUBEWORKS')
+  await expect(rows).toHaveCount(0)
+  await page.getByRole('button', { name: 'Dashboard', exact: true }).click()
+  await expect(map).toHaveAttribute('data-view', 'dashboard')
+  await expect(markers).toHaveCount(26)
+})
+
+test('unpinned Waddell remains fully usable while range and dual-address caveats stay visible', async ({ page }) => {
+  const waddell = facilities[17]
+  const kent = facilities[19]
+  const plano = facilities[26]
+  const facilityType = page.getByLabel('Filter by facility type')
+
+  await facilityType.selectOption('UF/CUBEWORKS')
+  await chooseFromDirectory(page, waddell.fullAddress)
+  const showcase = page.getByTestId('selected-showcase')
+  await expect(showcase.getByTestId('facility-network-type')).toHaveText('UF/CUBEWORKS')
+  await expect(showcase.locator('.status-pill')).toHaveText('Active')
+  await expect(showcase.getByTestId('operating-hours-overview')).toContainText('8:00 AM–4:30 PM MST M-F')
+  await expect(showcase.getByTestId('overview-map-embed')).toHaveAttribute('src', mapsEmbedHref(waddell.fullAddress))
+  await expect(showcase.locator('.overview-map-note')).toContainText('Location unverified')
+  await expect(showcase.locator('.coordinate-section')).toContainText('Unavailable')
+  await expect(page.getByLabel('Facility network map').locator(`.location-marker-wrap[title="${waddell.fullAddress}"]`)).toHaveCount(0)
+
+  await showcase.getByRole('button', { name: 'View Full Details' }).click()
+  let drawer = page.getByRole('dialog', { name: 'Waddell, AZ' })
+  await expect(drawer.getByRole('link', { name: 'Open in Maps' })).toHaveAttribute('href', mapsHref(waddell.fullAddress))
+  await expect(drawer.getByText('Street View unavailable', { exact: true })).toHaveAttribute('aria-disabled', 'true')
+  await expect(drawer.getByText('Coordinates', { exact: true }).locator('..')).toContainText('Unavailable')
+  await expect(drawer).toContainText('conflicting candidates')
+  await drawer.getByRole('button', { name: 'Close details' }).click()
+
+  await page.getByRole('tab', { name: 'Photos' }).click()
+  await expect(showcase.locator('.photo-detail img')).toHaveAttribute('src', '/media/waddell-cotton.jpg')
+  await returnToDirectory(page)
+  await expect(facilityType).toHaveValue('UF/CUBEWORKS')
+
+  await chooseFromDirectory(page, kent.fullAddress)
+  await expect(page.getByTestId('selected-showcase').locator('.overview-map-note')).toContainText('Approximate placement')
+  await page.getByTestId('selected-showcase').getByRole('button', { name: 'View Full Details' }).click()
+  drawer = page.getByRole('dialog', { name: 'Kent, WA' })
+  await expect(drawer).toContainText('19821 endpoint')
+  await drawer.getByRole('button', { name: 'Close details' }).click()
+  await returnToDirectory(page)
+
+  await chooseFromDirectory(page, plano.fullAddress)
+  await page.getByTestId('selected-showcase').getByRole('button', { name: 'View Full Details' }).click()
+  drawer = page.getByRole('dialog', { name: 'Plano, TX' })
+  await expect(drawer).toContainText('primary 910 10th St')
+  await expect(drawer).toContainText('alternate 880 F Ave.')
+  await expect(drawer.getByText('ZIP', { exact: true }).locator('..')).toContainText('Not provided')
 })
 
 test('local status assignments drive all filters and persist across reload', async ({ page }) => {
@@ -994,7 +1301,7 @@ test('local status assignments drive all filters and persist across reload', asy
   const table = page.getByRole('table')
   const filter = page.getByLabel('Filter by status')
   await filter.selectOption('Active')
-  await expect(page.locator('tbody tr')).toHaveCount(15)
+  await expect(page.locator('tbody tr')).toHaveCount(25)
   await expect(table).toContainText(suppliedAddresses[0])
   await filter.selectOption('Coming Soon')
   await expect(page.locator('tbody tr')).toHaveCount(1)
@@ -1005,7 +1312,7 @@ test('local status assignments drive all filters and persist across reload', asy
   await filter.selectOption('Unassigned')
   await expect(page.locator('tbody tr')).toHaveCount(0)
   await filter.selectOption('All')
-  await expect(page.locator('tbody tr')).toHaveCount(17)
+  await expect(page.locator('tbody tr')).toHaveCount(27)
 
   await chooseFromDirectory(page, suppliedAddresses[3])
   await page.getByLabel(`Set status for ${suppliedAddresses[3]}`).selectOption('Unassigned')
@@ -1019,7 +1326,7 @@ test('local status assignments drive all filters and persist across reload', asy
   await expect(page.locator('tbody tr')).toHaveCount(1)
   await expect(page.getByRole('table')).toContainText(suppliedAddresses[3])
   await page.getByLabel('Filter by status').selectOption('Active')
-  await expect(page.locator('tbody tr')).toHaveCount(14)
+  await expect(page.locator('tbody tr')).toHaveCount(24)
   await expect(page.getByRole('table')).toContainText(suppliedAddresses[0])
 })
 
@@ -1034,6 +1341,7 @@ test('row and map marker selection share the in-place showcase and focus the per
   await expect(map).toBeVisible()
   await expectMapFocusedOn(map, firstFacility.coordinates)
   await expect(page).toHaveURL(startingUrl)
+  await expectFacilityTypeLayout(page)
 
   const separator = page.getByRole('separator', { name: 'Resize facility directory and map' })
   const widthBeforeResize = (await page.getByTestId('selected-showcase').boundingBox())!.width
@@ -1131,7 +1439,7 @@ test('selected Overview embeds a keyless Google map and follows facility and tab
   await expect(link).toHaveAttribute('href', mapsHref(nextFacility.fullAddress))
 
   const mainMap = page.getByLabel('Facility network map')
-  await expect(mainMap.locator('.location-marker-wrap')).toHaveCount(17)
+  await expect(mainMap.locator('.location-marker-wrap')).toHaveCount(26)
   await expect(mainMap.locator('.leaflet-tile-pane img')).not.toHaveCount(0)
 })
 
@@ -1380,6 +1688,8 @@ test('mobile List/Map flow keeps full addresses readable and selected details sc
   await expect(table).toBeVisible()
   await expect(map).toBeHidden()
   await expect(page.getByRole('separator', { name: 'Resize facility directory and map' })).toBeHidden()
+  await expect(page.getByLabel('Filter by facility type')).toHaveValue('All')
+  await expectLocationFilterLayout(page, true)
 
   for (const address of [suppliedAddresses[0], suppliedAddresses[7]]) {
     const addressText = table.getByRole('button', { name: `Select ${address}` }).locator('.roster-address > span')
@@ -1430,6 +1740,7 @@ test('mobile List/Map flow keeps full addresses readable and selected details sc
   await expect(page.getByTestId('selected-showcase')).toBeVisible()
   await expect(page.getByTestId('selected-showcase')).toContainText(markerFacility.fullAddress)
   await expect(map).toBeHidden()
+  await expectFacilityTypeLayout(page)
 
   const mobileHours = page.getByTestId('selected-showcase').getByTestId('operating-hours-overview')
   await expect(mobileHours).toContainText('8:00 AM–4:30 PM PST M-F')
@@ -1458,7 +1769,7 @@ test('mobile List/Map flow keeps full addresses readable and selected details sc
 
   await returnToDirectory(page)
   await expect(page.getByRole('table')).toBeVisible()
-  await expect(page.locator('tbody tr')).toHaveCount(17)
+  await expect(page.locator('tbody tr')).toHaveCount(27)
 })
 
 test('property tabs show honest unavailable states and coordinate limitations', async ({ page }) => {
@@ -1487,8 +1798,8 @@ test('theme persistence remains functional', async ({ page }) => {
 })
 
 test('Street basemap is the initial default and manual layer selection persists across navigation', async ({ page }) => {
-  const satellite = page.getByRole('button', { name: 'Satellite' })
-  const street = page.getByRole('button', { name: 'Street' })
+  const satellite = page.getByRole('button', { name: 'Satellite', exact: true })
+  const street = page.getByRole('button', { name: 'Street', exact: true })
   await expect(street).toHaveAttribute('aria-pressed', 'true')
   await expect(satellite).toHaveAttribute('aria-pressed', 'false')
 

@@ -4,15 +4,15 @@ A responsive React + TypeScript facility-network prototype. It uses real Leaflet
 
 ## Data boundary
 
-This is a screenshot-based interface prototype, not a live WMS, YMS, facility, inventory, or operations product. The roster contains exactly the 17 user-provided facility addresses. Their original spelling, punctuation, parenthetical address, building identifiers, and supplied city/state/ZIP fields are preserved.
+This is a screenshot-based interface prototype, not a live WMS, YMS, facility, inventory, or operations product. The roster contains exactly 27 user-provided facility addresses: the original 17 plus ten UF/CUBEWORKS additions supplied on 2026-09-28. Their original spelling, punctuation, ranges, dual addresses, parenthetical address, building identifiers, and supplied city/state/ZIP fields are preserved.
 
-All 17 facility records explicitly carry status `Active` in this prototype. Users can change the local working status to Unassigned, Active, Coming Soon, or Planned; a changed value is stored only in browser localStorage under `facility-status-assignments-v3`. Property sizes, dock counts, clear heights, site plans, documents, and operational details were not supplied and are not inferred.
+All 27 facility records carry status `Active`. Users can change the local working status to Unassigned, Active, Coming Soon, or Planned; a changed value is stored only in browser localStorage under `facility-status-assignments-v3`. Property sizes, dock counts, clear heights, site plans, documents, and operational details were not supplied and are not inferred.
 
-All 17 roster records show media: eight source-verified records from the official UNIS location directory and nine user-provided photos. The Moreno Valley photo is address-matched by visible facade signage; the Houston photo has no visible street-address signage, so its building identity remains unconfirmed; the other seven user-provided photos have associations verified by the users who supplied them and were not independently verified by this prototype. None of the user-provided photos are official UNIS media, and their original sources and publication rights are not verified. The Tennessee, Las Vegas, and two El Paso sources are Google Maps screenshots with their visible third-party copyright/attribution notices retained in the uncropped detail assets. Each media record uses a deterministic local 500×500 roster thumbnail and a separate detail asset. URLs or source markers, alt text, retrieval date, dimensions, match rationale, and limitations are recorded in `src/data/facility-media.ts` and [PHOTO-PROVENANCE.md](./PHOTO-PROVENANCE.md). Summerville remains an address candidate because the roster also includes an alternate address, and Long Beach is explicitly contextual port imagery rather than a verified building exterior. No stock, neighboring-facility, or uncertain building image is substituted.
+All 27 roster records show media: twelve records use official UNIS directory media and fifteen use user-provided photos. Four of the ten additions have exact address matches in the official directory: West Sacramento, Sparks, Navigation Boulevard in Houston, and Delp Street in Memphis. Their images are address-correlated listing media and do not independently prove building identity. The other six additions (Waddell, Ontario, Kent, Salt Lake City, Somerset, and Plano) have no exact official directory match and use user-provided photos supplied on 2026-09-29. Existing user-photo limitations remain unchanged. Each media record uses a deterministic local square roster thumbnail and a separate uncropped detail asset. URLs or source markers, alt text, retrieval date, dimensions, match rationale, and limitations are recorded in `src/data/facility-media.ts` and [PHOTO-PROVENANCE.md](./PHOTO-PROVENANCE.md). No stock, neighboring-facility, or uncertain building image is substituted.
 
 The Tennessee address intentionally remains `4550 Quality Drive, TN` because no city or ZIP was supplied. Geocoder-inferred locality data is not added to the user-provided address.
 
-Facility operating hours are stored separately in `src/data/facility-hours.ts`. Thirteen current-roster facilities retain confidently mapped hours from the user-provided 26-row list. Tennessee, Las Vegas, and both El Paso facilities have hours confirmed by the user in a follow-up, separately from the original list. All 17 display 8:00 AM–4:30 PM M-F with the confirmed local abbreviation. The app preserves the literal PST, EST, CST, or MST abbreviation, does not convert timezones, and does not compute live open/closed status. Rows for facilities outside the current 17-record roster are not imported.
+Facility operating hours are stored separately in `src/data/facility-hours.ts`. Thirteen original-roster facilities retain confidently mapped hours from the user-provided 26-row list; four original records were confirmed in a follow-up; and all ten additions were user-confirmed with the roster expansion. All 27 display 8:00 AM–4:30 PM M-F with the confirmed local abbreviation. The app preserves the literal PST, EST, CST, or MST abbreviation, does not convert timezones, and does not compute live open/closed status.
 
 ## Coordinates
 
@@ -25,6 +25,9 @@ The selected facility's Overview tab uses Google's keyless `www.google.com/maps?
 - Building 2 / Building 5 identifiers were not independently resolved and are documented in the matching record.
 - `369 N Cypress (410 Tradeport Dr.)` matched the parenthetical `410 Tradeport Dr.` address.
 - `3901 Brandon Rd., Joliet, IL 60436` produced a conflicting point-address match in Elwood, IL 60421. Its marker is explicitly labeled `Approximate`; the supplied address is unchanged.
+- The Kent range is pinned at the best `19821 85th Ave S` endpoint candidate and is explicitly labeled approximate; the supplied range remains unchanged.
+- The Plano dual address uses the primary `910 10th St` point candidate and preserves `880 F Ave.` as the unpinned alternate without inventing a ZIP.
+- `6801 N Cotton Ln, Waddell, AZ 85355` remains unpinned because Esri returned conflicting city/ZIP candidates. The directory, details, hours, and address-based Google map remain available without asserting a location.
 
 Coordinates support visualization only. “Open in Maps” searches the complete user-provided address rather than treating stored coordinates as authoritative.
 
@@ -73,7 +76,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-The Playwright suite verifies all 17 exact addresses and previews, eight official records plus nine user-provided photos across three verification classifications, the 13 original-list and four follow-up-confirmed operating-hours records, square thumbnail sizing, uncropped detail media, forced image-error fallback, mobile address wrapping, photo provenance, address/city/state/ZIP search, local status assignment and persistence, all status filters, marker and row selection without navigation, unavailable property states, light/dark persistence, and basemap switching.
+The Playwright suite verifies all 27 exact addresses, 26 valid map pins, twelve official records plus fifteen user-provided photos, all 27 operating-hours records, square thumbnail sizing, uncropped detail media, forced image-error fallback, mobile address wrapping, photo provenance, address/city/state/ZIP/type search and filtering, local status assignment and persistence, the unpinned Waddell detail flow, unavailable property states, light/dark persistence, and basemap switching.
 
 ## Map attribution
 
