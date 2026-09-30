@@ -24,6 +24,9 @@ export type FacilityOperations = {
   contacts: FacilityContact[]
 }
 
+export const JOHN_DIAZ_EMAIL = 'john.diaz@unisco.com'
+export const JOHN_DIAZ_PHOTO_URL = '/media/operations/people/john-diaz.png'
+
 const sheetContact = (
   sourceColumn: string,
   group: FacilityContact['group'],
@@ -39,6 +42,7 @@ const sheetContact = (
   name,
   email,
   ...(phones.length > 0 ? { phones } : {}),
+  ...(email.trim().toLowerCase() === JOHN_DIAZ_EMAIL ? { photoUrl: JOHN_DIAZ_PHOTO_URL } : {}),
 })
 
 const sheetOperations = (facilityId: string, sourceRow: number, contacts: FacilityContact[]): FacilityOperations => ({
@@ -109,7 +113,8 @@ export const facilityOperations: Partial<Record<string, FacilityOperations>> = {
         group: 'operations',
         role: 'VP of Operations',
         name: 'John Diaz',
-        email: 'john.diaz@unisco.com',
+        email: JOHN_DIAZ_EMAIL,
+        photoUrl: JOHN_DIAZ_PHOTO_URL,
       },
     ],
   },
