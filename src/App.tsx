@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import {
-  ArrowLeft, Bell, Box, Building2, Camera, Check, ChevronRight, CircleHelp, ClipboardList, Clock, Earth,
+  ArrowLeft, Bell, Building2, Camera, Check, ChevronRight, CircleHelp, ClipboardList, Clock, Earth,
   ExternalLink, FileQuestion, FileText, Grid2X2, Info, Layers3, LocateFixed, Mail, Maximize2,
   Map as MapIcon, MapPin, Menu, Moon, PackageSearch, Phone, Search, ShieldCheck,
   SlidersHorizontal, Sun, Warehouse, X,
@@ -776,8 +776,8 @@ function App() {
   }
 
   const navItems = [
-    ['Dashboard', Grid2X2], ['Locations', MapIcon], ['Facilities', Warehouse], ['Inventory', Box],
-    ['Operations', SlidersHorizontal], ['Analytics', PackageSearch], ['Reports', ClipboardList],
+    ['Dashboard', Grid2X2, 'dashboard'], ['Facilities', MapIcon, 'locations'],
+    ['Operations', SlidersHorizontal, null], ['Analytics', PackageSearch, null], ['Reports', ClipboardList, null],
   ] as const
 
   return (
@@ -786,14 +786,14 @@ function App() {
         <button className="menu-button icon-button" aria-label="Open navigation" onClick={() => setMobileNav(!mobileNav)}><Menu /></button>
         <div className="brand" aria-label="ITEM Locations Network"><img src="/brand/item-logo-fullcolor-whitetxt.svg" alt="ITEM" /><span>LOCATIONS NETWORK</span></div>
         <nav className={mobileNav ? 'nav-links is-open' : 'nav-links'} aria-label="Primary navigation">
-          {navItems.map(([label, Icon]) => (
+          {navItems.map(([label, Icon, view]) => (
             <button
               key={label}
-              className={label.toLowerCase() === appView ? 'active' : ''}
-              aria-current={label.toLowerCase() === appView ? 'page' : undefined}
+              className={view === appView ? 'active' : ''}
+              aria-current={view === appView ? 'page' : undefined}
               onClick={() => {
-                if (label === 'Dashboard') showDashboard()
-                else if (label === 'Locations') showLocations()
+                if (view === 'dashboard') showDashboard()
+                else if (view === 'locations') showLocations()
                 else {
                   setMobileNav(false)
                   setNotice(`${label} is outside this reference prototype.`)
@@ -983,7 +983,7 @@ function App() {
                   icon={pinIcon(facility, currentStatus, facility.id === selected?.id, openStates[facility.id].isOpen, outOfRegion)}
                   zIndexOffset={outOfRegion ? -1000 : 0}
                   eventHandlers={{
-                    add: (event) => (event.target as L.Marker).getElement()?.setAttribute('aria-label', appView === 'dashboard' ? `Open facility ${String(facility.number).padStart(2, '0')} in Locations` : `Show ${facility.fullAddress} on map`),
+                    add: (event) => (event.target as L.Marker).getElement()?.setAttribute('aria-label', appView === 'dashboard' ? `Open facility ${String(facility.number).padStart(2, '0')} in Facilities` : `Show ${facility.fullAddress} on map`),
                     click: () => chooseFacility(facility),
                     keypress: (event) => {
                       const keyboardEvent = event.originalEvent as KeyboardEvent
@@ -1019,7 +1019,7 @@ function App() {
                 regionActive={activeRegion !== null}
                 panelOpen={regionPanelOpen}
                 pinMarkup={(facility) => pinMarkup(facility, facilityStatus(facility), false)}
-                pinLabel={(facility) => `Open facility ${String(facility.number).padStart(2, '0')} in Locations`}
+                pinLabel={(facility) => `Open facility ${String(facility.number).padStart(2, '0')} in Facilities`}
                 isOpen={(facility) => openStates[facility.id].isOpen}
                 renderPreview={dashboardPreviewContent}
                 onChoose={chooseFacility}

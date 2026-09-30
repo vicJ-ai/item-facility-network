@@ -39,7 +39,7 @@ test('Dashboard opens on the 3D globe with day imagery, night lights, and every 
   const pins = globe.locator('.globe-pin')
   await expect(pins).toHaveCount(facilities.length)
   for (const facility of facilities) {
-    await expect(globe.getByRole('button', { name: `Open facility ${String(facility.number).padStart(2, '0')} in Locations` })).toHaveCount(1)
+    await expect(globe.getByRole('button', { name: `Open facility ${String(facility.number).padStart(2, '0')} in Facilities` })).toHaveCount(1)
   }
   // The flat map is kept but hidden, and renders no duplicate Dashboard pins.
   await expect(page.locator('.leaflet-marker-pane .location-marker-wrap')).toHaveCount(0)
@@ -53,10 +53,10 @@ test('Dashboard opens on the 3D globe with day imagery, night lights, and every 
   await expect(globe.locator('.globe-credits')).toContainText('NASA Black Marble')
 })
 
-test('globe pins preview on hover and open the facility in Locations', async ({ page }) => {
+test('globe pins preview on hover and open the facility in Facilities', async ({ page }) => {
   const globe = await openDashboardGlobe(page)
   const somerset = facilities.find((facility) => facility.id === 'somerset-cottontail')!
-  const pin = globe.getByRole('button', { name: 'Open facility 26 in Locations' })
+  const pin = globe.getByRole('button', { name: 'Open facility 26 in Facilities' })
   await expect(pin).toHaveCSS('visibility', 'visible')
   await pin.hover()
   const preview = globe.locator('.globe-preview [data-testid="dashboard-pin-preview"]')
@@ -68,7 +68,7 @@ test('globe pins preview on hover and open the facility in Locations', async ({ 
   expect(previewBox!.x + previewBox!.width).toBeLessThanOrEqual(stageBox!.x + stageBox!.width)
 
   await pin.click()
-  await expect(page.getByRole('button', { name: 'Locations', exact: true })).toHaveAttribute('aria-current', 'page')
+  await expect(page.getByRole('button', { name: 'Facilities', exact: true })).toHaveAttribute('aria-current', 'page')
   await expect(page.getByTestId('selected-showcase')).toContainText(somerset.fullAddress)
 })
 
@@ -82,7 +82,7 @@ test('regions fly the globe camera to their facilities and back home', async ({ 
   // Other regions' pins stay on the globe, faded, while Arizona is outlined and everything around it dimmed.
   await expect(globe.locator('.globe-pin')).toHaveCount(facilities.length)
   await expect(globe.locator('.globe-pin.is-out-of-region')).toHaveCount(facilities.length - 1)
-  await expect(globe.getByRole('button', { name: 'Open facility 18 in Locations' })).toHaveClass(/is-highlighted/)
+  await expect(globe.getByRole('button', { name: 'Open facility 18 in Facilities' })).toHaveClass(/is-highlighted/)
   await expect(globe).toHaveAttribute('data-region-highlight', 'true')
   const waddell = facilities.find((facility) => facility.id === 'waddell-cotton')!
   await expect.poll(async () => (await cameraOf(page)).height, { timeout: 15_000 }).toBeLessThan(3_000_000)

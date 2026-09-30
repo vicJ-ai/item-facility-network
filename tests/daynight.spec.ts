@@ -142,7 +142,7 @@ test('pins, roster, and the time control show which facilities are open at the m
   await expect(overviewState).toContainText('4:00 PM MST at facility')
 
   await page.getByRole('button', { name: 'Dashboard', exact: true }).click()
-  await page.getByRole('button', { name: 'Open facility 25 in Locations' }).hover()
+  await page.getByRole('button', { name: 'Open facility 25 in Facilities' }).hover()
   const preview = page.locator('[data-testid="dashboard-pin-preview"][data-facility-id="salt-lake-city-jimmy-doolittle"]')
   await expect(preview.getByTestId('open-state')).toContainText('Closed · opens tomorrow 8:00 AM')
   await expect(preview.getByTestId('open-state')).toContainText('5:00 PM MDT at facility')
