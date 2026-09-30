@@ -11,6 +11,8 @@ import {
   facilityOperations,
   JOHN_DIAZ_EMAIL,
   JOHN_DIAZ_PHOTO_URL,
+  JOHN_DIAZ_ROLE,
+  JOHN_DIAZ_TITLE_SOURCE_NOTE,
 } from '../src/data/facility-operations'
 import { facilitySitePlans } from '../src/data/facility-site-plans'
 import { facilityAvailableSpace, formatAvailableSpaceMonth, getFacilitySquareFootage } from '../src/data/facility-space'
@@ -2010,7 +2012,8 @@ test('Operations sidecar maps 18 exact sheet rows, all 79 role entries, and exac
   for (const [facilityId, expected] of Object.entries(expectedOperationsRows)) {
     const record = facilityOperations[facilityId]
     expect(record?.sourceRow, facilityId).toBe(expected.row)
-    expect(record?.source, facilityId).toBe(`User-provided facility contact sheet, row ${expected.row}`)
+    const titleCorrection = expectedJohnDiazFacilityIds.some((id) => id === facilityId) ? ` · ${JOHN_DIAZ_TITLE_SOURCE_NOTE}` : ''
+    expect(record?.source, facilityId).toBe(`User-provided facility contact sheet, row ${expected.row}${titleCorrection}`)
     expect(new Set(record?.contacts.map((contact) => contact.id)).size, facilityId).toBe(record?.contacts.length)
     if (facilityId !== 'buena-park-valley-view') {
       expect(record?.contacts.map((contact) => contact.sourceColumn), facilityId).toEqual(expected.columns)
@@ -2039,8 +2042,19 @@ test('Operations sidecar maps 18 exact sheet rows, all 79 role entries, and exac
 
   const johnDiazReferences = Object.values(facilityOperations).flatMap((record) => record?.contacts
     .filter((contact) => contact.email.trim().toLowerCase() === JOHN_DIAZ_EMAIL)
-    .map((contact) => ({ facilityId: record.facilityId, name: contact.name, photoUrl: contact.photoUrl })) ?? [])
-  expect(johnDiazReferences).toEqual(expectedJohnDiazFacilityIds.map((facilityId) => ({ facilityId, name: 'John Diaz', photoUrl: JOHN_DIAZ_PHOTO_URL })))
+    .map((contact) => ({ facilityId: record.facilityId, name: contact.name, role: contact.role, photoUrl: contact.photoUrl, source: record.source })) ?? [])
+  expect(johnDiazReferences).toEqual(expectedJohnDiazFacilityIds.map((facilityId) => ({
+    facilityId,
+    name: 'John Diaz',
+    role: JOHN_DIAZ_ROLE,
+    photoUrl: JOHN_DIAZ_PHOTO_URL,
+    source: expect.stringContaining(JOHN_DIAZ_TITLE_SOURCE_NOTE),
+  })))
+
+  const otherVicePresidents = Object.values(facilityOperations).flatMap((record) => record?.contacts
+    .filter((contact) => contact.email !== JOHN_DIAZ_EMAIL && contact.role === 'VP of Operations')
+    .map((contact) => contact.name) ?? [])
+  expect(new Set(otherVicePresidents)).toEqual(new Set(['John Gleason', 'Javier Montane']))
 
   const otherPortraits = Object.values(facilityOperations).flatMap((record) => record?.contacts
     .filter((contact) => contact.email !== JOHN_DIAZ_EMAIL && contact.photoUrl)
@@ -2055,15 +2069,44 @@ test('Operations sidecar maps 18 exact sheet rows, all 79 role entries, and exac
   for (const facilityId of expectedOperationsReviewIds) expect(facilityOperations[facilityId]).toBeUndefined()
 })
 
+test('John Diaz corrected title renders exactly and wraps without clipping on desktop and mobile', async ({ page }) => {
+  const riverside = facilities.find((facility) => facility.id === 'riverside-alessandro')!
+  await chooseFromDirectory(page, riverside.fullAddress)
+  await page.getByRole('tab', { name: 'Operations' }).click()
+  const panel = page.getByRole('region', { name: `Operations contacts for ${riverside.fullAddress}` })
+  const john = panel.locator('.operations-contact-card').filter({ hasText: JOHN_DIAZ_EMAIL })
+  const role = john.locator('.operations-contact-role')
+
+  await expect(panel).toContainText(JOHN_DIAZ_TITLE_SOURCE_NOTE)
+  await expect(role).toHaveText(JOHN_DIAZ_ROLE)
+  await expect(panel.getByText('VP of Operations', { exact: true })).toHaveCount(0)
+
+  for (const viewport of [{ width: 1536, height: 900 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(viewport)
+    await role.scrollIntoViewIfNeeded()
+    const layout = await role.evaluate((element) => ({
+      horizontalClipping: element.scrollWidth > element.clientWidth + 1,
+      verticalClipping: element.scrollHeight > element.clientHeight + 1,
+      whiteSpace: getComputedStyle(element).whiteSpace,
+    }))
+    expect(layout).toEqual({ horizontalClipping: false, verticalClipping: false, whiteSpace: 'normal' })
+    const [cardBox, panelBox] = await Promise.all([john.boundingBox(), panel.boundingBox()])
+    expect(cardBox).not.toBeNull()
+    expect(panelBox).not.toBeNull()
+    expect(cardBox!.x).toBeGreaterThanOrEqual(panelBox!.x)
+    expect(cardBox!.x + cardBox!.width).toBeLessThanOrEqual(panelBox!.x + panelBox!.width + 1)
+  }
+})
+
 test('Valley View Operations preserves five contacts and its three supplied portraits', async ({ page }) => {
   const record = facilityOperations['buena-park-valley-view']
-  expect(record?.source).toBe('User-provided facility contact sheet, row 5')
+  expect(record?.source).toBe(`User-provided facility contact sheet, row 5 · ${JOHN_DIAZ_TITLE_SOURCE_NOTE}`)
   expect(record?.contacts).toEqual([
     expect.objectContaining({ group: 'account-management', role: 'Manager of Account Management & Client Onboarding', name: 'Michelle Topete', email: 'michelle.topete@unisco.com', phone: '626.829.3160' }),
     expect.objectContaining({ group: 'account-management', role: 'Sr Director of Account Management & Client Onboarding', name: 'Mary Smothers', email: 'mary.smothers@unisco.com', phone: '626-899-2363' }),
     expect.objectContaining({ group: 'operations', role: 'General Manager', name: 'Ruben Jauregui', email: 'ruben.jauregui@unisco.com', phone: '562-644-4594', photoUrl: '/media/operations/buena-park-valley-view/ruben-jauregui.png' }),
     expect.objectContaining({ group: 'operations', role: 'Director of Operations', name: 'Mark Tuttle', email: 'mark.tuttle@unisco.com', phone: '657-689-6951', photoUrl: '/media/operations/buena-park-valley-view/mark-tuttle.png' }),
-    expect.objectContaining({ group: 'operations', role: 'VP of Operations', name: 'John Diaz', email: JOHN_DIAZ_EMAIL, photoUrl: JOHN_DIAZ_PHOTO_URL }),
+    expect.objectContaining({ group: 'operations', role: JOHN_DIAZ_ROLE, name: 'John Diaz', email: JOHN_DIAZ_EMAIL, photoUrl: JOHN_DIAZ_PHOTO_URL }),
   ])
   const johnRecord = record?.contacts.find((contact) => contact.id === 'john-diaz')
   expect(johnRecord).not.toHaveProperty('phone')
@@ -2083,7 +2126,7 @@ test('Valley View Operations preserves five contacts and its three supplied port
   await expect(panel.locator('.operations-contact-card img')).toHaveCount(3)
 
   for (const [name, assetUrl, sourcePath] of [
-    ['Ruben Jauregui', '/media/operations/buena-park-valley-view/ruben-jauregui.png', '/home/user/workspace/ruben.png'],
+    ['Ruben Jauregui', '/media/operations/buena-park-valley-view/ruben-jauregui.png', '/home/user/workspace/ChatGPT Image Sep 30, 2026, 01_17_19 PM (1).png'],
     ['Mark Tuttle', '/media/operations/buena-park-valley-view/mark-tuttle.png', '/home/user/workspace/mark.png'],
     ['John Diaz', JOHN_DIAZ_PHOTO_URL, '/home/user/workspace/ChatGPT Image Sep 29, 2026, 09_16_25 PM.png'],
   ] as const) {
@@ -2119,7 +2162,7 @@ test('Valley View Operations preserves five contacts and its three supplied port
   }
 
   const john = panel.locator('.operations-contact-card').filter({ hasText: 'John Diaz' })
-  await expect(john).toContainText('VP of Operations')
+  await expect(john.locator('.operations-contact-role')).toHaveText(JOHN_DIAZ_ROLE)
   await expect(john.getByRole('img', { name: 'Portrait of John Diaz' })).toHaveAttribute('src', JOHN_DIAZ_PHOTO_URL)
   await expect(john.getByRole('link', { name: JOHN_DIAZ_EMAIL })).toHaveAttribute('href', `mailto:${JOHN_DIAZ_EMAIL}`)
   await expect(john).toContainText('Phone not provided')
@@ -2137,6 +2180,7 @@ test('matched Operations contacts retain representative roles, links, multiple p
   await expect(riversidePanel.locator('.operations-contact-card img')).toHaveCount(1)
   await expect(riversidePanel.locator('.operations-contact-photo.is-blank')).toHaveCount(4)
   const riversideJohn = riversidePanel.locator('.operations-contact-card').filter({ hasText: JOHN_DIAZ_EMAIL })
+  await expect(riversideJohn.locator('.operations-contact-role')).toHaveText(JOHN_DIAZ_ROLE)
   await expect(riversideJohn.getByRole('img', { name: 'Portrait of John Diaz' })).toHaveAttribute('src', JOHN_DIAZ_PHOTO_URL)
   const harold = riversidePanel.locator('.operations-contact-card').filter({ hasText: 'Harold Cuarezma' })
   await expect(harold).toContainText('Regional Director of Field Operations')
@@ -2284,12 +2328,15 @@ test('facility profile downloads are four-page selected-facility PDFs with hours
   expect(seabrook.assetPaths).toEqual(['/media/pooler-seabrook-building-2.jpg'])
 })
 
-test('facility profile Page 1 prints selected contacts, every phone, and no staff portraits', async ({ page }) => {
+test('facility profile Page 1 prints John Diaz corrected title, selected contacts, every phone, and no staff portraits', async ({ page }) => {
   test.setTimeout(120_000)
 
   const sparksFacility = facilities.find((facility) => facility.id === 'sparks-vista')!
   const sparks = await downloadFacilityProfile(page, sparksFacility.fullAddress, 'facility-22-sparks-vista-profile.pdf')
   expectVisiblePdfContacts(sparks.visibleText, 'sparks-vista')
+  expect(sparks.visibleText).toContain(JOHN_DIAZ_ROLE)
+  expect(sparks.keywords).toContain(JOHN_DIAZ_ROLE)
+  expect(sparks.keywords).toContain(JOHN_DIAZ_TITLE_SOURCE_NOTE)
   expect(sparks.visibleText).not.toContain('Ruben Jauregui')
   expect(sparks.visibleText).not.toContain('Mark Tuttle')
   expect(sparks.assetPaths.some((path) => path.startsWith('/media/operations/'))).toBe(false)

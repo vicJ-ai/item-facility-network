@@ -26,6 +26,8 @@ export type FacilityOperations = {
 
 export const JOHN_DIAZ_EMAIL = 'john.diaz@unisco.com'
 export const JOHN_DIAZ_PHOTO_URL = '/media/operations/people/john-diaz.png'
+export const JOHN_DIAZ_ROLE = 'Sr. Vice President of Operations'
+export const JOHN_DIAZ_TITLE_SOURCE_NOTE = 'John Diaz title corrected by user on 2026-09-30.'
 
 const sheetContact = (
   sourceColumn: string,
@@ -48,7 +50,7 @@ const sheetContact = (
 const sheetOperations = (facilityId: string, sourceRow: number, contacts: FacilityContact[]): FacilityOperations => ({
   facilityId,
   sourceRow,
-  source: `User-provided facility contact sheet, row ${sourceRow}`,
+  source: `User-provided facility contact sheet, row ${sourceRow}${contacts.some((contact) => contact.email.trim().toLowerCase() === JOHN_DIAZ_EMAIL) ? ` · ${JOHN_DIAZ_TITLE_SOURCE_NOTE}` : ''}`,
   contacts,
 })
 
@@ -67,7 +69,7 @@ export const facilitiesNeedingOperationsContactReview = [
 export const facilityOperations: Partial<Record<string, FacilityOperations>> = {
   'buena-park-valley-view': {
     facilityId: 'buena-park-valley-view',
-    source: 'User-provided facility contact sheet, row 5',
+    source: `User-provided facility contact sheet, row 5 · ${JOHN_DIAZ_TITLE_SOURCE_NOTE}`,
     sourceRow: 5,
     contacts: [
       {
@@ -111,7 +113,7 @@ export const facilityOperations: Partial<Record<string, FacilityOperations>> = {
       {
         id: 'john-diaz',
         group: 'operations',
-        role: 'VP of Operations',
+        role: JOHN_DIAZ_ROLE,
         name: 'John Diaz',
         email: JOHN_DIAZ_EMAIL,
         photoUrl: JOHN_DIAZ_PHOTO_URL,
@@ -122,20 +124,20 @@ export const facilityOperations: Partial<Record<string, FacilityOperations>> = {
     sheetContact('D', 'account-management', 'Manager of Account Management & Client Onboarding', 'Michelle Topete', 'michelle.topete@unisco.com', [{ label: 'Phone', display: '626.829.3160', href: '+16268293160' }]),
     sheetContact('E', 'account-management', 'Sr Director of Account Management & Client Onboarding', 'Mary Smothers', 'mary.smothers@unisco.com', [{ label: 'Phone', display: '626-899-2363', href: '+16268992363' }]),
     sheetContact('F', 'operations', 'General Manager', 'Oscar Rodriguez', 'oscar.rodriguez@unisco.com', [{ label: 'Phone', display: '951-374-2495', href: '+19513742495' }]),
-    sheetContact('H', 'operations', 'VP of Operations', 'John Diaz', 'john.diaz@unisco.com'),
+    sheetContact('H', 'operations', JOHN_DIAZ_ROLE, 'John Diaz', 'john.diaz@unisco.com'),
     sheetContact('J', 'operations', 'Regional Director of Field Operations', 'Harold Cuarezma', 'harold.cuarezma@unisco.com', [{ label: 'Cell', display: '909-753-6346', href: '+19097536346' }, { label: 'Mobile', display: '626-362-9596', href: '+16263629596' }]),
   ]),
   'moreno-valley-heacock': sheetOperations('moreno-valley-heacock', 8, [
     sheetContact('D', 'account-management', 'Manager of Account Management & Client Onboarding', 'Michelle Topete', 'michelle.topete@unisco.com', [{ label: 'Phone', display: '626.829.3160', href: '+16268293160' }]),
     sheetContact('E', 'account-management', 'Sr Director of Account Management & Client Onboarding', 'Mary Smothers', 'mary.smothers@unisco.com', [{ label: 'Phone', display: '626-899-2363', href: '+16268992363' }]),
     sheetContact('F', 'operations', 'General Manager', 'Oscar Rodriguez', 'oscar.rodriguez@unisco.com'),
-    sheetContact('H', 'operations', 'VP of Operations', 'John Diaz', 'john.diaz@unisco.com'),
+    sheetContact('H', 'operations', JOHN_DIAZ_ROLE, 'John Diaz', 'john.diaz@unisco.com'),
     sheetContact('J', 'operations', 'Regional Director of Field Operations', 'Harold Cuarezma', 'harold.cuarezma@unisco.com', [{ label: 'Cell', display: '909-753-6346', href: '+19097536346' }, { label: 'Mobile', display: '626-362-9596', href: '+16263629596' }]),
   ]),
   'houston-citypark': sheetOperations('houston-citypark', 20, [
     sheetContact('D', 'account-management', 'Manager of Account Management & Client Onboarding', 'Michelle Topete', 'michelle.topete@unisco.com', [{ label: 'Phone', display: '626.829.3160', href: '+16268293160' }]),
     sheetContact('E', 'account-management', 'Sr Director of Account Management & Client Onboarding', 'Mary Smothers', 'mary.smothers@unisco.com', [{ label: 'Phone', display: '626-899-2363', href: '+16268992363' }]),
-    sheetContact('H', 'operations', 'VP of Operations', 'John Diaz', 'john.diaz@unisco.com'),
+    sheetContact('H', 'operations', JOHN_DIAZ_ROLE, 'John Diaz', 'john.diaz@unisco.com'),
   ]),
   'roanoke-highway-114': sheetOperations('roanoke-highway-114', 23, [
     sheetContact('D', 'account-management', 'Manager of Account Management & Client Onboarding', 'Michelle Topete', 'michelle.topete@unisco.com', [{ label: 'Phone', display: '626.829.3160', href: '+16268293160' }]),
@@ -152,14 +154,14 @@ export const facilityOperations: Partial<Record<string, FacilityOperations>> = {
   'tacoma-lincoln': sheetOperations('tacoma-lincoln', 25, [
     sheetContact('D', 'account-management', 'Manager of Account Management & Client Onboarding', 'Michelle Topete', 'michelle.topete@unisco.com', [{ label: 'Phone', display: '626.829.3160', href: '+16268293160' }]),
     sheetContact('E', 'account-management', 'Sr Director of Account Management & Client Onboarding', 'Mary Smothers', 'mary.smothers@unisco.com', [{ label: 'Phone', display: '626-899-2363', href: '+16268992363' }]),
-    sheetContact('H', 'operations', 'VP of Operations', 'John Diaz', 'john.diaz@unisco.com'),
+    sheetContact('H', 'operations', JOHN_DIAZ_ROLE, 'John Diaz', 'john.diaz@unisco.com'),
     sheetContact('I', 'operations', 'POC as requested by John Diaz', 'Juan Barragan', 'juan.barragan@unisco.com', [{ label: 'Phone', display: '657-509-0607', href: '+16575090607' }]),
     sheetContact('J', 'operations', 'Regional Director of Field Operations', 'Harold Cuarezma', 'harold.cuarezma@unisco.com', [{ label: 'Cell', display: '909-753-6346', href: '+19097536346' }, { label: 'Mobile', display: '626-362-9596', href: '+16263629596' }]),
   ]),
   'tacoma-steele': sheetOperations('tacoma-steele', 26, [
     sheetContact('D', 'account-management', 'Manager of Account Management & Client Onboarding', 'Michelle Topete', 'michelle.topete@unisco.com', [{ label: 'Phone', display: '626.829.3160', href: '+16268293160' }]),
     sheetContact('E', 'account-management', 'Sr Director of Account Management & Client Onboarding', 'Mary Smothers', 'mary.smothers@unisco.com', [{ label: 'Phone', display: '626-899-2363', href: '+16268992363' }]),
-    sheetContact('H', 'operations', 'VP of Operations', 'John Diaz', 'john.diaz@unisco.com'),
+    sheetContact('H', 'operations', JOHN_DIAZ_ROLE, 'John Diaz', 'john.diaz@unisco.com'),
     sheetContact('I', 'operations', 'POC as requested by John Diaz', 'Juan Barragan', 'juan.barragan@unisco.com', [{ label: 'Phone', display: '657-509-0607', href: '+16575090607' }]),
     sheetContact('J', 'operations', 'Regional Director of Field Operations', 'Harold Cuarezma', 'harold.cuarezma@unisco.com', [{ label: 'Cell', display: '909-753-6346', href: '+19097536346' }, { label: 'Mobile', display: '626-362-9596', href: '+16263629596' }]),
   ]),
@@ -181,7 +183,7 @@ export const facilityOperations: Partial<Record<string, FacilityOperations>> = {
     sheetContact('D', 'account-management', 'Manager of Account Management & Client Onboarding', 'Michelle Topete', 'michelle.topete@unisco.com', [{ label: 'Phone', display: '626.829.3160', href: '+16268293160' }]),
     sheetContact('E', 'account-management', 'Sr Director of Account Management & Client Onboarding', 'Mary Smothers', 'mary.smothers@unisco.com', [{ label: 'Phone', display: '626-899-2363', href: '+16268992363' }]),
     sheetContact('F', 'operations', 'General Manager', 'Efrain Islas', 'efrain.islas@unisco.com', [{ label: 'Phone', display: '626-313-8756', href: '+16263138756' }]),
-    sheetContact('H', 'operations', 'VP of Operations', 'John Diaz', 'john.diaz@unisco.com'),
+    sheetContact('H', 'operations', JOHN_DIAZ_ROLE, 'John Diaz', 'john.diaz@unisco.com'),
   ]),
   'joliet-brandon': sheetOperations('joliet-brandon', 13, [
     sheetContact('D', 'account-management', 'Manager of Account Management & Client Onboarding', 'Michelle Topete', 'michelle.topete@unisco.com', [{ label: 'Phone', display: '626.829.3160', href: '+16268293160' }]),
@@ -197,21 +199,21 @@ export const facilityOperations: Partial<Record<string, FacilityOperations>> = {
   'waddell-cotton': sheetOperations('waddell-cotton', 3, [
     sheetContact('D', 'account-management', 'Manager of Account Management & Client Onboarding', 'Michelle Topete', 'michelle.topete@unisco.com', [{ label: 'Phone', display: '626.829.3160', href: '+16268293160' }]),
     sheetContact('E', 'account-management', 'Sr Director of Account Management & Client Onboarding', 'Mary Smothers', 'mary.smothers@unisco.com', [{ label: 'Phone', display: '626-899-2363', href: '+16268992363' }]),
-    sheetContact('H', 'operations', 'VP of Operations', 'John Diaz', 'john.diaz@unisco.com'),
+    sheetContact('H', 'operations', JOHN_DIAZ_ROLE, 'John Diaz', 'john.diaz@unisco.com'),
     sheetContact('J', 'operations', 'Regional Director of Field Operations', 'Harold Cuarezma', 'harold.cuarezma@unisco.com', [{ label: 'Cell', display: '909-753-6346', href: '+19097536346' }, { label: 'Mobile', display: '626-362-9596', href: '+16263629596' }]),
   ]),
   'ontario-airport': sheetOperations('ontario-airport', 7, [
     sheetContact('D', 'account-management', 'Manager of Account Management & Client Onboarding', 'Michelle Topete', 'michelle.topete@unisco.com', [{ label: 'Phone', display: '626.829.3160', href: '+16268293160' }]),
     sheetContact('E', 'account-management', 'Sr Director of Account Management & Client Onboarding', 'Mary Smothers', 'mary.smothers@unisco.com', [{ label: 'Phone', display: '626-899-2363', href: '+16268992363' }]),
     sheetContact('F', 'operations', 'General Manager', 'Oscar Rodriguez', 'oscar.rodriguez@unisco.com'),
-    sheetContact('H', 'operations', 'VP of Operations', 'John Diaz', 'john.diaz@unisco.com'),
+    sheetContact('H', 'operations', JOHN_DIAZ_ROLE, 'John Diaz', 'john.diaz@unisco.com'),
     sheetContact('J', 'operations', 'Regional Director of Field Operations', 'Harold Cuarezma', 'harold.cuarezma@unisco.com', [{ label: 'Cell', display: '909-753-6346', href: '+19097536346' }, { label: 'Mobile', display: '626-362-9596', href: '+16263629596' }]),
   ]),
   'sparks-vista': sheetOperations('sparks-vista', 15, [
     sheetContact('D', 'account-management', 'Manager of Account Management & Client Onboarding', 'Michelle Topete', 'michelle.topete@unisco.com', [{ label: 'Phone', display: '626.829.3160', href: '+16268293160' }]),
     sheetContact('E', 'account-management', 'Sr Director of Account Management & Client Onboarding', 'Mary Smothers', 'mary.smothers@unisco.com', [{ label: 'Phone', display: '626-899-2363', href: '+16268992363' }]),
     sheetContact('F', 'operations', 'General Manager', 'Onoriode Enaigbe', 'onoriode.enaigbe@unisco.com', [{ label: 'Cell', display: '(626) 996-5604', href: '+16269965604' }]),
-    sheetContact('H', 'operations', 'VP of Operations', 'John Diaz', 'john.diaz@unisco.com'),
+    sheetContact('H', 'operations', JOHN_DIAZ_ROLE, 'John Diaz', 'john.diaz@unisco.com'),
     sheetContact('I', 'operations', 'POC as requested by John Diaz', 'Juan Barragan', 'juan.barragan@unisco.com', [{ label: 'Phone', display: '657-509-0607', href: '+16575090607' }]),
     sheetContact('J', 'operations', 'Regional Director of Field Operations', 'Harold Cuarezma', 'harold.cuarezma@unisco.com', [{ label: 'Cell', display: '909-753-6346', href: '+19097536346' }, { label: 'Mobile', display: '626-362-9596', href: '+16263629596' }]),
   ]),
