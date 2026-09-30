@@ -147,6 +147,10 @@ body.is-resizing-explorer, body.is-resizing-explorer * { cursor: col-resize !imp
 .dashboard-region-toggle > svg:last-child { flex: 0 0 auto; margin-left: auto; color: var(--muted); transition: transform .18s ease; }
 .dashboard-region-toggle > svg:last-child.is-open { transform: rotate(90deg); }
 .dashboard-region-toggle small { min-width: 0; overflow: hidden; padding: 2px 8px; border-radius: var(--radius-full); color: var(--primary-ink); background: var(--primary-soft); font-size: 12px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.dashboard-preview-toggle { position: absolute; z-index: 720; top: 18px; left: 50%; transform: translateX(-50%); min-height: 44px; padding: 0 18px 0 14px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--border); border-radius: var(--radius-full); color: var(--text); background: var(--surface); box-shadow: var(--shadow); font-size: 13px; font-weight: 700; transition: border-color var(--fast) var(--ease), color var(--fast) var(--ease); }
+.dashboard-preview-toggle:hover { color: var(--primary-ink); border-color: color-mix(in srgb, var(--primary) 45%, var(--border)); }
+.dashboard-preview-toggle:focus-visible { outline: 3px solid color-mix(in srgb, var(--primary) 42%, transparent); outline-offset: 2px; }
+.dashboard-preview-toggle > svg { color: var(--primary-ink); }
 .dashboard-region-panel { position: absolute; z-index: 710; top: 70px; left: 18px; width: min(334px, calc(100% - 36px)); max-height: calc(100% - 92px); display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-lg); color: var(--text); background: var(--surface); box-shadow: var(--shadow-lg); }
 .dashboard-region-panel > header { min-height: 60px; padding: 10px 10px 10px 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; border-bottom: 1px solid var(--border); }
 .dashboard-region-panel h2 { margin: 2px 0 0; font-size: 18px; line-height: 1.15; font-weight: 700; letter-spacing: -.01em; }
@@ -273,6 +277,23 @@ body.is-resizing-explorer, body.is-resizing-explorer * { cursor: col-resize !imp
 .globe-zoom button:hover { color: var(--primary-ink); background: var(--surface-2); }
 .projection-control { position: absolute; z-index: 500; right: 12px; top: 188px; width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 8px; color: var(--text); background: var(--surface); box-shadow: var(--shadow); transition: color var(--fast) var(--ease), background var(--fast) var(--ease); }
 .projection-control:hover { color: var(--primary-ink); background: var(--surface-2); }
+.quality-control { position: absolute; z-index: 560; right: 12px; top: 232px; }
+.perf-hud { position: fixed; z-index: 1400; left: 50%; top: 132px; transform: translateX(-50%); display: grid; gap: 2px; padding: 8px 10px; border-radius: 8px; color: #e9e6ff; background: rgba(5, 4, 13, .82); font: 500 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; pointer-events: none; }
+.perf-hud strong { font-size: 14px; }
+.quality-toggle { width: 36px; height: 36px; display: grid; place-items: center; padding: 0; border: 1px solid var(--border); border-radius: 8px; color: var(--text); background: var(--surface); box-shadow: var(--shadow); transition: color var(--fast) var(--ease), background var(--fast) var(--ease), border-color var(--fast) var(--ease); }
+.quality-toggle:hover, .quality-toggle.is-open { color: var(--primary-ink); background: var(--surface-2); }
+.quality-toggle.is-open { border-color: var(--primary); }
+.quality-popover { position: absolute; top: 0; right: 46px; width: min(292px, calc(100vw - 80px)); display: grid; gap: 2px; padding: 0 6px 6px; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-lg); color: var(--text); background: var(--surface); box-shadow: var(--shadow-lg); }
+.quality-popover > header { padding: 12px 10px 8px; border-bottom: 1px solid var(--border); margin: 0 -6px 4px; padding-left: 16px; }
+.quality-popover > header strong { display: block; font-size: 16px; line-height: 1.2; }
+.quality-option { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 9px 10px; border: 0; border-radius: var(--radius); color: inherit; background: transparent; text-align: left; transition: background var(--fast) var(--ease); }
+.quality-option:hover { background: var(--surface-2); }
+.quality-option.is-selected { background: var(--primary-soft); }
+.quality-option > span { display: grid; gap: 2px; min-width: 0; }
+.quality-option strong { font-size: 13px; font-weight: 700; }
+.quality-option em { color: var(--primary-ink); font-size: 12px; font-style: normal; font-weight: 700; }
+.quality-option small { color: var(--muted); font-size: 12px; line-height: 1.35; }
+.quality-option > svg { flex: 0 0 auto; margin-top: 2px; color: var(--primary-ink); }
 .globe-credits { position: absolute; z-index: 4; left: 0; bottom: 0; max-width: 60%; padding: 1px 6px; border-top-right-radius: 6px; color: rgba(236, 235, 246, .72); background: rgba(5, 4, 13, .6); font-size: 10px; line-height: 1.3; }
 .globe-credits a { color: #c4b3f7; }
 .globe-credits .cesium-credit-logoContainer img { height: 14px; vertical-align: middle; }
@@ -613,6 +634,7 @@ tbody tr:hover td:last-child, tbody tr.selected td:last-child { color: var(--pri
   .operating-hours-preview { font-size: 12px; }
   .square-footage-preview { font-size: 12px; }
   .dashboard-region-toggle { top: 12px; left: 10px; max-width: calc(100% - 145px); }
+  .dashboard-preview-toggle { top: 64px; left: 10px; transform: none; min-height: 40px; }
   .dashboard-region-panel { top: auto; bottom: 34px; left: 10px; width: calc(100% - 20px); max-height: min(48%, 380px); }
   .dashboard-region-panel > header { min-height: 52px; }
   .dashboard-region-all { min-height: 46px; margin-top: 8px; margin-bottom: 8px; }
@@ -664,7 +686,7 @@ tbody tr:hover td:last-child, tbody tr.selected td:last-child { color: var(--pri
   .overview-panel { top: 10px; }
   .map-tools { top: 120px; }
   .map-stage[data-view='dashboard'] .map-tools { top: 12px; right: 10px; left: auto; }
-  .leaflet-control-zoom { margin-top: 120px !important; } .globe-zoom { top: 120px; } .projection-control { top: 244px; }
+  .leaflet-control-zoom { margin-top: 120px !important; } .globe-zoom { top: 120px; } .projection-control { top: 244px; } .quality-control { top: 288px; }
   .recenter-control { top: 200px; }
 }
 @media (prefers-reduced-motion: reduce) {

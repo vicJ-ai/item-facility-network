@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import {
-  ArrowLeft, Bell, Building2, Camera, Check, ChevronRight, CircleHelp, ClipboardList, Clock, Earth,
+  ArrowLeft, Bell, Building2, Camera, Check, ChevronRight, CircleHelp, Clapperboard, ClipboardList, Clock, Earth,
   ExternalLink, FileQuestion, FileText, Grid2X2, Info, Layers3, LocateFixed, Mail, Maximize2,
   Map as MapIcon, MapPin, Menu, Moon, PackageSearch, Phone, Search, ShieldCheck,
   SlidersHorizontal, Sun, Warehouse, X,
@@ -11,6 +11,7 @@ import 'leaflet/dist/leaflet.css'
 import './App.css'
 import { DayNightControl } from './components/DayNightControl'
 import { DayNightLayer } from './components/DayNightLayer'
+import { GlobeQualityControl } from './components/GlobeQualityControl'
 import { RegionHighlightLayer } from './components/RegionHighlightLayer'
 import { FacilityDocuments } from './components/FacilityDocuments'
 import { FacilityPhoto } from './components/FacilityPhoto'
@@ -29,11 +30,34 @@ import { getFacilitySitePlan, type FacilitySitePlan, type FacilitySitePlanFact }
 import { formatAvailableSpaceMonth, getFacilitySquareFootage } from './data/facility-space'
 import { getUserProvidedFacilityPhotos, type UserProvidedFacilityPhotos } from './data/facility-user-photos'
 import { getRegionBoundary, type RegionBoundary } from './data/region-boundaries'
+import { getInitialQualityChoice, probeGraphics, QUALITY_TIERS, saveQualityChoice, type QualityChoice, type QualityTier } from './lib/globe-quality'
+import type { TourCameraApi } from './lib/preview-tour/camera-api'
+import { buildTour } from './lib/preview-tour/script'
 import { getFacilityOpenState, type FacilityOpenState } from './lib/facility-open'
 import { isValidTimeZone } from './lib/time-zone'
 
 // CesiumJS is large, so the 3D globe loads only when the Dashboard first shows it.
-const DashboardGlobe = lazy(() => import('./components/DashboardGlobe'))
+const loadDashboardGlobe = () => import('./components/DashboardGlobe')
+const DashboardGlobe = lazy(loadDashboardGlobe)
+// Starting the globe and tour downloads on hover or focus gives them a head start before the click.
+const warmGlobe = () => void loadDashboardGlobe()
+const loadPreviewTour = () => import('./components/PreviewTour')
+const warmPreviewTour = () => void loadPreviewTour()
+// `?debug=perf` shows a frame-rate and memory readout for checking quality settings on a device.
+const DEBUG_PERF = new URLSearchParams(window.location.search).get('debug') === 'perf'
+const PerfHud = lazy(() => import('./components/PerfHud'))
+// webgl-memory must wrap WebGL before the globe creates its context, so it loads at startup here.
+if (DEBUG_PERF) void import('webgl-memory')
+// The Preview tour and its animation library load only when Preview is first clicked.
+const PreviewTour = lazy(loadPreviewTour)
+// Test hooks: `?previewSpeed=20` plays the Preview tour faster, and `?previewFps=8` caps its frame
+// rate so software WebGL in one test leaves room for the others.
+function previewParam(name: string, max: number) {
+  const value = Number(new URLSearchParams(window.location.search).get(name))
+  return Number.isFinite(value) && value > 0 ? Math.min(value, max) : undefined
+}
+const PREVIEW_SPEED = previewParam('previewSpeed', 100) ?? 1
+const PREVIEW_MAX_FPS = previewParam('previewFps', 120)
 
 type Tab = 'Overview' | 'Site Plan' | 'Photos' | 'Documents' | 'Operations'
 type Theme = 'light' | 'dark'
@@ -128,14 +152,6 @@ function getInitialProjection(): DashboardProjection {
   }
 }
 
-function hasWebGl() {
-  try {
-    const canvas = document.createElement('canvas')
-    return Boolean(canvas.getContext('webgl2') ?? canvas.getContext('webgl'))
-  } catch {
-    return false
-  }
-}
 
 function resolveFacilityStatus(facility: Facility, overrides: StatusAssignments): DisplayStatus {
   return overrides[facility.id] ?? facility.status
@@ -406,6 +422,48 @@ function DashboardOverview({ active, signal, targets, regionActive, regionBounda
   return null
 }
 
+/**
+ * The Preview tour's camera on the flat map, for browsers without WebGL. It follows the same path as
+ * the globe tour, without tilt, orbit, or the drawn outline.
+ */
+function LeafletTourCamera({ active, onTourApi }: { active: boolean; onTourApi: (api: TourCameraApi | null) => void }) {
+  const map = useMap()
+
+  useEffect(() => {
+    if (!active) return
+    const zoomSnap = map.options.zoomSnap
+    // Fractional zoom keeps the camera's continuous range changes smooth.
+    L.Util.setOptions(map, { zoomSnap: 0 })
+    const api: TourCameraApi = {
+      lookAt: ({ longitude, latitude, range }) => {
+        const metersPerPixel = (range * 1.2) / Math.max(1, map.getSize().x)
+        const zoom = Math.log2((156_543.03 * Math.cos((latitude * Math.PI) / 180)) / metersPerPixel)
+        map.setView([latitude, longitude], Math.min(map.getMaxZoom(), Math.max(map.getMinZoom(), zoom)), { animate: false })
+      },
+      release: () => {},
+      saveView: () => ({ center: map.getCenter(), zoom: map.getZoom() }),
+      restoreView: (view) => {
+        const saved = view as { center: L.LatLng; zoom: number }
+        map.setView(saved.center, saved.zoom, { animate: false })
+      },
+      setContinuousRender: () => {},
+      waitForTiles: (maxMs) => new Promise((resolve) => window.setTimeout(resolve, Math.min(maxMs, 350))),
+      setOutline: () => {},
+      setOutlineProgress: () => {},
+      setHighlightOpacity: () => {},
+      setFlightDetail: () => {},
+      pulsePin: () => {},
+    }
+    onTourApi(api)
+    return () => {
+      onTourApi(null)
+      L.Util.setOptions(map, { zoomSnap })
+    }
+  }, [active, map, onTourApi])
+
+  return null
+}
+
 function MapLifecycle({ resizeKey, onViewChange }: { resizeKey: string; onViewChange: (view: MapViewport) => void }) {
   const map = useMapEvents({
     moveend: () => onViewChange(getMapViewport(map)),
@@ -496,10 +554,23 @@ function App() {
   const [customTime, setCustomTime] = useState<number | null>(null)
   const [dayNight, setDayNight] = useState<DayNightPreferences>(getInitialDayNight)
   const [projection, setProjection] = useState<DashboardProjection>(getInitialProjection)
-  const [globeUnavailable, setGlobeUnavailable] = useState(() => !hasWebGl())
+  // One WebGL probe: whether the globe can run, and a starting quality tier for this device.
+  const [graphics] = useState(probeGraphics)
+  const [globeUnavailable, setGlobeUnavailable] = useState(() => !graphics.webgl)
+  const [globeQuality, setGlobeQuality] = useState<QualityChoice>(getInitialQualityChoice)
+  const [effectiveTier, setEffectiveTier] = useState<QualityTier>(graphics.tier)
+  // Once shown, the globe stays loaded and is only hidden, so switching back is instant.
+  const [globeMounted, setGlobeMounted] = useState(false)
   const [mapView, setMapView] = useState<MapViewport>({ lat: 37.8, lng: -96.2, zoom: 4, south: 23.4, west: -127.4, north: 49.8, east: -65 })
+  // The Preview tour never writes region, panel, or projection state; it only borrows the camera.
+  const [previewActive, setPreviewActive] = useState(false)
+  const [tourApi, setTourApi] = useState<TourCameraApi | null>(null)
+  const [tourFocus, setTourFocus] = useState<readonly string[] | null>(null)
+  const [mapStageElement, setMapStageElement] = useState<HTMLElement | null>(null)
   const dashboardRef = useRef<HTMLElement>(null)
   const regionToggleRef = useRef<HTMLButtonElement>(null)
+  const previewToggleRef = useRef<HTMLButtonElement>(null)
+  const previewReturnFocus = useRef(false)
   const resizeDrag = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null)
   const returnFocusPending = useRef(false)
 
@@ -545,6 +616,13 @@ function App() {
       // The projection preference is optional; the Dashboard still opens without persistence.
     }
   }, [projection])
+
+  // After the tour ends, focus returns to the Preview button once the regular chrome is visible again.
+  useEffect(() => {
+    if (previewActive || !previewReturnFocus.current) return
+    previewReturnFocus.current = false
+    previewToggleRef.current?.focus()
+  }, [previewActive])
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), CLOCK_TICK_MS)
@@ -599,7 +677,10 @@ function App() {
   const selectedSitePlan = selected ? getFacilitySitePlan(selected.id) : undefined
   const selectedUserPhotos = selected ? getUserProvidedFacilityPhotos(selected.id) : undefined
   const dashboardHighlightRenderer = useMemo(() => L.svg({ pane: 'overlayPane' }), [])
-  const globeActive = appView === 'dashboard' && projection === 'globe' && !globeUnavailable
+  const previewing = previewActive && appView === 'dashboard'
+  // The Preview tour shows the globe without changing the saved projection preference.
+  const globeActive = appView === 'dashboard' && (projection === 'globe' || previewing) && !globeUnavailable
+  if (globeActive && !globeMounted) setGlobeMounted(true)
   const activeRegion = dashboardRegions.find((region) => region.id === activeRegionId) ?? null
   const dashboardFacilities = useMemo(() => {
     if (!activeRegion) return facilities
@@ -621,6 +702,14 @@ function App() {
   const mappableDashboardPins = useMemo(() => facilities.filter(hasUsableCoordinates), [])
   const dashboardRegionIds = useMemo(() => new Set(mappableDashboardFacilities.map((facility) => facility.id)), [mappableDashboardFacilities])
   const activeRegionBoundary = useMemo(() => activeRegion ? getRegionBoundary(activeRegion.id) : null, [activeRegion])
+  const previewChapters = useMemo(() => buildTour(facilities, dashboardRegions), [])
+  const tourBoundary = useMemo(() => tourFocus ? tourFocus.flatMap((regionId) => getRegionBoundary(regionId) ?? []) : null, [tourFocus])
+  const tourTargets = useMemo(() => {
+    if (!tourFocus) return mappableDashboardPins
+    const numbers = new Set<number>(dashboardRegions.filter((region) => tourFocus.includes(region.id)).flatMap((region) => region.facilityNumbers))
+    return mappableDashboardPins.filter((facility) => numbers.has(facility.number))
+  }, [mappableDashboardPins, tourFocus])
+  const tourTargetIds = useMemo(() => new Set(tourTargets.map((facility) => facility.id)), [tourTargets])
   const mappableFilteredFacilities = useMemo(() => filtered.filter(hasUsableCoordinates), [filtered])
 
   const mapTime = customTime ?? now
@@ -720,6 +809,26 @@ function App() {
     else setRecenterSignal((value) => value + 1)
   }
 
+  const startPreview = () => {
+    setTourFocus(null)
+    setPreviewActive(true)
+  }
+
+  const exitPreview = () => {
+    previewReturnFocus.current = true
+    setPreviewActive(false)
+    setTourFocus(null)
+  }
+
+  // A pin clicked during the tour ends it and opens the facility, as it would outside the tour.
+  const chooseDashboardFacility = (facility: Facility) => {
+    if (previewing) {
+      setPreviewActive(false)
+      setTourFocus(null)
+    }
+    chooseFacility(facility)
+  }
+
   const toggleProjection = () => {
     setProjection((current) => current === 'globe' ? 'map' : 'globe')
     setDashboardOverviewSignal((value) => value + 1)
@@ -781,8 +890,9 @@ function App() {
   ] as const
 
   return (
-    <div className="app-shell">
-      <header className="topbar">
+    <div className={`app-shell${previewing ? ' is-previewing' : ''}`}>
+      {/* The tour's top bar covers the header, so it is taken out of the tab order while the tour plays. */}
+      <header className="topbar" inert={previewing}>
         <button className="menu-button icon-button" aria-label="Open navigation" onClick={() => setMobileNav(!mobileNav)}><Menu /></button>
         <div className="brand" aria-label="ITEM Locations Network"><img src="/brand/item-logo-fullcolor-whitetxt.svg" alt="ITEM" /><span>LOCATIONS NETWORK</span></div>
         <nav className={mobileNav ? 'nav-links is-open' : 'nav-links'} aria-label="Primary navigation">
@@ -791,6 +901,8 @@ function App() {
               key={label}
               className={view === appView ? 'active' : ''}
               aria-current={view === appView ? 'page' : undefined}
+              onPointerEnter={view === 'dashboard' && projection === 'globe' && !globeUnavailable ? warmGlobe : undefined}
+              onFocus={view === 'dashboard' && projection === 'globe' && !globeUnavailable ? warmGlobe : undefined}
               onClick={() => {
                 if (view === 'dashboard') showDashboard()
                 else if (view === 'locations') showLocations()
@@ -926,6 +1038,7 @@ function App() {
         ><span aria-hidden="true" /></div>}
 
         <section
+          ref={setMapStageElement}
           className={`map-stage${appView === 'locations' && mobileView === 'list' ? ' mobile-hidden' : ''}${globeActive ? ' is-globe' : ''}`}
           aria-label="Facility network map"
           data-view={appView}
@@ -952,7 +1065,11 @@ function App() {
               panelOpen={regionPanelOpen}
               onViewChange={setMapView}
             />
-            <RegionHighlightLayer regionId={appView === 'dashboard' && !globeActive ? activeRegion?.id ?? null : null} boundary={activeRegionBoundary} />
+            <RegionHighlightLayer
+              regionId={appView === 'dashboard' && !globeActive ? (previewing ? tourFocus?.join(',') ?? null : activeRegion?.id ?? null) : null}
+              boundary={previewing ? tourBoundary : activeRegionBoundary}
+            />
+            <LeafletTourCamera active={previewing && globeUnavailable} onTourApi={setTourApi} />
             <MapLifecycle resizeKey={`${appView}:${mobileView}:${globeActive}`} onViewChange={setMapView} />
             {appView === 'locations' && <MapSplitResize resizeKey={directoryWidth} selected={selected} preserveSiteFocus={cameraMode === 'site'} onViewChange={setMapView} />}
             {appView === 'dashboard' && activeRegion && mappableDashboardFacilities.flatMap((facility) => [
@@ -975,7 +1092,9 @@ function App() {
             ])}
             {(globeActive ? [] : appView === 'dashboard' ? mappableDashboardPins : mappableFilteredFacilities).map((facility) => {
               const currentStatus = facilityStatus(facility)
-              const outOfRegion = appView === 'dashboard' && activeRegion !== null && !dashboardRegionIds.has(facility.id)
+              const outOfRegion = appView === 'dashboard' && (previewing
+                ? tourFocus !== null && !tourTargetIds.has(facility.id)
+                : activeRegion !== null && !dashboardRegionIds.has(facility.id))
               return (
                 <Marker
                   key={`${appView}-${facility.id}`}
@@ -984,12 +1103,12 @@ function App() {
                   zIndexOffset={outOfRegion ? -1000 : 0}
                   eventHandlers={{
                     add: (event) => (event.target as L.Marker).getElement()?.setAttribute('aria-label', appView === 'dashboard' ? `Open facility ${String(facility.number).padStart(2, '0')} in Facilities` : `Show ${facility.fullAddress} on map`),
-                    click: () => chooseFacility(facility),
+                    click: () => chooseDashboardFacility(facility),
                     keypress: (event) => {
                       const keyboardEvent = event.originalEvent as KeyboardEvent
                       if (keyboardEvent.key !== 'Enter' && keyboardEvent.key !== ' ') return
                       keyboardEvent.preventDefault()
-                      chooseFacility(facility)
+                      chooseDashboardFacility(facility)
                     },
                   }}
                   title={appView === 'locations' ? facility.fullAddress : undefined}
@@ -1006,33 +1125,45 @@ function App() {
             })}
           </MapContainer>
 
-          {globeActive && (
-            <Suspense fallback={<div className="globe-loading" role="status"><Earth size={22} />Loading globe…</div>}>
+          {(globeActive || (globeMounted && !globeUnavailable)) && (
+            <Suspense fallback={globeActive ? <div className="globe-loading" role="status"><Earth size={22} />Loading globe…</div> : null}>
               <DashboardGlobe
+                active={globeActive}
                 facilities={mappableDashboardPins}
-                targets={mappableDashboardFacilities}
-                regionBoundary={activeRegionBoundary}
+                targets={previewing ? tourTargets : mappableDashboardFacilities}
+                regionBoundary={previewing ? tourBoundary : activeRegionBoundary}
+                regionOutline={!previewing}
+                regionKey={previewing ? tourFocus?.join(',') ?? null : null}
+                quality={globeQuality}
+                detectedTier={graphics.tier}
+                onEffectiveTier={setEffectiveTier}
+                debugPerf={DEBUG_PERF}
                 time={mapTime}
                 shading={dayNight.shading}
                 layer={globeLayer}
                 flySignal={dashboardOverviewSignal}
-                regionActive={activeRegion !== null}
+                regionActive={previewing ? tourFocus !== null : activeRegion !== null}
                 panelOpen={regionPanelOpen}
                 pinMarkup={(facility) => pinMarkup(facility, facilityStatus(facility), false)}
                 pinLabel={(facility) => `Open facility ${String(facility.number).padStart(2, '0')} in Facilities`}
                 isOpen={(facility) => openStates[facility.id].isOpen}
                 renderPreview={dashboardPreviewContent}
-                onChoose={chooseFacility}
+                onChoose={chooseDashboardFacility}
                 onUnavailable={() => {
                   setGlobeUnavailable(true)
                   setNotice('The 3D globe is unavailable in this browser, so the flat map is shown.')
                 }}
+                onTourApi={setTourApi}
               />
             </Suspense>
           )}
 
           {appView === 'dashboard' && (
             <>
+              <button ref={previewToggleRef} className="dashboard-preview-toggle" type="button" onClick={startPreview} onPointerEnter={warmPreviewTour} onFocus={warmPreviewTour} title="Play a cinematic tour of every region and facility">
+                <Clapperboard size={16} aria-hidden="true" />
+                <span>Preview</span>
+              </button>
               <button
                 ref={regionToggleRef}
                 className={`dashboard-region-toggle${activeRegion ? ' has-active-region' : ''}`}
@@ -1135,9 +1266,19 @@ function App() {
             </div>
           </div>
           {appView === 'dashboard' && !globeUnavailable && (
-            <button className="projection-control" type="button" aria-label={globeActive ? 'Show flat map' : 'Show globe'} title={globeActive ? 'Show flat map' : 'Show 3D globe'} onClick={toggleProjection}>
+            <button className="projection-control" type="button" aria-label={globeActive ? 'Show flat map' : 'Show globe'} title={globeActive ? 'Show flat map' : 'Show 3D globe'} onClick={toggleProjection} onPointerEnter={globeActive ? undefined : warmGlobe} onFocus={globeActive ? undefined : warmGlobe}>
               {globeActive ? <MapIcon size={18} /> : <Earth size={18} />}
             </button>
+          )}
+          {globeActive && (
+            <GlobeQualityControl
+              choice={globeQuality}
+              effectiveTier={effectiveTier}
+              onChange={(choice) => {
+                setGlobeQuality(choice)
+                saveQualityChoice(choice)
+              }}
+            />
           )}
           <button className="recenter-control" aria-label="Recenter map" title={activeRegion ? `View ${activeRegion.label} facilities` : 'View all facilities'} onClick={showOverview}><LocateFixed size={18} /></button>
           {appView === 'locations' && <div className="map-legend" aria-label="Local facility status legend">
@@ -1166,6 +1307,28 @@ function App() {
       </main>
 
       {notice && <div className="toast" role="status"><Check size={17} />{notice}</div>}
+
+      {previewing && (
+        <Suspense fallback={null}>
+          <PreviewTour
+            api={tourApi}
+            chapters={previewChapters}
+            interactionTarget={mapStageElement}
+            localTime={(facility) => openStates[facility.id].localTime}
+            renderOpenState={(facility) => <OpenStateBadge state={openStates[facility.id]} variant="compact" />}
+            onFocusChange={setTourFocus}
+            onExit={exitPreview}
+            speed={PREVIEW_SPEED}
+            maxFps={PREVIEW_MAX_FPS ?? QUALITY_TIERS[effectiveTier].tourMaxFps}
+          />
+        </Suspense>
+      )}
+
+      {DEBUG_PERF && (
+        <Suspense fallback={null}>
+          <PerfHud tier={globeActive ? effectiveTier : null} choice={globeQuality} />
+        </Suspense>
+      )}
 
       {detailsOpen && selected && (
         <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDetailsOpen(false) }}>

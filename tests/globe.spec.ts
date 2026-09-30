@@ -117,7 +117,9 @@ test('day and night controls drive globe lighting, and the flat map toggle persi
   await page.getByRole('button', { name: 'Show flat map' }).click()
   const stage = page.getByLabel('Facility network map')
   await expect(stage).toHaveAttribute('data-projection', 'map')
-  await expect(page.getByTestId('dashboard-globe')).toHaveCount(0)
+  // The globe stays loaded but hidden, draws no pins, and stops rendering until it is shown again.
+  await expect(page.getByTestId('dashboard-globe')).toBeHidden()
+  await expect(page.getByTestId('dashboard-globe')).toHaveAttribute('data-active', 'false')
   await expect(page.locator('.location-marker-wrap')).toHaveCount(facilities.length)
   // The flat map keeps its own layer choice (Street by default).
   await expect(page.getByRole('button', { name: 'Street' })).toHaveAttribute('aria-pressed', 'true')

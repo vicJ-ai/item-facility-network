@@ -5,16 +5,20 @@ import {
   Cartesian3,
   Color,
   Credit,
+  FrameRateMonitor,
   ImageryLayer,
   JulianDate,
   Rectangle,
   UrlTemplateImageryProvider,
-  Viewer,
+  CesiumWidget,
   WebMercatorTilingScheme,
 } from 'cesium'
-import 'cesium/Build/Cesium/Widgets/widgets.css'
+import 'cesium/Build/Cesium/Widgets/CesiumWidget/CesiumWidget.css'
 import type { Facility } from '../data/facilities'
 import type { RegionBoundary } from '../data/region-boundaries'
+import { lowerTier, QUALITY_TIERS, type QualityChoice, type QualityTier } from '../lib/globe-quality'
+import type { TourCameraApi } from '../lib/preview-tour/camera-api'
+import { createGlobeTourApi } from './globe-tour-api'
 import { regionHighlightLayer } from './region-highlight-imagery'
 
 declare const CESIUM_BASE_URL: string
@@ -39,6 +43,12 @@ const HOME_VIEW = { longitude: -96, latitude: 37, height: 15_000_000 }
 const PIN_ANCHOR = { x: 15, y: 36 }
 const PREVIEW_GAP = 14
 const REGION_FADE_MS = 700
+// City lights only matter above this camera height; below it, globe lighting has faded out anyway.
+const NIGHT_LIGHTS_MIN_HEIGHT = 400_000
+// Tiles are this much coarser while the Preview tour travels between stops.
+const FLIGHT_DETAIL_FACTOR = 3
+// Region highlight layers the Preview tour keeps ready, so returning to a region needs no redraw.
+const TOUR_LAYER_CACHE = 4
 
 function esriLayer(layer: GlobeLayer) {
   return new ImageryLayer(new UrlTemplateImageryProvider({ url: ESRI_TILE_URLS[layer], tilingScheme: new WebMercatorTilingScheme(), maximumLevel: 19, credit: new Credit(ESRI_ATTRIBUTIONS[layer], true) }))
@@ -76,11 +86,23 @@ function prefersReducedMotion() {
 }
 
 type DashboardGlobeProps = {
+  /** False while another view is shown: the globe stays loaded but hidden, and stops rendering. */
+  active: boolean
   /** Every pin shown on the globe. */
   facilities: readonly MappableFacility[]
   /** The active region's facilities: camera flights frame these, and pins outside the region are faded. */
   targets: readonly MappableFacility[]
   regionBoundary: RegionBoundary | null
+  /** Whether the highlight draws the region's edge; the Preview tour animates its own outline. */
+  regionOutline?: boolean
+  /** Set during the Preview tour: highlight layers are kept per key instead of being redrawn. */
+  regionKey?: string | null
+  quality: QualityChoice
+  /** The starting tier for the automatic setting, from the graphics hardware. */
+  detectedTier: QualityTier
+  onEffectiveTier: (tier: QualityTier) => void
+  /** Shows Cesium's frame-rate readout (`?debug=perf`). */
+  debugPerf?: boolean
   time: number
   shading: boolean
   layer: GlobeLayer
@@ -93,43 +115,66 @@ type DashboardGlobeProps = {
   renderPreview: (facility: MappableFacility) => ReactNode
   onChoose: (facility: MappableFacility) => void
   onUnavailable: () => void
+  /** Receives the Preview tour's camera controls once the globe is ready, and `null` on teardown. */
+  onTourApi?: (api: TourCameraApi | null) => void
 }
 
 type PinPoint = { x: number; y: number; visible: boolean }
+type PinWrite = { transform: string; visible: boolean }
 
-export default function DashboardGlobe({ facilities, targets, regionBoundary, time, shading, layer, flySignal, regionActive, panelOpen, pinMarkup, pinLabel, isOpen, renderPreview, onChoose, onUnavailable }: DashboardGlobeProps) {
+export default function DashboardGlobe({ active, facilities, targets, regionBoundary, regionOutline = true, regionKey = null, quality, detectedTier, onEffectiveTier, debugPerf = false, time, shading, layer, flySignal, regionActive, panelOpen, pinMarkup, pinLabel, isOpen, renderPreview, onChoose, onUnavailable, onTourApi }: DashboardGlobeProps) {
   const stageRef = useRef<HTMLDivElement>(null)
   const canvasHostRef = useRef<HTMLDivElement>(null)
   const creditsRef = useRef<HTMLDivElement>(null)
   const previewRef = useRef<HTMLDivElement>(null)
-  const viewerRef = useRef<Viewer | null>(null)
+  const viewerRef = useRef<CesiumWidget | null>(null)
   const baseLayerRef = useRef<ImageryLayer | null>(null)
   const nightLayerRef = useRef<ImageryLayer | null>(null)
   const pinElements = useRef(new Map<string, HTMLButtonElement>())
   const pinPoints = useRef(new Map<string, PinPoint>())
   const positions = useRef(new Map<string, Cartesian3>())
   const hoveredRef = useRef<string | null>(null)
-  const initialProps = useRef({ time, shading, onUnavailable })
+  const initialProps = useRef({ time, shading, onUnavailable, debugPerf })
   const flightTarget = useRef({ targets, regionBoundary, regionActive, panelOpen })
   const currentLayer = useRef(layer)
+  const onTourApiRef = useRef(onTourApi)
+  const onEffectiveTierRef = useRef(onEffectiveTier)
+  // The Preview tour fades the region highlight near the ground; the fade-in multiplies with it.
+  const regionOpacity = useRef(1)
+  const regionFade = useRef<{ layer: ImageryLayer; eased: number } | null>(null)
+  const tourLayers = useRef(new Map<string, ImageryLayer>())
+  const monitorRef = useRef<FrameRateMonitor | null>(null)
+  const shadingRef = useRef(shading)
+  const flightCoarse = useRef(false)
+  const pinWrites = useRef(new WeakMap<HTMLElement, PinWrite>())
+  const previewSize = useRef({ width: 0, height: 0 })
+  const stageSize = useRef({ width: 0, height: 0 })
+  const [autoTier, setAutoTier] = useState<QualityTier>(detectedTier)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const effectiveTier: QualityTier = quality === 'auto' ? autoTier : quality
+  const settingsRef = useRef(QUALITY_TIERS[effectiveTier])
 
   // Layout effects run before the passive effects below, so flights and previews read current props.
   useLayoutEffect(() => {
     flightTarget.current = { targets, regionBoundary, regionActive, panelOpen }
     hoveredRef.current = hoveredId
+    onTourApiRef.current = onTourApi
+    onEffectiveTierRef.current = onEffectiveTier
+    shadingRef.current = shading
   })
 
+  // Sizes are measured when they change, never inside the per-frame pin update.
   const placePreview = useCallback(() => {
     const preview = previewRef.current
-    const stage = stageRef.current
     const id = hoveredRef.current
     const point = id ? pinPoints.current.get(id) : undefined
-    if (!preview || !stage || !point) return
+    if (!preview || !point) return
+    const { width, height } = previewSize.current
+    const stage = stageSize.current
     preview.style.visibility = point.visible ? 'visible' : 'hidden'
-    const onRight = point.x < stage.clientWidth * 0.55
-    const x = onRight ? point.x + PREVIEW_GAP : point.x - PREVIEW_GAP - preview.offsetWidth
-    const y = Math.min(Math.max(point.y - 18 - preview.offsetHeight / 2, 8), stage.clientHeight - preview.offsetHeight - 8)
+    const onRight = point.x < stage.width * 0.55
+    const x = onRight ? point.x + PREVIEW_GAP : point.x - PREVIEW_GAP - width
+    const y = Math.min(Math.max(point.y - 18 - height / 2, 8), stage.height - height - 8)
     preview.style.transform = `translate3d(${Math.round(Math.max(8, x))}px, ${Math.round(y)}px, 0)`
   }, [])
 
@@ -138,58 +183,92 @@ export default function DashboardGlobe({ facilities, targets, regionBoundary, ti
     if (!viewer) return
     const { scene } = viewer
     const cameraPosition = scene.camera.positionWC
-    const scratch = new Cartesian2()
+    const canvasPoint = new Cartesian2()
+    const normal = new Cartesian3()
+    const toCamera = new Cartesian3()
     for (const [id, position] of positions.current) {
       const element = pinElements.current.get(id)
       if (!element) continue
       // A surface point faces the camera when the camera lies above its local horizon plane.
-      const normal = Cartesian3.normalize(position, new Cartesian3())
-      const toCamera = Cartesian3.subtract(cameraPosition, position, new Cartesian3())
+      Cartesian3.normalize(position, normal)
+      Cartesian3.subtract(cameraPosition, position, toCamera)
       const facing = Cartesian3.dot(normal, toCamera) > 0
-      const canvasPoint = facing ? scene.cartesianToCanvasCoordinates(position, scratch) : undefined
-      const visible = Boolean(canvasPoint)
-      const point = { x: canvasPoint?.x ?? -100, y: canvasPoint?.y ?? -100, visible }
+      const onCanvas = facing ? scene.cartesianToCanvasCoordinates(position, canvasPoint) : undefined
+      const visible = Boolean(onCanvas)
+      const point = { x: onCanvas?.x ?? -100, y: onCanvas?.y ?? -100, visible }
       pinPoints.current.set(id, point)
-      element.style.transform = `translate3d(${Math.round(point.x - PIN_ANCHOR.x)}px, ${Math.round(point.y - PIN_ANCHOR.y)}px, 0)`
-      element.style.visibility = visible ? 'visible' : 'hidden'
-      element.tabIndex = visible ? 0 : -1
+      // Only touch the DOM when a pin actually moved or changed visibility.
+      const transform = `translate3d(${Math.round(point.x - PIN_ANCHOR.x)}px, ${Math.round(point.y - PIN_ANCHOR.y)}px, 0)`
+      const last = pinWrites.current.get(element)
+      if (last?.transform !== transform) element.style.transform = transform
+      if (last?.visible !== visible) {
+        element.style.visibility = visible ? 'visible' : 'hidden'
+        element.tabIndex = visible ? 0 : -1
+      }
+      pinWrites.current.set(element, { transform, visible })
     }
     const cartographic = scene.camera.positionCartographic
     const stage = stageRef.current
     if (stage) {
-      stage.dataset.cameraHeight = String(Math.round(cartographic.height))
-      stage.dataset.cameraLatitude = (cartographic.latitude * 180 / Math.PI).toFixed(3)
-      stage.dataset.cameraLongitude = (cartographic.longitude * 180 / Math.PI).toFixed(3)
+      const height = String(Math.round(cartographic.height))
+      const latitude = (cartographic.latitude * 180 / Math.PI).toFixed(3)
+      const longitude = (cartographic.longitude * 180 / Math.PI).toFixed(3)
+      if (stage.dataset.cameraHeight !== height) stage.dataset.cameraHeight = height
+      if (stage.dataset.cameraLatitude !== latitude) stage.dataset.cameraLatitude = latitude
+      if (stage.dataset.cameraLongitude !== longitude) stage.dataset.cameraLongitude = longitude
+    }
+    // City lights are only fetched at heights where they can be seen.
+    const night = nightLayerRef.current
+    const showNight = shadingRef.current && cartographic.height > NIGHT_LIGHTS_MIN_HEIGHT
+    if (night && night.show !== showNight) {
+      night.show = showNight
+      scene.requestRender()
     }
     placePreview()
   }, [placePreview])
 
+  // Applies a quality tier's settings; none of them needs the viewer to be rebuilt.
+  const applySettings = useCallback(() => {
+    const viewer = viewerRef.current
+    if (!viewer) return
+    const settings = settingsRef.current
+    viewer.scene.msaaSamples = settings.msaaSamples
+    viewer.resolutionScale = settings.resolutionScale
+    viewer.scene.globe.maximumScreenSpaceError = settings.maximumScreenSpaceError * (flightCoarse.current ? FLIGHT_DETAIL_FACTOR : 1)
+    viewer.scene.globe.tileCacheSize = settings.tileCacheSize
+    viewer.scene.requestRender()
+  }, [])
+
   useEffect(() => {
     const host = canvasHostRef.current
     if (!host || !creditsRef.current) return
-    let viewer: Viewer
+    let viewer: CesiumWidget
     try {
-      viewer = new Viewer(host, {
+      // The bare widget: the globe needs none of the Viewer's toolbar, timeline, or entity panels.
+      viewer = new CesiumWidget(host, {
         baseLayer: esriLayer(currentLayer.current),
-        baseLayerPicker: false,
-        geocoder: false,
-        homeButton: false,
-        sceneModePicker: false,
-        navigationHelpButton: false,
-        animation: false,
-        timeline: false,
-        fullscreenButton: false,
-        infoBox: false,
-        selectionIndicator: false,
         creditContainer: creditsRef.current,
         requestRenderMode: true,
         maximumRenderTimeChange: Number.POSITIVE_INFINITY,
+        // Lighter defaults on every tier: the star box sits behind a near-black background, only the
+        // 3D view is used, and the tour's few translucent lines need no order-independent pass.
+        skyBox: false,
+        scene3DOnly: true,
+        orderIndependentTranslucency: false,
+        msaaSamples: settingsRef.current.msaaSamples,
       })
     } catch {
       initialProps.current.onUnavailable()
       return
     }
     viewerRef.current = viewer
+    // Globe lighting follows the real sun position from the clock, so the sun and moon need not be drawn.
+    viewer.scene.sun?.destroy()
+    viewer.scene.sun = undefined as never
+    viewer.scene.moon?.destroy()
+    viewer.scene.moon = undefined as never
+    viewer.scene.debugShowFramesPerSecond = initialProps.current.debugPerf
+    applySettings()
     baseLayerRef.current = viewer.imageryLayers.get(0)
     const nightLayer = nightLightsLayer()
     viewer.imageryLayers.add(nightLayer)
@@ -217,16 +296,80 @@ export default function DashboardGlobe({ facilities, targets, regionBoundary, ti
     scene.requestRender()
     const stage = stageRef.current
     if (stage) stage.dataset.globeReady = 'true'
+    const tourApi = createGlobeTourApi(viewer, pinElements.current, {
+      setRegionOpacity: (opacity) => {
+        regionOpacity.current = opacity
+        const fade = regionFade.current
+        if (fade) fade.layer.alpha = fade.eased * opacity
+      },
+      setFlightDetail: (coarse) => {
+        if (flightCoarse.current === coarse) return
+        flightCoarse.current = coarse
+        if (stage) stage.dataset.flightDetail = coarse ? 'coarse' : 'full'
+        applySettings()
+      },
+      settings: () => settingsRef.current,
+    })
+    onTourApiRef.current?.(tourApi)
+
+    // Automatic quality steps down one tier each time motion stays choppy; it never steps back up.
+    const monitor = new FrameRateMonitor({ scene, samplingWindow: 3, quietPeriod: 2, warmupPeriod: 3, minimumFrameRateDuringWarmup: 12, minimumFrameRateAfterWarmup: 20 })
+    monitorRef.current = monitor
+    const removeLowFrameRate = monitor.lowFrameRate.addEventListener(() => setAutoTier((tier) => lowerTier(tier)))
+    const tourLayerCache = tourLayers.current
 
     return () => {
+      onTourApiRef.current?.(null)
+      tourApi.destroy()
+      removeLowFrameRate()
+      monitor.destroy()
+      monitorRef.current = null
       removePostRender()
+      tourLayerCache.clear()
       viewer.destroy()
       viewerRef.current = null
       baseLayerRef.current = null
       nightLayerRef.current = null
       if (stage) stage.dataset.globeReady = 'false'
     }
-  }, [updatePins])
+  }, [applySettings, updatePins])
+
+  useEffect(() => {
+    settingsRef.current = QUALITY_TIERS[effectiveTier]
+    applySettings()
+    const stage = stageRef.current
+    if (stage) {
+      stage.dataset.quality = effectiveTier
+      stage.dataset.qualityChoice = quality
+    }
+    onEffectiveTierRef.current(effectiveTier)
+  }, [applySettings, effectiveTier, quality])
+
+  // While hidden, the globe keeps its loaded imagery but runs no render loop and draws no pins.
+  useEffect(() => {
+    const viewer = viewerRef.current
+    if (!viewer) return
+    viewer.useDefaultRenderLoop = active
+    const monitor = monitorRef.current
+    if (!active) {
+      monitor?.pause()
+      return () => {
+        if (monitor && !monitor.isDestroyed()) monitor.unpause()
+      }
+    }
+    viewer.scene.requestRender()
+  }, [active])
+
+  // The stage size is read for hover-preview placement; measuring on resize keeps it out of frames.
+  useEffect(() => {
+    const stage = stageRef.current
+    if (!stage) return
+    const measure = () => { stageSize.current = { width: stage.clientWidth, height: stage.clientHeight } }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(stage)
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
     positions.current = new Map(facilities.map((facility) => [facility.id, Cartesian3.fromDegrees(facility.coordinates[1], facility.coordinates[0])]))
@@ -244,7 +387,7 @@ export default function DashboardGlobe({ facilities, targets, regionBoundary, ti
     const viewer = viewerRef.current
     if (!viewer) return
     viewer.scene.globe.enableLighting = shading
-    if (nightLayerRef.current) nightLayerRef.current.show = shading
+    if (nightLayerRef.current) nightLayerRef.current.show = shading && viewer.camera.positionCartographic.height > NIGHT_LIGHTS_MIN_HEIGHT
     viewer.scene.requestRender()
   }, [shading])
 
@@ -259,31 +402,65 @@ export default function DashboardGlobe({ facilities, targets, regionBoundary, ti
     viewer.scene.requestRender()
   }, [layer])
 
+  // Outside the tour, its cached highlight layers are released.
+  useEffect(() => {
+    const viewer = viewerRef.current
+    if (!viewer || regionKey) return
+    for (const cached of tourLayers.current.values()) viewer.imageryLayers.remove(cached, true)
+    tourLayers.current.clear()
+  }, [regionKey])
+
   useEffect(() => {
     const viewer = viewerRef.current
     if (!viewer || !regionBoundary) return
     // Drawn above the base imagery and night lights, and faded in while the camera flies there.
-    const layer = regionHighlightLayer(regionBoundary)
-    viewer.imageryLayers.add(layer)
+    // During the tour a layer is kept per region, so a returning chapter shows it without redrawing.
+    const cache = tourLayers.current
+    let layer = regionKey ? cache.get(regionKey) : undefined
+    if (layer) {
+      viewer.imageryLayers.raiseToTop(layer)
+      layer.show = true
+    } else {
+      layer = regionHighlightLayer(regionBoundary, { outline: regionOutline })
+      viewer.imageryLayers.add(layer)
+      if (regionKey) {
+        cache.set(regionKey, layer)
+        // Past the cache size, the least recently added region is released for good.
+        for (const [key, cached] of cache) {
+          if (cache.size <= TOUR_LAYER_CACHE) break
+          if (cached === layer) continue
+          viewer.imageryLayers.remove(cached, true)
+          cache.delete(key)
+        }
+      }
+    }
+    layer.alpha = 0
     const stage = stageRef.current
     if (stage) stage.dataset.regionHighlight = 'true'
     const start = performance.now()
+    const shown = layer
+    const record = { layer: shown, eased: 0 }
+    regionFade.current = record
     let frame = 0
     const fade = (now: number) => {
       const progress = prefersReducedMotion() ? 1 : Math.min(1, (now - start) / REGION_FADE_MS)
-      layer.alpha = 1 - (1 - progress) ** 3
+      record.eased = 1 - (1 - progress) ** 3
+      shown.alpha = record.eased * regionOpacity.current
       viewer.scene.requestRender()
       if (progress < 1) frame = window.requestAnimationFrame(fade)
     }
     frame = window.requestAnimationFrame(fade)
     return () => {
       window.cancelAnimationFrame(frame)
+      if (regionFade.current === record) regionFade.current = null
       if (stage) stage.dataset.regionHighlight = 'false'
       if (viewer.isDestroyed()) return
-      viewer.imageryLayers.remove(layer, true)
+      // A cached tour layer is only hidden; it is released when it leaves the cache or the tour ends.
+      if (regionKey !== null && cache.get(regionKey) === shown) shown.show = false
+      else if (viewer.imageryLayers.contains(shown)) viewer.imageryLayers.remove(shown, true)
       viewer.scene.requestRender()
     }
-  }, [regionBoundary])
+  }, [regionBoundary, regionKey, regionOutline])
 
   useEffect(() => {
     const viewer = viewerRef.current
@@ -298,7 +475,10 @@ export default function DashboardGlobe({ facilities, targets, regionBoundary, ti
     else viewer.camera.flyTo({ destination: Cartesian3.fromDegrees(HOME_VIEW.longitude, HOME_VIEW.latitude, HOME_VIEW.height), duration })
   }, [flySignal])
 
+  // The hover preview is measured once when it appears, not on every frame it follows the pin.
   useLayoutEffect(() => {
+    const preview = previewRef.current
+    if (preview) previewSize.current = { width: preview.offsetWidth, height: preview.offsetHeight }
     placePreview()
   }, [hoveredId, placePreview])
 
@@ -315,10 +495,10 @@ export default function DashboardGlobe({ facilities, targets, regionBoundary, ti
   const regionIds = new Set(targets.map((facility) => facility.id))
 
   return (
-    <div ref={stageRef} className="globe-stage" data-testid="dashboard-globe" data-lighting={shading}>
+    <div ref={stageRef} className="globe-stage" data-testid="dashboard-globe" data-lighting={shading} data-active={active} hidden={!active}>
       <div ref={canvasHostRef} className="globe-canvas" />
       <div className="globe-pins">
-        {facilities.map((facility) => (
+        {active && facilities.map((facility) => (
           <button
             key={facility.id}
             ref={(element) => {
@@ -339,7 +519,7 @@ export default function DashboardGlobe({ facilities, targets, regionBoundary, ti
           />
         ))}
       </div>
-      {hovered && (
+      {active && hovered && (
         <div ref={previewRef} className="globe-preview dashboard-pin-preview" role="tooltip">
           {renderPreview(hovered)}
         </div>

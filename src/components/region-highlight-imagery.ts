@@ -10,11 +10,31 @@ const DEG = 180 / Math.PI
 
 type Bounds = { west: number; south: number; east: number; north: number }
 
-function boundsOf(boundary: RegionBoundary): Bounds {
-  const points = boundary.flatMap((polygon) => polygon[0])
-  const longitudes = points.map(([longitude]) => longitude)
-  const latitudes = points.map(([, latitude]) => latitude)
+function boundsOf(ring: readonly (readonly [number, number])[]): Bounds {
+  const longitudes = ring.map(([longitude]) => longitude)
+  const latitudes = ring.map(([, latitude]) => latitude)
   return { west: Math.min(...longitudes), south: Math.min(...latitudes), east: Math.max(...longitudes), north: Math.max(...latitudes) }
+}
+
+function overlaps(bounds: Bounds, west: number, south: number, east: number, north: number, margin: number) {
+  return !(east + margin < bounds.west || west - margin > bounds.east || north + margin < bounds.south || south - margin > bounds.north)
+}
+
+let dimmedTile: HTMLCanvasElement | null = null
+
+/** Every tile outside the region looks the same, so they all share one pre-filled canvas. */
+function sharedDimmedTile() {
+  if (!dimmedTile) {
+    dimmedTile = document.createElement('canvas')
+    dimmedTile.width = TILE_SIZE
+    dimmedTile.height = TILE_SIZE
+    const context = dimmedTile.getContext('2d')
+    if (context) {
+      context.fillStyle = MASK_FILL
+      context.fillRect(0, 0, TILE_SIZE, TILE_SIZE)
+    }
+  }
+  return dimmedTile
 }
 
 /**
@@ -34,12 +54,12 @@ class RegionHighlightImageryProvider {
   readonly credit = undefined
   readonly proxy = undefined
   readonly hasAlphaChannel = true
-  private readonly boundary: RegionBoundary
-  private readonly bounds: Bounds
+  private readonly polygons: { polygon: RegionBoundary[number]; bounds: Bounds }[]
+  private readonly outline: boolean
 
-  constructor(boundary: RegionBoundary) {
-    this.boundary = boundary
-    this.bounds = boundsOf(boundary)
+  constructor(boundary: RegionBoundary, outline: boolean) {
+    this.polygons = boundary.map((polygon) => ({ polygon, bounds: boundsOf(polygon[0]) }))
+    this.outline = outline
   }
 
   getTileCredits() {
@@ -51,6 +71,16 @@ class RegionHighlightImageryProvider {
   }
 
   requestImage(x: number, y: number, level: number) {
+    const tile = this.tilingScheme.tileXYToRectangle(x, y, level)
+    const west = tile.west * DEG
+    const east = tile.east * DEG
+    const south = tile.south * DEG
+    const north = tile.north * DEG
+    // Most tiles lie wholly outside the region; they only need the shared dimming.
+    const margin = (east - west) * 0.05
+    const nearby = this.polygons.filter(({ bounds }) => overlaps(bounds, west, south, east, north, margin))
+    if (nearby.length === 0) return Promise.resolve(sharedDimmedTile())
+
     const canvas = document.createElement('canvas')
     canvas.width = TILE_SIZE
     canvas.height = TILE_SIZE
@@ -59,20 +89,10 @@ class RegionHighlightImageryProvider {
     context.fillStyle = MASK_FILL
     context.fillRect(0, 0, TILE_SIZE, TILE_SIZE)
 
-    const tile = this.tilingScheme.tileXYToRectangle(x, y, level)
-    const west = tile.west * DEG
-    const east = tile.east * DEG
-    const south = tile.south * DEG
-    const north = tile.north * DEG
-    const { bounds } = this
-    // Most tiles lie wholly outside the region; they only need the dimming.
-    const margin = (east - west) * 0.05
-    if (east + margin < bounds.west || west - margin > bounds.east || north + margin < bounds.south || south - margin > bounds.north) return Promise.resolve(canvas)
-
     const scaleX = TILE_SIZE / (east - west)
     const scaleY = TILE_SIZE / (north - south)
     const path = new Path2D()
-    for (const polygon of this.boundary) {
+    for (const { polygon } of nearby) {
       for (const ring of polygon) {
         ring.forEach(([longitude, latitude], index) => {
           const px = (longitude - west) * scaleX
@@ -90,6 +110,7 @@ class RegionHighlightImageryProvider {
     context.globalCompositeOperation = 'source-over'
     context.fillStyle = AREA_FILL
     context.fill(path, 'evenodd')
+    if (!this.outline) return Promise.resolve(canvas)
     context.lineJoin = 'round'
     context.strokeStyle = GLOW
     context.lineWidth = 5
@@ -101,6 +122,7 @@ class RegionHighlightImageryProvider {
   }
 }
 
-export function regionHighlightLayer(boundary: RegionBoundary) {
-  return new ImageryLayer(new RegionHighlightImageryProvider(boundary) as unknown as ImageryProvider, { alpha: 0 })
+/** `outline: false` leaves the edge undrawn, for callers that animate their own outline. */
+export function regionHighlightLayer(boundary: RegionBoundary, { outline = true }: { outline?: boolean } = {}) {
+  return new ImageryLayer(new RegionHighlightImageryProvider(boundary, outline) as unknown as ImageryProvider, { alpha: 0 })
 }
