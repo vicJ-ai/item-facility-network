@@ -1,12 +1,20 @@
-import { Pool, type PoolClient } from 'pg'
+import { Pool, type PoolClient, type PoolConfig } from 'pg'
 import type { AppConfig } from './config.js'
 import { databaseSchema } from './config.js'
 
 export type Db = ReturnType<typeof createDb>
 
-export function createDb(config: Pick<AppConfig, 'databaseUrl' | 'databaseSchema'>) {
+export function createPoolConfig(config: Pick<AppConfig, 'databaseUrl' | 'databaseSchema'>): PoolConfig {
   const schema = databaseSchema(config.databaseSchema)
-  const pool = new Pool({ connectionString: config.databaseUrl, max: 10, options: `-c search_path=${schema},public` })
+  return {
+    connectionString: config.databaseUrl,
+    max: 10,
+    ...(schema === 'public' ? {} : { options: `-c search_path=${schema},public` }),
+  }
+}
+
+export function createDb(config: Pick<AppConfig, 'databaseUrl' | 'databaseSchema'>) {
+  const pool = new Pool(createPoolConfig(config))
   return {
     pool,
     query: pool.query.bind(pool),
