@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Pause, Play, SkipBack, SkipForward, X } from 'lucide-react'
 import { gsap } from 'gsap'
 import { SplitText } from 'gsap/SplitText'
@@ -35,10 +35,22 @@ type PreviewTourProps = {
   maxFps?: number
 }
 
-type Controls = { togglePause: () => void; step: (direction: 1 | -1) => void; jump: (stopIndex: number) => void; stop: () => void }
+type Controls = {
+  togglePause: () => void
+  step: (direction: 1 | -1) => void
+  jump: (stopIndex: number) => void
+  jumpToRegion: (chapterIndex: number) => void
+  jumpToFinale: () => void
+  stop: () => void
+}
+/** What the progress bar is pointing at: a region, a facility, or the finale; `left` is a percentage. */
+type ProgressHint = { left: number; kicker: string; label: string }
 
 const pad = (value: number) => String(value).padStart(2, '0')
 const stopTitle = (facility: TourFacility) => (facility.city ?? facility.stateName).toUpperCase()
+const facilityCount = (count: number) => `${count} ${count === 1 ? 'facility' : 'facilities'}`
+// Titles shrink until their longest word fits on one line, so names never break mid-word.
+const titleFit = (title: string) => ({ '--title-chars': Math.max(...title.split(/\s+/).map((word) => word.length)) }) as CSSProperties
 
 function prefersReducedMotion() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -58,6 +70,7 @@ export default function PreviewTour({ api, chapters, interactionTarget, localTim
   const [reducedMotion] = useState(prefersReducedMotion)
   const [paused, setPaused] = useState(false)
   const [closing, setClosing] = useState(false)
+  const [hint, setHint] = useState<ProgressHint | null>(null)
   const choreography = useMemo(() => choreograph(chapters, { reducedMotion }), [chapters, reducedMotion])
   const stops = useMemo(() => chapters.flatMap((chapter) => chapter.stops), [chapters])
   const finaleBoundary = useMemo(() => mergeBoundaries(chapters.map((chapter) => chapter.boundary)), [chapters])
@@ -198,6 +211,12 @@ export default function PreviewTour({ api, chapters, interactionTarget, localTim
           else seek(target < 0 ? 0 : landing(stopCues[target]))
         },
         jump: (stopIndex) => seek(landing(stopCues[stopIndex])),
+        // Lands on the region shot once its title is up and the outline has mostly drawn on.
+        jumpToRegion: (chapterIndex) => {
+          const { intro } = chapterCues[chapterIndex]
+          seek(Math.min(intro.end - SEEK_INSIDE, intro.start + TITLE_REVEAL))
+        },
+        jumpToFinale: () => seek(finale.start + SEEK_INSIDE),
         stop: () => {
           if (!alive) return
           alive = false
@@ -272,14 +291,17 @@ export default function PreviewTour({ api, chapters, interactionTarget, localTim
     }
   }, [interactionTarget])
 
-  const { stops: stopCues, chapters: chapterCues, duration } = choreography
+  const { stops: stopCues, chapters: chapterCues, finale, duration } = choreography
+  const percent = (time: number) => (time / duration) * 100
+  const finaleTitle = `${stops.length} FACILITIES · ${chapters.length} REGIONS`
+  const showFinaleHint = () => setHint({ left: percent((finale.start + duration) / 2), kicker: 'Finale', label: 'All regions' })
 
   return (
     <div ref={rootRef} className={`preview-tour${closing ? ' is-closing' : ''}${api ? ' is-ready' : ''}`} data-testid="preview-tour" role="region" aria-label="Network preview" aria-roledescription="presentation">
       <div className="preview-bar preview-bar-top">
         <div className="preview-slot preview-chapter-labels">
           {chapters.map((chapter, index) => (
-            <span key={chapter.regionId} data-chapter-label={index}>Chapter {pad(chapter.number)} · {chapter.label} · {chapter.stops.length} {chapter.stops.length === 1 ? 'facility' : 'facilities'}</span>
+            <span key={chapter.regionId} data-chapter-label={index}>{chapter.label} · {facilityCount(chapter.stops.length)}</span>
           ))}
           <span data-finale-label>All regions · {stops.length} facilities</span>
         </div>
@@ -291,21 +313,20 @@ export default function PreviewTour({ api, chapters, interactionTarget, localTim
       <div className="preview-titles">
         {chapters.map((chapter, index) => (
           <div key={chapter.regionId} className="preview-title preview-chapter-intro" data-chapter-intro={index}>
-            <small>Chapter {pad(chapter.number)}</small>
-            <h2 data-split>{chapter.label.toUpperCase()}</h2>
-            <p>{chapter.stops.length} {chapter.stops.length === 1 ? 'facility' : 'facilities'}</p>
+            <h2 data-split style={titleFit(chapter.label)}>{chapter.label.toUpperCase()}</h2>
+            <p>{facilityCount(chapter.stops.length)}</p>
           </div>
         ))}
         {stops.map((stop) => (
           <div key={stop.facility.id} className="preview-title preview-stop" data-stop={stop.index}>
             <span className="preview-stop-number" aria-hidden="true">{pad(stop.facility.number)}</span>
-            <h2 data-split>{stopTitle(stop.facility)}</h2>
+            <h2 data-split style={titleFit(stopTitle(stop.facility))}>{stopTitle(stop.facility)}</h2>
             {stop.facility.city && <p className="preview-stop-state">{stop.facility.stateName.toUpperCase()}</p>}
             <p className="preview-stop-detail"><span>{stop.facility.fullAddress}</span>{renderOpenState(stop.facility)}</p>
           </div>
         ))}
         <div className="preview-title preview-finale" data-finale>
-          <h2 data-split>{stops.length} FACILITIES · {chapters.length} REGIONS</h2>
+          <h2 data-split style={titleFit(finaleTitle)}>{finaleTitle}</h2>
           <p>One network</p>
         </div>
       </div>
@@ -313,23 +334,60 @@ export default function PreviewTour({ api, chapters, interactionTarget, localTim
       <div className="preview-bar preview-bar-bottom">
         <div className="preview-progress" role="group" aria-label="Tour progress">
           <i className="preview-progress-fill" aria-hidden="true" />
-          {chapterCues.map((cue) => (
-            <span key={cue.chapterIndex} className="preview-segment" title={chapters[cue.chapterIndex].label} style={{ left: `${(cue.start / duration) * 100}%`, width: `${((cue.end - cue.start) / duration) * 100}%` }} />
-          ))}
+          {chapterCues.map((cue) => {
+            const chapter = chapters[cue.chapterIndex]
+            const show = () => setHint({ left: percent((cue.start + cue.end) / 2), kicker: facilityCount(chapter.stops.length), label: chapter.label })
+            return (
+              <button
+                key={cue.chapterIndex}
+                type="button"
+                className="preview-segment"
+                style={{ left: `${percent(cue.start)}%`, width: `${percent(cue.end - cue.start)}%` }}
+                aria-label={`Jump to region ${chapter.label}, ${facilityCount(chapter.stops.length)}`}
+                onClick={() => controls.current?.jumpToRegion(cue.chapterIndex)}
+                onPointerEnter={show}
+                onPointerLeave={() => setHint(null)}
+                onFocus={show}
+                onBlur={() => setHint(null)}
+              />
+            )
+          })}
+          <button
+            type="button"
+            className="preview-finale-zone"
+            style={{ left: `${percent(finale.start)}%`, width: `${percent(duration - finale.start)}%` }}
+            aria-label="Jump to finale"
+            onClick={() => controls.current?.jumpToFinale()}
+            onPointerEnter={showFinaleHint}
+            onPointerLeave={() => setHint(null)}
+            onFocus={showFinaleHint}
+            onBlur={() => setHint(null)}
+          />
           {stopCues.map((cue) => {
             const facility = stops[cue.stopIndex].facility
+            const show = () => setHint({ left: percent(cue.arrival), kicker: `Facility ${pad(facility.number)}`, label: facility.city ? `${facility.city}, ${facility.state}` : facility.stateName })
             return (
               <button
                 key={facility.id}
                 type="button"
                 className="preview-tick"
                 data-tick={cue.stopIndex}
-                style={{ left: `${(cue.arrival / duration) * 100}%` }}
+                style={{ left: `${percent(cue.arrival)}%` }}
                 aria-label={`Jump to facility ${pad(facility.number)}, ${facility.city ?? facility.stateName}`}
                 onClick={() => controls.current?.jump(cue.stopIndex)}
+                onPointerEnter={show}
+                onPointerLeave={() => setHint(null)}
+                onFocus={show}
+                onBlur={() => setHint(null)}
               />
             )
           })}
+          {hint && (
+            <div className="preview-progress-hint" aria-hidden="true" style={{ left: `clamp(80px, ${hint.left}%, calc(100% - 80px))` }}>
+              <small>{hint.kicker}</small>
+              <strong>{hint.label}</strong>
+            </div>
+          )}
         </div>
         <div className="preview-controls">
           <button type="button" aria-label="Previous facility" onClick={() => controls.current?.step(-1)}><SkipBack size={16} /></button>
