@@ -47,7 +47,7 @@ export const facilities: Facility[] = [
     id: 'roanoke-highway-114', number: 5, status: 'Active', facilityType: 'UF ONLY', street: '1230 W Highway 114', city: 'Roanoke', state: 'TX', stateName: 'Texas', zip: '76262',
     fullAddress: '1230 W Highway 114, Roanoke, TX 76262', coordinates: [33.01758290409, -97.244989833443],
     coordinateSource: 'Esri World Geocoding Service', coordinatePrecision: 'Point address', geocoderMatch: '1230 W State Highway 114, Roanoke, TX, 76262, USA',
-    geocodeNote: 'The street direction and ZIP 76262 come from the official 869 – Roanoke facility sheet.',
+    geocodeNote: 'The street direction and ZIP 76262 come from the official 689 – Roanoke facility sheet.',
   },
   {
     id: 'pooler-morgan-lakes', number: 6, status: 'Active', facilityType: 'UF ONLY', street: '335 Morgan Lakes Industrial Blvd.', city: 'Pooler', state: 'GA', stateName: 'Georgia',
@@ -171,6 +171,12 @@ export const facilities: Facility[] = [
     fullAddress: '140 Prosperity Dr, Garden City, GA 31408', coordinates: [32.074542144348, -81.178988824216],
     coordinateSource: 'Esri World Geocoding Service', coordinatePrecision: 'Point address', geocoderMatch: '140 Prosperity Dr, Savannah, GA, 31408, USA',
     geocodeNote: 'Added from the official 804 – Garden City facility sheet, which states no status, facility type, or operating hours. The geocoder places this point address in Savannah, GA 31408; the sheet address is unchanged.',
+  },
+  {
+    id: 'university-park-central', number: 29, status: 'Unassigned', street: '701 S Central Ave', city: 'University Park', state: 'IL', stateName: 'Illinois', zip: '60484',
+    fullAddress: '701 S Central Ave, University Park, IL 60484', coordinates: [41.443366097027, -87.745403120176],
+    coordinateSource: 'Esri World Geocoding Service', coordinatePrecision: 'Point address', geocoderMatch: '701 Central Ave, University Park, IL, 60484, USA',
+    geocodeNote: 'Added by the user with only an address on 2026-10-01; status, facility type, and operating hours are not supplied yet. The geocoder match drops the S street direction; the supplied address is unchanged.',
   },
 ]
 
