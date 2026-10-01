@@ -11,8 +11,11 @@ import {
   facilityOperations,
   JOHN_DIAZ_EMAIL,
   JOHN_DIAZ_PHOTO_URL,
+  JOHN_DIAZ_ROLE,
+  JOHN_DIAZ_TITLE_SOURCE_NOTE,
 } from '../src/data/facility-operations'
 import { facilitySitePlans } from '../src/data/facility-site-plans'
+import { facilityAvailableSpace, formatAvailableSpaceMonth, getFacilitySquareFootage } from '../src/data/facility-space'
 import { userProvidedFacilityPhotos } from '../src/data/facility-user-photos'
 
 const suppliedAddresses = [
@@ -95,7 +98,7 @@ const expectedOperationsRows = {
   'jacksonville-ignition': { row: 9, columns: ['D', 'E', 'F', 'G', 'H'] },
   'las-vegas-marion-building-5': { row: 16, columns: ['D', 'E', 'F', 'I', 'J'] },
   'long-beach-willow': { row: 6, columns: ['D', 'E', 'F', 'H'] },
-  'joliet-brandon': { row: 13, columns: ['D', 'E', 'F', 'G', 'H'] },
+  'joliet-brandon': { row: 13, columns: ['D', 'E', 'F', 'G'] },
   'el-paso-emerald-12102-building-5': { row: 22, columns: ['D', 'E'] },
   'waddell-cotton': { row: 3, columns: ['D', 'E', 'H', 'J'] },
   'ontario-airport': { row: 7, columns: ['D', 'E', 'F', 'H', 'J'] },
@@ -202,6 +205,13 @@ async function expectDashboardPreviewLayout(page: Page, map: Locator, facility: 
   await expect(operatingHours).toContainText(formatOperatingHours(hoursRecord))
   await expect(operatingHours).toHaveAttribute('data-hours-status', hoursRecord.status)
   await expect(operatingHours).not.toContainText('Assumed')
+  const { totalSquareFeet } = getFacilitySquareFootage(facility.id)
+  const squareFootageTotal = preview.getByTestId('square-footage-total')
+  if (totalSquareFeet === undefined) await expect(squareFootageTotal).toHaveCount(0)
+  else await expect(squareFootageTotal).toHaveText(`Total ${totalSquareFeet.toLocaleString('en-US')} SQF`)
+  const squareFootageAvailable = preview.getByTestId('square-footage-available')
+  await expect(squareFootageAvailable).toHaveAttribute('data-available-status', 'pending')
+  await expect(squareFootageAvailable).toHaveText('Available Pending')
   await expect(image).toHaveAttribute('src', facilityMedia[facility.id].thumbnail.assetUrl)
   await expect.poll(() => image.evaluate((element: HTMLImageElement) => element.complete && element.naturalWidth > 0 && element.naturalHeight > 0)).toBe(true)
 
@@ -580,7 +590,31 @@ test('stale v2 non-Active statuses cannot override the intrinsic Active status',
   })).toBe(0)
 })
 
-test('Dashboard navigation shows an all-facility map without Locations-only UI or visible labels', async ({ page }) => {
+test('top navigation exposes the functioning Facilities view once and omits Locations and Inventory on desktop and mobile', async ({ page }) => {
+  const navigation = page.getByRole('navigation', { name: 'Primary navigation' })
+  const expectedItems = ['Dashboard', 'Facilities', 'Operations', 'Analytics', 'Reports']
+
+  await expect(navigation.getByRole('button')).toHaveText(expectedItems)
+  await expect(navigation.getByRole('button', { name: 'Facilities', exact: true })).toHaveCount(1)
+  await expect(navigation.getByRole('button', { name: 'Facilities', exact: true })).toHaveAttribute('aria-current', 'page')
+  await expect(navigation.getByRole('button', { name: 'Locations', exact: true })).toHaveCount(0)
+  await expect(navigation.getByRole('button', { name: 'Inventory', exact: true })).toHaveCount(0)
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.getByRole('button', { name: 'Open navigation' }).click()
+  await expect(navigation).toBeVisible()
+  await expect(navigation.getByRole('button')).toHaveText(expectedItems)
+  await expect(navigation.getByRole('button', { name: 'Facilities', exact: true })).toHaveCount(1)
+  await expect(navigation.getByRole('button', { name: 'Facilities', exact: true })).toHaveAttribute('aria-current', 'page')
+  await expect(navigation.getByRole('button', { name: 'Locations', exact: true })).toHaveCount(0)
+  await expect(navigation.getByRole('button', { name: 'Inventory', exact: true })).toHaveCount(0)
+  const navigationBox = await navigation.boundingBox()
+  expect(navigationBox).not.toBeNull()
+  expect(navigationBox!.x).toBeGreaterThanOrEqual(0)
+  expect(navigationBox!.x + navigationBox!.width).toBeLessThanOrEqual(390)
+})
+
+test('Dashboard navigation shows an all-facility map without Facilities-only UI or visible labels', async ({ page }) => {
   await page.evaluate(() => localStorage.setItem('facility-status-assignments-v3', JSON.stringify({
     'buena-park-valley-view': 'Active',
     'riverside-alessandro': 'Planned',
@@ -591,14 +625,14 @@ test('Dashboard navigation shows an all-facility map without Locations-only UI o
   await expect(page.locator('tbody tr')).toHaveCount(0)
 
   const dashboardNav = page.getByRole('button', { name: 'Dashboard', exact: true })
-  const locationsNav = page.getByRole('button', { name: 'Locations', exact: true })
+  const facilitiesNav = page.getByRole('button', { name: 'Facilities', exact: true })
   await dashboardNav.click()
 
   await expect(dashboardNav).toHaveAttribute('aria-current', 'page')
-  await expect(locationsNav).not.toHaveAttribute('aria-current')
+  await expect(facilitiesNav).not.toHaveAttribute('aria-current')
   await expect(page.getByLabel('Facility network map')).toHaveAttribute('data-view', 'dashboard')
   await expect(page.locator('.location-marker-wrap')).toHaveCount(27)
-  await expect(page.locator('.location-marker-wrap').first()).toHaveAttribute('aria-label', 'Open facility 01 in Locations')
+  await expect(page.locator('.location-marker-wrap').first()).toHaveAttribute('aria-label', 'Open facility 01 in Facilities')
   await expect(page.locator('.location-marker-wrap[title]')).toHaveCount(0)
   await expect(page.locator('.leaflet-tooltip')).toHaveCount(0)
   await expect(page.getByText('Buena Park, CA', { exact: true })).toHaveCount(0)
@@ -613,7 +647,7 @@ test('Dashboard navigation shows an all-facility map without Locations-only UI o
 
   await expect(page.locator('.location-pin.is-dashboard-pin')).toHaveCount(0)
   await expect(page.locator('.location-pin')).toHaveCount(27)
-  const focusedMarker = page.getByRole('button', { name: 'Open facility 01 in Locations' })
+  const focusedMarker = page.getByRole('button', { name: 'Open facility 01 in Facilities' })
   await focusedMarker.focus()
   await expect(focusedMarker).toBeFocused()
 
@@ -635,19 +669,19 @@ test('Dashboard navigation shows an all-facility map without Locations-only UI o
   expect(mapBox?.height).toBeCloseTo(dashboardBox!.height, 0)
 })
 
-test('Dashboard marker opens Locations showcase and returning clears detail and refits all pins', async ({ page }) => {
+test('Dashboard marker opens Facilities showcase and returning clears detail and refits all pins', async ({ page }) => {
   const map = page.getByLabel('Facility network map')
   const dashboardNav = page.getByRole('button', { name: 'Dashboard', exact: true })
-  const locationsNav = page.getByRole('button', { name: 'Locations', exact: true })
+  const facilitiesNav = page.getByRole('button', { name: 'Facilities', exact: true })
   const facility = facilities[11]
 
   await dashboardNav.click()
   await expectAllFacilitiesInMapBounds(map)
   await expect(page.getByTestId('map-open-in-maps')).toHaveCount(0)
-  await page.getByRole('button', { name: 'Open facility 12 in Locations' }).focus()
+  await page.getByRole('button', { name: 'Open facility 12 in Facilities' }).focus()
   await page.keyboard.press('Enter')
 
-  await expect(locationsNav).toHaveAttribute('aria-current', 'page')
+  await expect(facilitiesNav).toHaveAttribute('aria-current', 'page')
   await expect(dashboardNav).not.toHaveAttribute('aria-current')
   await expect(page.getByTestId('selected-showcase')).toContainText(facility.fullAddress)
   await expectMapFocusedOn(map, facility.coordinates)
@@ -758,7 +792,7 @@ test('Dashboard Regions softly highlights Southern California, retains a closed-
   await expect(map).toHaveAttribute('data-center', focusedCenter!)
   await expect(map).toHaveAttribute('data-zoom', focusedZoom!)
 
-  const firstMarker = page.getByRole('button', { name: 'Open facility 01 in Locations' })
+  const firstMarker = page.getByRole('button', { name: 'Open facility 01 in Facilities' })
   await firstMarker.hover()
   await expect(page.locator('[data-testid="dashboard-pin-preview"][data-facility-id="buena-park-valley-view"]')).toBeVisible()
 
@@ -886,10 +920,10 @@ test('Dashboard pin previews show matching decoded photos on hover and focus, th
   const centralFacility = facilities[22]
   const nextFacility = facilities[7]
   const tennesseeFacility = facilities[8]
-  const firstMarker = page.getByRole('button', { name: 'Open facility 15 in Locations' })
-  const centralMarker = page.getByRole('button', { name: 'Open facility 23 in Locations' })
-  const nextMarker = page.getByRole('button', { name: 'Open facility 08 in Locations' })
-  const tennesseeMarker = page.getByRole('button', { name: 'Open facility 09 in Locations' })
+  const firstMarker = page.getByRole('button', { name: 'Open facility 15 in Facilities' })
+  const centralMarker = page.getByRole('button', { name: 'Open facility 23 in Facilities' })
+  const nextMarker = page.getByRole('button', { name: 'Open facility 08 in Facilities' })
+  const tennesseeMarker = page.getByRole('button', { name: 'Open facility 09 in Facilities' })
 
   await expect(page.getByTestId('dashboard-pin-preview')).toHaveCount(0)
   await expect(page.locator('.dashboard-pin-preview-address')).toHaveCount(0)
@@ -948,7 +982,7 @@ test('Dashboard pin preview disables motion and keeps token contrast when reduce
   await page.getByTestId('theme-toggle').click()
   await page.getByRole('button', { name: 'Dashboard', exact: true }).click()
 
-  const marker = page.getByRole('button', { name: 'Open facility 15 in Locations' })
+  const marker = page.getByRole('button', { name: 'Open facility 15 in Facilities' })
   await marker.hover()
   await expect(marker.locator('.location-pin')).toHaveCSS('transition-duration', '0s')
   const preview = page.getByTestId('dashboard-pin-preview')
@@ -962,7 +996,7 @@ test('Dashboard pin preview disables motion and keeps token contrast when reduce
   expect(contrast.background).not.toBe(contrast.text)
 })
 
-test('mobile Dashboard is map-only and its marker opens the Locations detail flow', async ({ page }) => {
+test('mobile Dashboard is map-only and its marker opens the Facilities detail flow', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.reload()
   await page.getByRole('button', { name: 'Open navigation' }).click()
@@ -983,12 +1017,12 @@ test('mobile Dashboard is map-only and its marker opens the Locations detail flo
   expect(dimensions.content).toBeLessThanOrEqual(dimensions.viewport)
 
   const tappedFacility = facilities[14]
-  const firstMarker = page.getByRole('button', { name: 'Open facility 15 in Locations' })
+  const firstMarker = page.getByRole('button', { name: 'Open facility 15 in Facilities' })
   for (const [facility, markerName] of [
-    [facilities[14], 'Open facility 15 in Locations'],
-    [facilities[3], 'Open facility 04 in Locations'],
-    [facilities[7], 'Open facility 08 in Locations'],
-    [facilities[16], 'Open facility 17 in Locations'],
+    [facilities[14], 'Open facility 15 in Facilities'],
+    [facilities[3], 'Open facility 04 in Facilities'],
+    [facilities[7], 'Open facility 08 in Facilities'],
+    [facilities[16], 'Open facility 17 in Facilities'],
   ] as const) {
     await page.getByRole('button', { name: markerName }).focus()
     await expectDashboardPreviewLayout(page, map, facility, true)
@@ -996,7 +1030,7 @@ test('mobile Dashboard is map-only and its marker opens the Locations detail flo
   await firstMarker.focus()
   await firstMarker.click()
   await page.getByRole('button', { name: 'Open navigation' }).click()
-  await expect(page.getByRole('button', { name: 'Locations', exact: true })).toHaveAttribute('aria-current', 'page')
+  await expect(page.getByRole('button', { name: 'Facilities', exact: true })).toHaveAttribute('aria-current', 'page')
   await expect(page.getByRole('group', { name: 'Explorer view' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'List' })).toHaveAttribute('aria-pressed', 'true')
   await expect(page.getByTestId('selected-showcase')).toContainText(tappedFacility.fullAddress)
@@ -1053,7 +1087,30 @@ test('desktop divider supports bounded pointer and keyboard resizing and persist
   await expect.poll(async () => (await page.getByRole('region', { name: 'Facility directory', exact: true }).boundingBox())?.width ?? 0).toBeCloseTo(persistedWidth, 0)
 })
 
-test('ten UF/CUBEWORKS additions preserve supplied addresses, status, and geocode limitations', () => {
+test('square footage uses each site plan building area and available space awaits monthly warehouse updates', () => {
+  const totals = Object.fromEntries(facilities.map((facility) => [facility.id, getFacilitySquareFootage(facility.id).totalSquareFeet]))
+  expect(Object.values(totals).filter((total) => total !== undefined)).toHaveLength(14)
+  expect(Object.keys(facilitySitePlans).every((facilityId) => totals[facilityId] !== undefined)).toBe(true)
+  expect(totals['buena-park-valley-view']).toBe(1_034_026)
+  expect(totals['el-paso-emerald-12102-building-5']).toBe(209_153)
+  expect(totals['moreno-valley-heacock']).toBe(756_340)
+  expect(totals['waddell-cotton']).toBeUndefined()
+  expect(facilityAvailableSpace).toEqual({})
+  expect(facilities.every((facility) => getFacilitySquareFootage(facility.id).available === undefined)).toBe(true)
+  expect(formatAvailableSpaceMonth('2026-10')).toBe('Oct 2026')
+})
+
+test('Dashboard preview without a site plan shows only the pending available-space line', async ({ page }) => {
+  await page.getByRole('button', { name: 'Dashboard', exact: true }).click()
+  const map = page.getByLabel('Facility network map')
+  const waddell = facilities[17]
+  await page.getByRole('button', { name: 'Open facility 18 in Facilities' }).hover()
+  const preview = await expectDashboardPreviewLayout(page, map, waddell)
+  await expect(preview.getByTestId('square-footage-total')).toHaveCount(0)
+  await expect(preview.getByTestId('square-footage-available')).toBeVisible()
+})
+
+test('ten UF/CUBEWORKS additions preserve supplied addresses, status, and confirmed coordinates', () => {
   const additions = facilities.slice(17)
   expect(additions.map((facility) => facility.fullAddress)).toEqual(suppliedAddresses.slice(17))
   expect(additions.map((facility) => facility.number)).toEqual([18, 19, 20, 21, 22, 23, 24, 25, 26, 27])
@@ -1062,14 +1119,13 @@ test('ten UF/CUBEWORKS additions preserve supplied addresses, status, and geocod
 
   const waddell = additions[0]
   expect(waddell.coordinates).toEqual([33.53433209636, -112.425402119954])
-  expect(waddell.coordinatePrecision).toBe('Approximate')
-  expect(waddell.geocodeNote).toContain('conflicting candidates')
-  expect(waddell.geocodeNote).toContain('Litchfield Park 85340')
+  expect(waddell.coordinatePrecision).toBe('Point address')
+  expect(waddell.geocodeNote).toBeUndefined()
 
   const kent = additions[2]
   expect(kent.coordinates).toEqual([47.4235533, -122.2273279])
-  expect(kent.coordinatePrecision).toBe('Approximate')
-  expect(kent.geocodeNote).toContain('19821 endpoint')
+  expect(kent.coordinatePrecision).toBe('Point address')
+  expect(kent.geocodeNote).toBeUndefined()
   expect(kent.fullAddress).toContain('19801-19821')
 
   const plano = additions[9]
@@ -1435,7 +1491,7 @@ test('facility type filter combines with search and status, clears fully, and st
   await expect(markers).toHaveCount(27)
 })
 
-test('approximate Waddell pin stays fully usable while range and dual-address caveats stay visible', async ({ page }) => {
+test('confirmed Waddell and Kent pins show no approximate caveats while the Plano dual-address caveat stays visible', async ({ page }) => {
   const waddell = facilities[17]
   const kent = facilities[19]
   const plano = facilities[26]
@@ -1448,15 +1504,16 @@ test('approximate Waddell pin stays fully usable while range and dual-address ca
   await expect(showcase.locator('.status-pill')).toHaveText('Active')
   await expect(showcase.getByTestId('operating-hours-overview')).toContainText('8:00 AM–4:30 PM MST M-F')
   await expect(showcase.getByTestId('overview-map-embed')).toHaveAttribute('src', mapsEmbedHref(waddell.fullAddress))
-  await expect(showcase.locator('.overview-map-note')).toContainText('Approximate placement')
-  await expect(showcase.locator('.coordinate-section')).toContainText('Approximate')
+  await expect(showcase.locator('.overview-map-note')).toHaveCount(0)
+  await expect(showcase.locator('.coordinate-section')).toContainText('Point address')
+  await expect(showcase.locator('.geocode-warning')).toHaveCount(0)
   await expect(page.getByLabel('Facility network map').locator(`.location-marker-wrap[title="${waddell.fullAddress}"]`)).toHaveCount(1)
 
   await showcase.getByRole('button', { name: 'View Full Details' }).click()
   let drawer = page.getByRole('dialog', { name: 'Waddell, AZ' })
   await expect(drawer.getByRole('link', { name: 'Open in Maps' })).toHaveAttribute('href', mapsHref(waddell.fullAddress))
   await expect(drawer.getByText('Coordinates', { exact: true }).locator('..')).toContainText('33.534332, -112.425402')
-  await expect(drawer).toContainText('conflicting candidates')
+  await expect(drawer.locator('.geocode-warning')).toHaveCount(0)
   await drawer.getByRole('button', { name: 'Close details' }).click()
 
   await page.getByRole('tab', { name: 'Photos' }).click()
@@ -1465,10 +1522,10 @@ test('approximate Waddell pin stays fully usable while range and dual-address ca
   await expect(facilityType).toHaveValue('UF/CUBEWORKS')
 
   await chooseFromDirectory(page, kent.fullAddress)
-  await expect(page.getByTestId('selected-showcase').locator('.overview-map-note')).toContainText('Approximate placement')
+  await expect(page.getByTestId('selected-showcase').locator('.overview-map-note')).toHaveCount(0)
   await page.getByTestId('selected-showcase').getByRole('button', { name: 'View Full Details' }).click()
   drawer = page.getByRole('dialog', { name: 'Kent, WA' })
-  await expect(drawer).toContainText('19821 endpoint')
+  await expect(drawer.locator('.geocode-warning')).toHaveCount(0)
   await drawer.getByRole('button', { name: 'Close details' }).click()
   await returnToDirectory(page)
 
@@ -1622,8 +1679,7 @@ test('selected Overview embeds a keyless Google map and follows facility and tab
   await expect(preview).toHaveAttribute('data-longitude', String(nextFacility.coordinates[1]))
   await expect(embed).toHaveAttribute('src', mapsEmbedHref(nextFacility.fullAddress))
   await expect(link).toHaveAttribute('href', mapsHref(nextFacility.fullAddress))
-  await expect(preview.locator('.overview-map-note')).toContainText('Approximate placement')
-  await expect(preview.locator('.overview-map-note')).toContainText('near, not exactly at, this facility')
+  await expect(preview.locator('.overview-map-note')).toHaveCount(0)
 
   await page.getByRole('tab', { name: 'Photos' }).click()
   await expect(preview).toHaveCount(0)
@@ -1775,7 +1831,7 @@ test('selected showcase omits address actions while Full Details retains Maps an
   await expect(drawerStreetViewLink).toHaveAttribute('target', '_blank')
   await expect(drawerStreetViewLink).toHaveAttribute('rel', /noopener/)
   await expect(drawerStreetViewLink).toHaveAttribute('rel', /noreferrer/)
-  await expect(drawer.locator('.street-view-caveat')).toBeVisible()
+  await expect(drawer.locator('.street-view-caveat')).toHaveCount(0)
 })
 
 test('operating hours distinguish original-list and follow-up-confirmed provenance', async ({ page }) => {
@@ -1943,20 +1999,21 @@ test('property tabs show honest unavailable states and coordinate limitations', 
 
   await returnToDirectory(page)
   await chooseFromDirectory(page, suppliedAddresses[15])
-  await expect(page.getByText('Approximate').first()).toBeVisible()
+  await expect(page.getByTestId('selected-showcase').locator('.coordinate-section')).toContainText('Point address')
   await expect(page.getByTestId('selected-showcase').locator('.street-view-caveat')).toHaveCount(0)
-  await expect(page.getByTestId('selected-showcase')).toContainText('closest point-address match conflicts')
+  await expect(page.getByTestId('selected-showcase').locator('.geocode-warning')).toHaveCount(0)
 })
 
-test('Operations sidecar maps 18 exact sheet rows, all 79 role entries, and exact portrait assignments', () => {
+test('Operations sidecar maps 18 exact sheet rows, all 78 role entries, and exact portrait assignments', () => {
   expect(Object.keys(facilityOperations)).toEqual(Object.keys(expectedOperationsRows))
-  expect(Object.values(facilityOperations).reduce((count, record) => count + (record?.contacts.length ?? 0), 0)).toBe(79)
+  expect(Object.values(facilityOperations).reduce((count, record) => count + (record?.contacts.length ?? 0), 0)).toBe(78)
   expect(facilitiesNeedingOperationsContactReview).toEqual(expectedOperationsReviewIds)
 
   for (const [facilityId, expected] of Object.entries(expectedOperationsRows)) {
     const record = facilityOperations[facilityId]
     expect(record?.sourceRow, facilityId).toBe(expected.row)
-    expect(record?.source, facilityId).toBe(`User-provided facility contact sheet, row ${expected.row}`)
+    const titleCorrection = expectedJohnDiazFacilityIds.some((id) => id === facilityId) ? ` · ${JOHN_DIAZ_TITLE_SOURCE_NOTE}` : ''
+    expect(record?.source, facilityId).toBe(`User-provided facility contact sheet, row ${expected.row}${titleCorrection}`)
     expect(new Set(record?.contacts.map((contact) => contact.id)).size, facilityId).toBe(record?.contacts.length)
     if (facilityId !== 'buena-park-valley-view') {
       expect(record?.contacts.map((contact) => contact.sourceColumn), facilityId).toEqual(expected.columns)
@@ -1978,38 +2035,81 @@ test('Operations sidecar maps 18 exact sheet rows, all 79 role entries, and exac
     { label: 'Mobile', display: '662-408-2279', href: '+16624082279' },
   ])
   expect(facilityOperations['joliet-brandon']?.contacts.filter((contact) => contact.name === 'Javier Montane').map((contact) => [contact.sourceColumn, contact.role, contact.id])).toEqual([
-    ['G', 'Director of Operations', 'g-javier-montane'],
-    ['H', 'VP of Operations', 'h-javier-montane'],
+    ['G', 'Operations Director', 'g-javier-montane'],
   ])
   expect(facilityOperations['el-paso-emerald-12102-building-5']?.contacts.map((contact) => contact.phones?.[0].display)).toEqual(['626.829.3161', '626-899-2364'])
 
   const johnDiazReferences = Object.values(facilityOperations).flatMap((record) => record?.contacts
     .filter((contact) => contact.email.trim().toLowerCase() === JOHN_DIAZ_EMAIL)
-    .map((contact) => ({ facilityId: record.facilityId, name: contact.name, photoUrl: contact.photoUrl })) ?? [])
-  expect(johnDiazReferences).toEqual(expectedJohnDiazFacilityIds.map((facilityId) => ({ facilityId, name: 'John Diaz', photoUrl: JOHN_DIAZ_PHOTO_URL })))
+    .map((contact) => ({ facilityId: record.facilityId, name: contact.name, role: contact.role, photoUrl: contact.photoUrl, source: record.source })) ?? [])
+  expect(johnDiazReferences).toEqual(expectedJohnDiazFacilityIds.map((facilityId) => ({
+    facilityId,
+    name: 'John Diaz',
+    role: JOHN_DIAZ_ROLE,
+    photoUrl: JOHN_DIAZ_PHOTO_URL,
+    source: expect.stringContaining(JOHN_DIAZ_TITLE_SOURCE_NOTE),
+  })))
+
+  const otherVicePresidents = Object.values(facilityOperations).flatMap((record) => record?.contacts
+    .filter((contact) => contact.email !== JOHN_DIAZ_EMAIL && contact.role === 'VP of Operations')
+    .map((contact) => contact.name) ?? [])
+  expect(new Set(otherVicePresidents)).toEqual(new Set(['John Gleason']))
 
   const otherPortraits = Object.values(facilityOperations).flatMap((record) => record?.contacts
-    .filter((contact) => contact.email !== JOHN_DIAZ_EMAIL && contact.photoUrl)
+    .filter((contact) => ![JOHN_DIAZ_EMAIL, 'harold.cuarezma@unisco.com'].includes(contact.email) && contact.photoUrl)
     .map((contact) => `${record.facilityId}:${contact.id}:${contact.photoUrl}`) ?? [])
   expect(otherPortraits).toEqual([
     'buena-park-valley-view:ruben-jauregui:/media/operations/buena-park-valley-view/ruben-jauregui.png',
     'buena-park-valley-view:mark-tuttle:/media/operations/buena-park-valley-view/mark-tuttle.png',
+    'tennessee-quality-drive:h-javier-montane:/media/operations/people/javier-montane.png',
+    'joliet-brandon:f-fabian-quiroz:/media/operations/joliet-brandon/fabian-quiroz.png',
+    'joliet-brandon:g-javier-montane:/media/operations/people/javier-montane.png',
+    'memphis-delp:h-javier-montane:/media/operations/people/javier-montane.png',
   ])
   expect(Object.values(facilityOperations).flatMap((record) => record?.contacts ?? [])
-    .filter((contact) => ![JOHN_DIAZ_EMAIL, 'ruben.jauregui@unisco.com', 'mark.tuttle@unisco.com'].includes(contact.email))
+    .filter((contact) => ![JOHN_DIAZ_EMAIL, 'ruben.jauregui@unisco.com', 'mark.tuttle@unisco.com', 'fabian.quiroz@unisco.com', 'javier.montane@unisco.com', 'harold.cuarezma@unisco.com'].includes(contact.email))
     .every((contact) => !contact.photoUrl)).toBe(true)
   for (const facilityId of expectedOperationsReviewIds) expect(facilityOperations[facilityId]).toBeUndefined()
 })
 
+test('John Diaz corrected title renders exactly and wraps without clipping on desktop and mobile', async ({ page }) => {
+  const riverside = facilities.find((facility) => facility.id === 'riverside-alessandro')!
+  await chooseFromDirectory(page, riverside.fullAddress)
+  await page.getByRole('tab', { name: 'Operations' }).click()
+  const panel = page.getByRole('region', { name: `Operations contacts for ${riverside.fullAddress}` })
+  const john = panel.locator('.operations-contact-card').filter({ hasText: JOHN_DIAZ_EMAIL })
+  const role = john.locator('.operations-contact-role')
+
+  await expect(panel).toContainText(JOHN_DIAZ_TITLE_SOURCE_NOTE)
+  await expect(role).toHaveText(JOHN_DIAZ_ROLE)
+  await expect(panel.getByText('VP of Operations', { exact: true })).toHaveCount(0)
+
+  for (const viewport of [{ width: 1536, height: 900 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(viewport)
+    await role.scrollIntoViewIfNeeded()
+    const layout = await role.evaluate((element) => ({
+      horizontalClipping: element.scrollWidth > element.clientWidth + 1,
+      verticalClipping: element.scrollHeight > element.clientHeight + 1,
+      whiteSpace: getComputedStyle(element).whiteSpace,
+    }))
+    expect(layout).toEqual({ horizontalClipping: false, verticalClipping: false, whiteSpace: 'normal' })
+    const [cardBox, panelBox] = await Promise.all([john.boundingBox(), panel.boundingBox()])
+    expect(cardBox).not.toBeNull()
+    expect(panelBox).not.toBeNull()
+    expect(cardBox!.x).toBeGreaterThanOrEqual(panelBox!.x)
+    expect(cardBox!.x + cardBox!.width).toBeLessThanOrEqual(panelBox!.x + panelBox!.width + 1)
+  }
+})
+
 test('Valley View Operations preserves five contacts and its three supplied portraits', async ({ page }) => {
   const record = facilityOperations['buena-park-valley-view']
-  expect(record?.source).toBe('User-provided facility contact sheet, row 5')
+  expect(record?.source).toBe(`User-provided facility contact sheet, row 5 · ${JOHN_DIAZ_TITLE_SOURCE_NOTE}`)
   expect(record?.contacts).toEqual([
     expect.objectContaining({ group: 'account-management', role: 'Manager of Account Management & Client Onboarding', name: 'Michelle Topete', email: 'michelle.topete@unisco.com', phone: '626.829.3160' }),
     expect.objectContaining({ group: 'account-management', role: 'Sr Director of Account Management & Client Onboarding', name: 'Mary Smothers', email: 'mary.smothers@unisco.com', phone: '626-899-2363' }),
     expect.objectContaining({ group: 'operations', role: 'General Manager', name: 'Ruben Jauregui', email: 'ruben.jauregui@unisco.com', phone: '562-644-4594', photoUrl: '/media/operations/buena-park-valley-view/ruben-jauregui.png' }),
     expect.objectContaining({ group: 'operations', role: 'Director of Operations', name: 'Mark Tuttle', email: 'mark.tuttle@unisco.com', phone: '657-689-6951', photoUrl: '/media/operations/buena-park-valley-view/mark-tuttle.png' }),
-    expect.objectContaining({ group: 'operations', role: 'VP of Operations', name: 'John Diaz', email: JOHN_DIAZ_EMAIL, photoUrl: JOHN_DIAZ_PHOTO_URL }),
+    expect.objectContaining({ group: 'operations', role: JOHN_DIAZ_ROLE, name: 'John Diaz', email: JOHN_DIAZ_EMAIL, photoUrl: JOHN_DIAZ_PHOTO_URL }),
   ])
   const johnRecord = record?.contacts.find((contact) => contact.id === 'john-diaz')
   expect(johnRecord).not.toHaveProperty('phone')
@@ -2029,7 +2129,7 @@ test('Valley View Operations preserves five contacts and its three supplied port
   await expect(panel.locator('.operations-contact-card img')).toHaveCount(3)
 
   for (const [name, assetUrl, sourcePath] of [
-    ['Ruben Jauregui', '/media/operations/buena-park-valley-view/ruben-jauregui.png', '/home/user/workspace/ruben.png'],
+    ['Ruben Jauregui', '/media/operations/buena-park-valley-view/ruben-jauregui.png', '/home/user/workspace/ChatGPT Image Sep 30, 2026, 01_17_19 PM (1).png'],
     ['Mark Tuttle', '/media/operations/buena-park-valley-view/mark-tuttle.png', '/home/user/workspace/mark.png'],
     ['John Diaz', JOHN_DIAZ_PHOTO_URL, '/home/user/workspace/ChatGPT Image Sep 29, 2026, 09_16_25 PM.png'],
   ] as const) {
@@ -2065,7 +2165,7 @@ test('Valley View Operations preserves five contacts and its three supplied port
   }
 
   const john = panel.locator('.operations-contact-card').filter({ hasText: 'John Diaz' })
-  await expect(john).toContainText('VP of Operations')
+  await expect(john.locator('.operations-contact-role')).toHaveText(JOHN_DIAZ_ROLE)
   await expect(john.getByRole('img', { name: 'Portrait of John Diaz' })).toHaveAttribute('src', JOHN_DIAZ_PHOTO_URL)
   await expect(john.getByRole('link', { name: JOHN_DIAZ_EMAIL })).toHaveAttribute('href', `mailto:${JOHN_DIAZ_EMAIL}`)
   await expect(john).toContainText('Phone not provided')
@@ -2080,9 +2180,10 @@ test('matched Operations contacts retain representative roles, links, multiple p
   await expect(riversidePanel).toContainText('User-provided facility contact sheet, row 4')
   await expect(riversidePanel).toContainText('8:00 AM–4:30 PM PST M-F')
   await expect(riversidePanel.locator('.operations-contact-card')).toHaveCount(5)
-  await expect(riversidePanel.locator('.operations-contact-card img')).toHaveCount(1)
-  await expect(riversidePanel.locator('.operations-contact-photo.is-blank')).toHaveCount(4)
+  await expect(riversidePanel.locator('.operations-contact-card img')).toHaveCount(2)
+  await expect(riversidePanel.locator('.operations-contact-photo.is-blank')).toHaveCount(3)
   const riversideJohn = riversidePanel.locator('.operations-contact-card').filter({ hasText: JOHN_DIAZ_EMAIL })
+  await expect(riversideJohn.locator('.operations-contact-role')).toHaveText(JOHN_DIAZ_ROLE)
   await expect(riversideJohn.getByRole('img', { name: 'Portrait of John Diaz' })).toHaveAttribute('src', JOHN_DIAZ_PHOTO_URL)
   const harold = riversidePanel.locator('.operations-contact-card').filter({ hasText: 'Harold Cuarezma' })
   await expect(harold).toContainText('Regional Director of Field Operations')
@@ -2230,12 +2331,15 @@ test('facility profile downloads are four-page selected-facility PDFs with hours
   expect(seabrook.assetPaths).toEqual(['/media/pooler-seabrook-building-2.jpg'])
 })
 
-test('facility profile Page 1 prints selected contacts, every phone, and no staff portraits', async ({ page }) => {
+test('facility profile Page 1 prints John Diaz corrected title, selected contacts, every phone, and no staff portraits', async ({ page }) => {
   test.setTimeout(120_000)
 
   const sparksFacility = facilities.find((facility) => facility.id === 'sparks-vista')!
   const sparks = await downloadFacilityProfile(page, sparksFacility.fullAddress, 'facility-22-sparks-vista-profile.pdf')
   expectVisiblePdfContacts(sparks.visibleText, 'sparks-vista')
+  expect(sparks.visibleText).toContain(JOHN_DIAZ_ROLE)
+  expect(sparks.keywords).toContain(JOHN_DIAZ_ROLE)
+  expect(sparks.keywords).toContain(JOHN_DIAZ_TITLE_SOURCE_NOTE)
   expect(sparks.visibleText).not.toContain('Ruben Jauregui')
   expect(sparks.visibleText).not.toContain('Mark Tuttle')
   expect(sparks.assetPaths.some((path) => path.startsWith('/media/operations/'))).toBe(false)
@@ -2296,9 +2400,110 @@ test('Street basemap is the initial default and manual layer selection persists 
   const satelliteTiles = page.locator('.leaflet-tile-pane img[src*="/World_Imagery/"]')
   await expect.poll(() => satelliteTiles.count()).toBeGreaterThan(0)
 
-  await page.getByRole('button', { name: 'Locations', exact: true }).click()
+  await page.getByRole('button', { name: 'Facilities', exact: true }).click()
   await expect(page.getByLabel('Facility network map')).toHaveAttribute('data-view', 'locations')
   await expect(satellite).toHaveAttribute('aria-pressed', 'true')
   await expect(street).toHaveAttribute('aria-pressed', 'false')
   await expect.poll(() => satelliteTiles.count()).toBeGreaterThan(0)
+})
+
+test('Joliet shows supplied Fabian and Javier portraits with no duplicate VP entry', async ({ page }) => {
+  const joliet = facilities.find((facility) => facility.id === 'joliet-brandon')!
+  await chooseFromDirectory(page, joliet.fullAddress)
+  await page.getByRole('tab', { name: 'Operations' }).click()
+  const panel = page.getByRole('region', { name: `Operations contacts for ${joliet.fullAddress}` })
+  await expect(panel.locator('.operations-contact-card')).toHaveCount(4)
+  await expect(panel.locator('.operations-contact-card').filter({ hasText: 'Javier Montane' })).toHaveCount(1)
+  await expect(panel.getByText('VP of Operations', { exact: true })).toHaveCount(0)
+  for (const [name, filename, source, role] of [
+    ['Fabian Quiroz', 'fabian-quiroz.png', '/home/user/workspace/Fabian.png', 'General Manager'],
+    ['Javier Montane', 'javier-montane.png', '/home/user/workspace/javier.png', 'Operations Director'],
+  ]) {
+    const card = panel.locator('.operations-contact-card').filter({ hasText: name })
+    await expect(card).toContainText(role)
+    const portrait = card.getByRole('img', { name: `Portrait of ${name}` })
+    await expect(portrait).toHaveAttribute('src', `/media/operations/${name === 'Javier Montane' ? 'people' : 'joliet-brandon'}/${filename}`)
+    await expect(portrait).toHaveCSS('object-fit', 'contain')
+    await expect.poll(() => portrait.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth === 1254 && image.naturalHeight === 1254)).toBe(true)
+    const response = await page.request.get(`/media/operations/${name === 'Javier Montane' ? 'people' : 'joliet-brandon'}/${filename}`)
+    expect(response.ok()).toBe(true)
+    // When original uploads are available, verify the served asset preserves their exact bytes.
+    const original = await readFile(source).catch(() => undefined)
+    if (original) expect(createHash('sha256').update(await response.body()).digest('hex')).toBe(createHash('sha256').update(original).digest('hex'))
+  }
+  await page.screenshot({ path: 'test-results/joliet-desktop.png', fullPage: true })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(panel.locator('img')).toHaveCount(2)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await page.screenshot({ path: 'test-results/joliet-mobile.png', fullPage: true })
+})
+
+test('Every Javier contact uses Operations Director and the exact supplied shared portrait', async ({ page }) => {
+  test.setTimeout(120_000)
+  const refs = Object.values(facilityOperations).flatMap(record => record?.contacts.filter(c => c.name === 'Javier Montane').map(c => ({ facilityId: record.facilityId, contact: c })) ?? [])
+  expect(refs.map(r => r.facilityId)).toEqual(['tennessee-quality-drive', 'joliet-brandon', 'memphis-delp'])
+  for (const { facilityId, contact } of refs) {
+    expect(contact.role).toBe('Operations Director')
+    expect(contact.photoUrl).toBe('/media/operations/people/javier-montane.png')
+    const facility = facilities.find(f => f.id === facilityId)!
+    await chooseFromDirectory(page, facility.fullAddress)
+    await page.getByRole('tab', { name: 'Operations' }).click()
+    const card = page.locator('.operations-contact-card').filter({ hasText: 'Javier Montane' })
+    await expect(card).toHaveCount(1)
+    await card.scrollIntoViewIfNeeded()
+    await expect(card).toContainText('Operations Director')
+    await expect(card.getByRole('link', { name: contact.email })).toHaveAttribute('href', `mailto:${contact.email}`)
+    await expect(card.locator('a[href^="tel:"]')).toHaveAttribute('href', 'tel:+16577057452')
+    const image = card.getByRole('img', { name: 'Portrait of Javier Montane' })
+    await expect(image).toHaveAttribute('src', contact.photoUrl!)
+    await expect.poll(() => image.evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth === 1254)).toBe(true)
+    await card.screenshot({ path: `test-results/${facilityId}-javier.png` })
+    await returnToDirectory(page)
+    const number = facilityId === 'tennessee-quality-drive' ? '09' : facilityId === 'joliet-brandon' ? '16' : '24'
+    const pdf = await downloadFacilityProfile(page, facility.fullAddress, `facility-${number}-${facilityId}-profile.pdf`)
+    expectVisiblePdfContacts(pdf.visibleText, facilityId)
+    expect(pdf.visibleText).toContain('Operations Director')
+    expect(pdf.visibleText).not.toContain('VP of Operations')
+    expect(pdf.assetPaths.some(path => path.startsWith('/media/operations/'))).toBe(false)
+    await returnToDirectory(page)
+  }
+})
+
+test('Harold supplied portrait renders on every existing contact without changing roles or phones', async ({ page }) => {
+  test.setTimeout(120_000)
+  const refs = Object.values(facilityOperations).flatMap(record => record?.contacts.filter(c => c.email === 'harold.cuarezma@unisco.com').map(c => ({ facilityId: record.facilityId, contact: c })) ?? [])
+  expect(refs.map(r => r.facilityId)).toEqual(['riverside-alessandro', 'moreno-valley-heacock', 'tacoma-lincoln', 'tacoma-steele', 'las-vegas-marion-building-5', 'waddell-cotton', 'ontario-airport', 'sparks-vista'])
+  const asset = '/media/operations/people/harold-cuarezma.png'
+  const response = await page.request.get(asset)
+  expect(response.ok()).toBe(true)
+  const original = await readFile('/home/user/workspace/harold.png').catch(() => undefined)
+  if (original) expect(createHash('sha256').update(await response.body()).digest('hex')).toBe(createHash('sha256').update(original).digest('hex'))
+  for (const { facilityId, contact } of refs) {
+    expect(contact.photoUrl).toBe(asset)
+    expect(contact.role).toBe('Regional Director of Field Operations')
+    const facility = facilities.find(f => f.id === facilityId)!
+    await chooseFromDirectory(page, facility.fullAddress)
+    await page.getByRole('tab', { name: 'Operations' }).click()
+    const card = page.locator('.operations-contact-card').filter({ hasText: 'Harold Cuarezma' })
+    await expect(card).toHaveCount(1)
+    await card.scrollIntoViewIfNeeded()
+    await expect(card).toContainText(contact.role)
+    await expect(card.getByRole('link', { name: contact.email })).toHaveAttribute('href', `mailto:${contact.email}`)
+    await expect(card.getByRole('link', { name: 'Cell 909-753-6346' })).toHaveAttribute('href', 'tel:+19097536346')
+    await expect(card.getByRole('link', { name: 'Mobile 626-362-9596' })).toHaveAttribute('href', 'tel:+16263629596')
+    const image = card.getByRole('img', { name: 'Portrait of Harold Cuarezma' })
+    await expect(image).toHaveAttribute('src', asset)
+    await expect(image).toHaveCSS('object-fit', 'contain')
+    await expect.poll(() => image.evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth === 500 && i.naturalHeight === 640)).toBe(true)
+    await card.screenshot({ path: `test-results/${facilityId}-harold.png` })
+    await returnToDirectory(page)
+  }
+  await page.setViewportSize({ width: 390, height: 844 })
+  await chooseFromDirectory(page, facilities.find(f => f.id === 'riverside-alessandro')!.fullAddress)
+  await page.getByRole('tab', { name: 'Operations' }).click()
+  const card = page.locator('.operations-contact-card').filter({ hasText: 'Harold Cuarezma' })
+  await card.scrollIntoViewIfNeeded()
+  await expect(card.locator('img')).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await card.screenshot({ path: 'test-results/harold-mobile.png' })
 })

@@ -85,3 +85,15 @@ Fourteen facilities have plan assets under `/media/site-plans/`. The UI and gene
 ## Withheld mappings
 
 The official 300 Seabrook listing does not distinguish Building 2, so no official image was assigned; that record uses the separately supplied, user-verified photo documented above. The official 251 Morgan Lakes listing image was not reused for the 335 Morgan Lakes record. The Waddell, Ontario, Kent, Salt Lake City, Somerset, and Plano additions have no exact match in the official directory and use the user-provided photos documented above. No neighboring, stock, or guessed images are substituted.
+
+## Joliet team portraits — user update
+
+The user supplied `Fabian.png` for Fabian Quiroz (General Manager) and `javier.png` for Javier Montane (Director of Operations). Original PNG bytes are preserved at `/media/operations/joliet-brandon/fabian-quiroz.png` and `/media/operations/joliet-brandon/javier-montane.png`. These portraits are assigned only to Joliet (`joliet-brandon`). At the same request, the duplicate row-13 column-H VP of Operations entry for Javier was removed; his column-G Director entry and supplied contact details remain. Other facilities are unchanged. Staff portraits remain excluded from profile PDFs.
+
+### Roster-wide Javier correction
+
+The user subsequently requested Operations Director as Javier Montane’s title everywhere and his supplied photo on every existing entry. Joliet, Tennessee Quality Drive, and Memphis Delp now share `/media/operations/people/javier-montane.png` (moved without changing the original PNG bytes). This supersedes the Joliet-only assignment above; no new contacts or facility mappings were added. Emails, phones, source rows/columns, and Joliet’s duplicate removal are preserved. Staff portraits are still excluded from PDFs; updated titles flow into their printed contacts.
+
+### Harold Cuarezma shared portrait
+
+The user supplied `harold.png` and requested it on every existing Harold Cuarezma entry. Original 500×640 PNG bytes are preserved at `/media/operations/people/harold-cuarezma.png`, assigned by exact email `harold.cuarezma@unisco.com` to the eight existing Riverside, Moreno Valley, Tacoma Lincoln, Tacoma Steele, Las Vegas, Waddell, Ontario, and Sparks contacts. Roles, phones, source identities, other portraits, and facility mappings are unchanged. Staff portraits remain excluded from profile PDFs.
