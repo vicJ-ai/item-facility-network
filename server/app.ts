@@ -99,7 +99,7 @@ export function createApp({ config, db }: Dependencies) {
       if (await loginBlocked(db, throttleKey)) return fail(response, 429, 'invalid_credentials')
       const identity = await authenticateEmployee(config, username, password)
       const eligible = await revalidateEmployee(config, identity.userId)
-      if (!eligible || eligible.userName.toLowerCase() !== identity.username.toLowerCase()) throw new UpstreamError('ineligible')
+      if (!eligible || eligible.userName.toLowerCase() !== identity.username.toLowerCase()) throw new UpstreamError('ineligible', undefined, 'directory_response')
       const admin = await authorizeOrBootstrap(db, config, identity)
       if (!admin) throw new UpstreamError('credentials')
       await clearLoginFailures(db, throttleKey)
@@ -109,7 +109,7 @@ export function createApp({ config, db }: Dependencies) {
     } catch (error) {
       await recordLoginFailure(db, throttleKey).catch(() => undefined)
       const unavailable = error instanceof UpstreamError && (error.kind === 'service' || error.kind === 'malformed')
-      console.warn('[facility-auth]', { category: unavailable ? 'service' : 'denied', upstreamStatus: error instanceof UpstreamError ? error.status : undefined })
+      console.warn('[facility-auth]', { category: unavailable ? 'service' : 'denied', failureStage: error instanceof UpstreamError ? error.stage : undefined, upstreamStatus: error instanceof UpstreamError ? error.status : undefined })
       return fail(response, unavailable ? 503 : 401, unavailable ? 'service_unavailable' : 'invalid_credentials')
     }
   })
