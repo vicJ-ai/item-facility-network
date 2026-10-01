@@ -3,7 +3,7 @@ import { CheckCircle2, Download, FileText, LoaderCircle, TriangleAlert } from 'l
 import type { Facility } from '../data/facilities'
 import type { FacilityOperatingHours } from '../data/facility-hours'
 import type { FacilityMedia } from '../data/facility-media'
-import type { FacilityOperations } from '../data/facility-operations'
+import type { FacilityOperations } from '../types/operations'
 import type { FacilitySitePlan } from '../data/facility-site-plans'
 import type { UserProvidedFacilityPhotos } from '../data/facility-user-photos'
 
@@ -13,6 +13,8 @@ type FacilityDocumentsProps = {
   operatingHours: FacilityOperatingHours
   media?: FacilityMedia
   operations?: FacilityOperations
+  operationsAccess: 'public' | 'authorized'
+  operationsLoading?: boolean
   sitePlan?: FacilitySitePlan
   userPhotos?: UserProvidedFacilityPhotos
 }
@@ -23,7 +25,7 @@ function existingMediaLabel(media: FacilityMedia) {
   return media.verification.startsWith('user-provided') ? 'Existing user-provided photo' : 'Official listing photo'
 }
 
-export function FacilityDocuments({ facility, facilityTitle, operatingHours, media, operations, sitePlan, userPhotos }: FacilityDocumentsProps) {
+export function FacilityDocuments({ facility, facilityTitle, operatingHours, media, operations, operationsAccess, operationsLoading = false, sitePlan, userPhotos }: FacilityDocumentsProps) {
   const [state, setState] = useState<DownloadState>('idle')
   const [errorMessage, setErrorMessage] = useState('')
 
@@ -34,7 +36,7 @@ export function FacilityDocuments({ facility, facilityTitle, operatingHours, med
     await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
     try {
       const { generateFacilityProfilePdf, getFacilityProfileFilename } = await import('../pdf/facility-profile')
-      const bytes = await generateFacilityProfilePdf({ facility, facilityTitle, operatingHours, media, operations, sitePlan, userPhotos })
+      const bytes = await generateFacilityProfilePdf({ facility, facilityTitle, operatingHours, media, operations, operationsAccess, sitePlan, userPhotos })
       const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' })
       const objectUrl = URL.createObjectURL(blob)
       const anchor = document.createElement('a')
@@ -60,14 +62,14 @@ export function FacilityDocuments({ facility, facilityTitle, operatingHours, med
         <h2 id="facility-documents-title">Facility profile PDF</h2>
         <p>A four-page profile generated from the current portal data for this facility.</p>
         <ul aria-label="Profile contents">
-          <li>Facility overview and {operations ? 'contact details' : 'contact review status'}</li>
+          <li>Facility overview and {operationsAccess === 'public' ? 'public contact access status' : operations ? 'contact details' : 'contact review status'}</li>
           <li>{sitePlan ? 'Supplied site plan and recorded facts' : 'Explicit site-plan unavailable state'}</li>
           <li>{userPhotos ? `${userPhotos.photos.length} user-provided photo${userPhotos.photos.length === 1 ? '' : 's'}` : media ? existingMediaLabel(media) : 'Explicit photo unavailable state'}</li>
         </ul>
       </div>
-      <button className="primary-button documents-download" type="button" disabled={state === 'loading'} onClick={downloadProfile}>
+      <button className="primary-button documents-download" type="button" disabled={state === 'loading' || operationsLoading} onClick={downloadProfile}>
         {state === 'loading' ? <LoaderCircle className="spin" size={17} /> : <Download size={17} />}
-        {state === 'loading' ? 'Generating PDF…' : 'Download facility profile PDF'}
+        {operationsLoading ? 'Loading authorized details…' : state === 'loading' ? 'Generating PDF…' : 'Download facility profile PDF'}
       </button>
       <div className={`documents-status ${state}`} aria-live="polite" role="status">
         {state === 'success' && <><CheckCircle2 size={15} />PDF download ready.</>}

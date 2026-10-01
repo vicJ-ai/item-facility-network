@@ -12,13 +12,23 @@ All 27 roster records show media: twelve records use official UNIS directory med
 
 Thirteen facilities also have separate user-supplied galleries totaling 40 photos. These galleries do not replace the target's 17 roster/detail media records: both are shown separately in the Photos tab with their own provenance. Facility 07 Seabrook retains its user-provided screenshot record and has no substituted gallery or site plan. Gallery metadata lives in `src/data/facility-user-photos.ts`; plan assets and facts live in `src/data/facility-site-plans.ts`.
 
-The Documents tab generates a four-page US-letter facility profile in the browser from the selected facility's current local data. Page 1 includes the selected address and every confidently matched contact role, name, email, and supplied phone number with contact-sheet row provenance; unmatched facilities show a concise contact-review state. Staff portraits are never embedded in the PDF. The remaining pages retain the supplied plan or explicit missing-plan state, sourced facts and operating hours, and the selected facility's facility-photo gallery or existing media record. Generation uses only same-origin local assets and does not require a backend or database.
+The Documents tab generates a four-page US-letter facility profile in the browser from the selected facility's current data. Public profiles omit Operations contacts and state that administrator access is required. An approved signed-in administrator receives the selected facility's guarded contact record and the PDF includes every confidently matched role, name, email, supplied phone, and source-row attribution; unmatched facilities show a concise review state. Staff portraits are never fetched or embedded by PDF generation. The remaining pages retain the supplied plan or explicit missing-plan state, sourced facts and operating hours, and the selected facility's facility-photo gallery or existing media record.
 
 The Tennessee address intentionally remains `4550 Quality Drive, TN` because no city or ZIP was supplied. Geocoder-inferred locality data is not added to the user-provided address.
 
 Facility operating hours are stored separately in `src/data/facility-hours.ts`. Thirteen original-roster facilities retain confidently mapped hours from the user-provided 26-row list; four original records were confirmed in a follow-up; and all ten additions were user-confirmed with the roster expansion. All 27 display 8:00 AM–4:30 PM M-F with the confirmed local abbreviation. The app preserves the literal PST, EST, CST, or MST abbreviation, does not convert timezones, and does not compute live open/closed status.
 
-Every facility's Operations tab shows its existing sourced hours from `src/data/facility-hours.ts`. Staff contacts from the user-provided facility contact sheet are confidently mapped to 18 of the 27 roster facilities, totaling 78 role-specific entries in `src/data/facility-operations.ts`; multiple supplied phone numbers remain separately labeled. Ruben Jauregui and Mark Tuttle retain their user-provided Valley View portraits, and one shared user-provided John Diaz portrait is used for all ten exact `john.diaz@unisco.com` contact entries. Joliet also uses the user-supplied Fabian Quiroz portrait. All three existing Javier Montane entries (Joliet, Tennessee, and Memphis) use his shared user-supplied portrait and the user-corrected title Operations Director; Joliet’s duplicate VP entry remains removed. All eight existing Harold Cuarezma entries use his shared user-supplied portrait, with roles and contact details unchanged. Every other portrait space remains blank pending supplied images. Nine facilities need contact-mapping review and intentionally show no staff cards: `pooler-morgan-lakes`, `pooler-seabrook-building-2`, `summerville-cypress-tradeport`, `el-paso-emerald-12100`, `kent-85th-avenue-range`, `west-sacramento-overland`, `houston-navigation`, `salt-lake-city-jimmy-doolittle`, and `somerset-cottontail`. No neighboring-site contacts or unmatched sheet rows are imported, and the raw workbook is not stored in the repository.
+Operating-hours badges remain public and come from `src/data/facility-hours.ts`. The Operations tab is visible only to approved, active administrators. Its private server registry in `server/data/facility-operations.ts` maps 78 role-specific entries to 18 of 27 facilities; the other nine remain review-only without neighboring-site assignments. Staff portraits live under `private-media/operations`, are served only through an authorized `no-store` route, and are never copied into `public` or the Vite bundle.
+
+## Administrator access
+
+Public browsing, maps, galleries, plans, and public PDFs do not require sign-in. The top-right **WISE sign in** action sends credentials only to the same-origin Node BFF. The BFF exchanges them with the configured ItemGPT password-grant endpoint, enriches and verifies the immutable IAM identity through WMS, revalidates active internal-employee eligibility through the trusted directory, and returns only an opaque host-only session cookie. IAM tokens and passwords are not returned to or stored by the browser.
+
+An active ordinary administrator can view Operations. An active configuration administrator can also open **Configure Admins**, select a directory-verified WISE employee, set **Access active**, and use the exact checkbox **Enable configuration access**. Grants bind to immutable IAM user IDs. PostgreSQL transactions and advisory locks protect bootstrap and access mutations; self-demotion/deactivation, last-configuration-admin removal, stale concurrent edits, inactive grants, and unverified employee selections are rejected and audited. Grant status is read from PostgreSQL on every protected request, so deactivation revokes access immediately.
+
+Initial access is server-configured by exact IAM user ID, tenant, username, and verified profile email. The bootstrap identity is accepted only while no active persistent configuration administrator exists. A successful exact sign-in creates the permanent actor transactionally. An existing inactive bootstrap record blocks fallback bootstrap access. Missing IAM/WMS configuration never creates a successful local login; public browsing continues while sign-in fails closed.
+
+The BFF enforces canonical `PUBLIC_ORIGIN` on mutations, validates per-session CSRF tokens, throttles failed logins, sets `HttpOnly`, host-only, `SameSite=Strict` session cookies (`Secure` under HTTPS), and applies `no-store` to protected JSON and portraits. Set `TRUST_PROXY=true` only behind the trusted single deployment proxy. Portal context is tenant `LT` and facility `LT_F1`; directory entries must be active internal employees in the trusted tenant. This portal does not create local passwords, customer accounts, or WMS roles.
 
 ## Coordinates
 
@@ -89,11 +99,11 @@ Every tier also leaves out work the globe does not show:
 
 **Delivery.**
 - `npm run build` finishes with `scripts/precompress.mjs`, which writes `.br` and `.gz` copies of every text file in `dist/`. That's about 9.2 MB of JavaScript, CSS, JSON, and wasm, down to about 2.4 MB brotli.
-- `nginx.conf` serves the `.gz` copies with `gzip_static`, gzips anything else, and caches:
+- The same-origin Node server compresses responses and caches:
   - content-hashed `/assets/` for a year;
   - `/cesium/`, `/media/`, `/fonts/`, and `/brand/` for a week;
   - `index.html` never, so a deploy takes effect at once.
-- Serving the `.br` copies needs the brotli module or a CDN in front of the container.
+- Precompressed copies remain available for a deployment proxy or CDN that supports static Brotli negotiation.
 - The Satoshi fonts are served as WOFF2 (about 43 KB each instead of 128 KB, converted with `node scripts/convert-fonts.mjs`) with the TTFs as fallback. `index.html` preloads the regular weight and preconnects to the Esri and NASA tile servers.
 
 **Checking a device.** Add `?debug=perf` to the address to show a readout of the frame rate, JavaScript heap, the quality tier in use, and the globe's GPU memory ([webgl-memory](https://github.com/greggman/webgl-memory), loaded only with that flag), alongside Cesium's own frame counter. GPU memory should stay flat across Preview loops. For a frame-by-frame look at draw calls, capture a frame with the [Spector.js](https://spector.babylonjs.com/) browser extension.
@@ -116,30 +126,31 @@ Open or closed status is computed in `src/lib/facility-open.ts` from each facili
 
 ```bash
 npm install
+npm run build
 npm run dev
 ```
 
-Development server: `http://localhost:5173`
+Copy `.env.example` to the ignored `.env.local` and set PostgreSQL, `PUBLIC_ORIGIN`, a random 32+ character session secret, the ItemGPT/WMS endpoints and service credentials, and all four exact bootstrap identity values. `SESSION_SECRET` HMAC-protects the opaque session and CSRF verifiers stored in PostgreSQL. `DATABASE_SCHEMA` selects a validated PostgreSQL schema; test runners use dedicated schemas and never truncate the runtime schema. The local server binds `0.0.0.0` on `PORT` (4210 in the example). The schema and tables are created idempotently at startup.
 
 For a production preview:
 
 ```bash
 npm run build
-npm run preview -- --host 0.0.0.0 --port 4173
+npm run start
 ```
 
-Production preview: `http://localhost:4173`. Vite preview accepts managed-preview hostnames via `preview.allowedHosts: true`; the app has no authentication or privileged API surface.
+The preview uses the exact `PUBLIC_ORIGIN` and `PORT` configured in `.env.local`. For the canonical local preview, use `PUBLIC_ORIGIN=http://127.0.0.1:4210` and `PORT=4210`.
 
 ## Container deployment
 
-The production image builds the Vite bundle and serves it from unprivileged Nginx on fixed port `8080`. The Nginx configuration includes SPA route fallback and `/` is the container health-check endpoint.
+The production image builds the Vite bundle and Node server, installs production dependencies, includes private Operations portraits outside the static root, and serves the same-origin BFF on port `8080`. Supply required environment variables at runtime; do not bake secrets into the image. `/api/health` is the container health-check endpoint.
 
 ```bash
 docker build -t locations-network .
-docker run --rm -p 8080:8080 locations-network
+docker run --rm --env-file .env.production -p 8080:8080 locations-network
 ```
 
-No runtime environment variables, API keys, credentials, database, or backend services are required. Main-map basemap tiles are loaded in the browser from Esri, globe night lights from NASA GIBS, and the selected Overview map from Google Maps; all require outbound client network access.
+Main-map basemap tiles are loaded in the browser from Esri, globe night lights from NASA GIBS, and the selected Overview map from Google Maps. Authentication requires ItemGPT, WMS profile/directory access, and PostgreSQL.
 
 ## Quality checks
 
@@ -147,6 +158,7 @@ No runtime environment variables, API keys, credentials, database, or backend se
 npm run typecheck
 npm run lint
 npm run build
+npm run test:server
 npx playwright install chromium
 npm run test:e2e
 ```

@@ -25,14 +25,14 @@ export type FacilityOperations = {
 }
 
 export const HAROLD_CUAREZMA_EMAIL = 'harold.cuarezma@unisco.com'
-export const HAROLD_CUAREZMA_PHOTO_URL = '/media/operations/people/harold-cuarezma.png'
+export const HAROLD_CUAREZMA_PHOTO_URL = '/api/operations/portraits/harold-cuarezma.png'
 
 export const JAVIER_MONTANE_EMAIL = 'javier.montane@unisco.com'
 export const JAVIER_MONTANE_ROLE = 'Operations Director'
-export const JAVIER_MONTANE_PHOTO_URL = '/media/operations/people/javier-montane.png'
+export const JAVIER_MONTANE_PHOTO_URL = '/api/operations/portraits/javier-montane.png'
 
 export const JOHN_DIAZ_EMAIL = 'john.diaz@unisco.com'
-export const JOHN_DIAZ_PHOTO_URL = '/media/operations/people/john-diaz.png'
+export const JOHN_DIAZ_PHOTO_URL = '/api/operations/portraits/john-diaz.png'
 export const JOHN_DIAZ_ROLE = 'Sr. Vice President of Operations'
 export const JOHN_DIAZ_TITLE_SOURCE_NOTE = 'John Diaz title corrected by user on 2026-09-30.'
 
@@ -109,7 +109,7 @@ export const facilityOperations: Partial<Record<string, FacilityOperations>> = {
         email: 'ruben.jauregui@unisco.com',
         phone: '562-644-4594',
         phoneHref: '+15626444594',
-        photoUrl: '/media/operations/buena-park-valley-view/ruben-jauregui.png',
+        photoUrl: '/api/operations/portraits/ruben-jauregui.png',
       },
       {
         id: 'mark-tuttle',
@@ -119,7 +119,7 @@ export const facilityOperations: Partial<Record<string, FacilityOperations>> = {
         email: 'mark.tuttle@unisco.com',
         phone: '657-689-6951',
         phoneHref: '+16576896951',
-        photoUrl: '/media/operations/buena-park-valley-view/mark-tuttle.png',
+        photoUrl: '/api/operations/portraits/mark-tuttle.png',
       },
       {
         id: 'john-diaz',
@@ -199,7 +199,7 @@ export const facilityOperations: Partial<Record<string, FacilityOperations>> = {
   'joliet-brandon': sheetOperations('joliet-brandon', 13, [
     sheetContact('D', 'account-management', 'Manager of Account Management & Client Onboarding', 'Michelle Topete', 'michelle.topete@unisco.com', [{ label: 'Phone', display: '626.829.3160', href: '+16268293160' }]),
     sheetContact('E', 'account-management', 'Sr Director of Account Management & Client Onboarding', 'Mary Smothers', 'mary.smothers@unisco.com', [{ label: 'Phone', display: '626-899-2363', href: '+16268992363' }]),
-    sheetContact('F', 'operations', 'General Manager', 'Fabian Quiroz', 'fabian.quiroz@unisco.com', [{ label: 'Phone', display: '626-693-6394', href: '+16266936394' }], '/media/operations/joliet-brandon/fabian-quiroz.png'),
+    sheetContact('F', 'operations', 'General Manager', 'Fabian Quiroz', 'fabian.quiroz@unisco.com', [{ label: 'Phone', display: '626-693-6394', href: '+16266936394' }], '/api/operations/portraits/fabian-quiroz.png'),
     sheetContact('G', 'operations', JAVIER_MONTANE_ROLE, 'Javier Montane', 'javier.montane@unisco.com', [{ label: 'Phone', display: '657-705-7452', href: '+16577057452' }]),
   ]),
   'el-paso-emerald-12102-building-5': sheetOperations('el-paso-emerald-12102-building-5', 22, [

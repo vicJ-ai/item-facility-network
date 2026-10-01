@@ -14,6 +14,7 @@ import { DayNightLayer } from './components/DayNightLayer'
 import { GlobeQualityControl } from './components/GlobeQualityControl'
 import { RegionHighlightLayer } from './components/RegionHighlightLayer'
 import { FacilityDocuments } from './components/FacilityDocuments'
+import { AccessControls } from './components/AccessControls'
 import { FacilityPhoto } from './components/FacilityPhoto'
 import { UserProvidedPhotoGallery } from './components/UserProvidedPhotoGallery'
 import {
@@ -25,7 +26,9 @@ import {
 } from './data/facilities'
 import { getFacilityMedia, type FacilityMedia } from './data/facility-media'
 import { getFacilityOperatingHours } from './data/facility-hours'
-import { getFacilityOperations, type FacilityContact, type FacilityOperations } from './data/facility-operations'
+import { useAccess } from './auth/access-context'
+import { useFacilityOperations } from './auth/useFacilityOperations'
+import type { FacilityContact, FacilityOperations } from './types/operations'
 import { getFacilitySitePlan, type FacilitySitePlan, type FacilitySitePlanFact } from './data/facility-site-plans'
 import { formatAvailableSpaceMonth, getFacilitySquareFootage } from './data/facility-space'
 import { getUserProvidedFacilityPhotos, type UserProvidedFacilityPhotos } from './data/facility-user-photos'
@@ -83,7 +86,7 @@ const MAX_DIRECTORY_WIDTH = 760
 const MIN_MAP_WIDTH = 360
 const ESRI_STREET_ATTRIBUTION = 'Tiles &copy; Esri &mdash; Source: Esri, TomTom, Garmin, FAO, NOAA, USGS, OpenStreetMap contributors, and the GIS User Community'
 const ESRI_STREET_TILE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}'
-const tabs: Tab[] = ['Overview', 'Site Plan', 'Photos', 'Documents', 'Operations']
+const publicTabs: Tab[] = ['Overview', 'Site Plan', 'Photos', 'Documents']
 const assignableStatuses: DisplayStatus[] = ['Unassigned', 'Active', 'Coming Soon', 'Planned']
 const statusColor: Record<DisplayStatus, string> = {
   Active: '#13a663',
@@ -524,6 +527,7 @@ function EmptyState({ icon: Icon = FileText, title, body, children }: { icon?: t
 }
 
 function App() {
+  const access = useAccess()
   const [theme, setTheme] = useState<Theme>(getInitialTheme)
   const [appView, setAppView] = useState<AppView>('locations')
   const [selected, setSelected] = useState<Facility | null>(null)
@@ -672,10 +676,13 @@ function App() {
   const facilityStatus = (facility: Facility): DisplayStatus => resolveFacilityStatus(facility, statusAssignments)
   const selectedStatus = selected ? facilityStatus(selected) : 'Active'
   const selectedMedia = selected ? getFacilityMedia(selected.id) : undefined
-  const selectedOperations = selected ? getFacilityOperations(selected.id) : undefined
+  const operationsState = useFacilityOperations(selected?.id)
+  const selectedOperations = operationsState.operations
   const selectedStreetViewUrl = selected ? streetViewUrl(selected) : null
   const selectedSitePlan = selected ? getFacilitySitePlan(selected.id) : undefined
   const selectedUserPhotos = selected ? getUserProvidedFacilityPhotos(selected.id) : undefined
+  const tabs = access.user ? [...publicTabs, 'Operations' as const] : publicTabs
+  const displayedTab: Tab = !access.user && tab === 'Operations' ? 'Overview' : tab
   const dashboardHighlightRenderer = useMemo(() => L.svg({ pane: 'overlayPane' }), [])
   const previewing = previewActive && appView === 'dashboard'
   // The Preview tour shows the globe without changing the saved projection preference.
@@ -884,10 +891,11 @@ function App() {
     setNotice(`Local status set to ${status}.`)
   }
 
-  const navItems = [
+  const allNavItems: ReadonlyArray<readonly [string, typeof Grid2X2, AppView | null]> = [
     ['Dashboard', Grid2X2, 'dashboard'], ['Facilities', MapIcon, 'locations'],
     ['Operations', SlidersHorizontal, null], ['Analytics', PackageSearch, null], ['Reports', ClipboardList, null],
-  ] as const
+  ]
+  const navItems = allNavItems.filter(([label]) => label !== 'Operations' || access.user)
 
   return (
     <div className={`app-shell${previewing ? ' is-previewing' : ''}`}>
@@ -926,7 +934,7 @@ function App() {
           )}
           <button className="icon-button" aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`} data-testid="theme-toggle" onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>{theme === 'light' ? <Moon /> : <Sun />}</button>
           <button className="icon-button" aria-label="Notifications" onClick={() => setNotice('No new notifications.')}><Bell /></button>
-          <button className="avatar" aria-label="Open profile menu" onClick={() => setNotice('Signed in as reference viewer.')}>RV</button>
+          <AccessControls />
         </div>
       </header>
 
@@ -958,16 +966,20 @@ function App() {
                 </div>
               </div>
               <div className="tabs" role="tablist" aria-label="Facility details">
-                {tabs.map((item) => <button key={item} role="tab" aria-selected={tab === item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item}</button>)}
+                {tabs.map((item) => <button key={item} role="tab" aria-selected={displayedTab === item} className={displayedTab === item ? 'active' : ''} onClick={() => setTab(item)}>{item}</button>)}
               </div>
               <div className="detail-content">
-                {tab === 'Overview' && <OverviewContent facility={selected} sitePlan={selectedSitePlan} status={selectedStatus} openState={openStates[selected.id]} onStatusChange={(value) => assignStatus(selected, value)} />}
-                {tab === 'Site Plan' && (selectedSitePlan
+                {displayedTab === 'Overview' && <OverviewContent facility={selected} sitePlan={selectedSitePlan} status={selectedStatus} openState={openStates[selected.id]} onStatusChange={(value) => assignStatus(selected, value)} />}
+                {displayedTab === 'Site Plan' && (selectedSitePlan
                   ? <SitePlanContent facility={selected} sitePlan={selectedSitePlan} />
                   : <EmptyState icon={MapIcon} title="Site plan not provided" body="No site plan was supplied for this facility." />)}
-                {tab === 'Photos' && <PhotosContent facility={selected} media={selectedMedia} userPhotos={selectedUserPhotos} />}
-                {tab === 'Documents' && <FacilityDocuments key={selected.id} facility={selected} facilityTitle={getFacilityTitle(selected)} operatingHours={getFacilityOperatingHours(selected.id)} media={selectedMedia} operations={selectedOperations} sitePlan={selectedSitePlan} userPhotos={selectedUserPhotos} />}
-                {tab === 'Operations' && <OperationsContent facility={selected} operations={selectedOperations} />}
+                {displayedTab === 'Photos' && <PhotosContent facility={selected} media={selectedMedia} userPhotos={selectedUserPhotos} />}
+                {displayedTab === 'Documents' && <FacilityDocuments key={selected.id} facility={selected} facilityTitle={getFacilityTitle(selected)} operatingHours={getFacilityOperatingHours(selected.id)} media={selectedMedia} operations={selectedOperations} operationsAccess={access.user ? 'authorized' : 'public'} operationsLoading={operationsState.loading} sitePlan={selectedSitePlan} userPhotos={selectedUserPhotos} />}
+                {displayedTab === 'Operations' && access.user && (operationsState.loading
+                  ? <EmptyState icon={ShieldCheck} title="Loading Operations" body="Verifying access and loading this facility's contacts." />
+                  : operationsState.error
+                    ? <EmptyState icon={FileQuestion} title="Operations unavailable" body={operationsState.error} />
+                    : <OperationsContent facility={selected} operations={selectedOperations} />)}
               </div>
               <div className="detail-footer"><button className="secondary-button" onClick={() => setAboutOpen(true)}><CircleHelp size={16} />About data</button><button className="primary-button" onClick={() => setDetailsOpen(true)}>View Full Details <ChevronRight size={17} /></button></div>
             </aside>

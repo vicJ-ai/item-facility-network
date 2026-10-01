@@ -9,7 +9,7 @@ import {
 import type { Facility } from '../data/facilities'
 import { formatOperatingHours, type FacilityOperatingHours } from '../data/facility-hours'
 import type { FacilityMedia } from '../data/facility-media'
-import type { FacilityContact, FacilityOperations } from '../data/facility-operations'
+import type { FacilityContact, FacilityOperations } from '../types/operations'
 import type { FacilitySitePlan, FacilitySitePlanFact } from '../data/facility-site-plans'
 import type { UserProvidedFacilityPhoto, UserProvidedFacilityPhotos } from '../data/facility-user-photos'
 
@@ -19,6 +19,7 @@ export type FacilityProfileData = {
   operatingHours: FacilityOperatingHours
   media?: FacilityMedia
   operations?: FacilityOperations
+  operationsAccess: 'public' | 'authorized'
   sitePlan?: FacilitySitePlan
   userPhotos?: UserProvidedFacilityPhotos
 }
@@ -296,8 +297,9 @@ function drawContactDirectory(page: PDFPage, fonts: Fonts, data: FacilityProfile
   page.drawText('CONTACT DIRECTORY', { x: box.x + 15, y: box.y + box.height - 22, size: 7, font: fonts.bold, color: rgb(0.76, 0.82, 0.88) })
 
   if (!data.operations) {
-    page.drawText('Contacts pending review', { x: box.x + 15, y: box.y + box.height - 57, size: 15, font: fonts.bold, color: WHITE })
-    drawWrappedText(page, 'No staff contacts were confidently matched to this facility.', {
+    const publicProfile = data.operationsAccess === 'public'
+    page.drawText(publicProfile ? 'Administrator access required' : 'Contacts pending review', { x: box.x + 15, y: box.y + box.height - 57, size: 15, font: fonts.bold, color: WHITE })
+    drawWrappedText(page, publicProfile ? 'Operations contact details are available to approved administrators in the portal.' : 'No staff contacts were confidently matched to this facility.', {
       x: box.x + 15,
       y: box.y + box.height - 80,
       width: box.width - 30,
@@ -521,7 +523,7 @@ function metadataKeywords(data: FacilityProfileData) {
   const photoLabels = data.userPhotos?.photos.map((photo) => photo.label) ?? []
   const contacts = data.operations
     ? [data.operations.source, ...data.operations.contacts.flatMap((contact) => [contact.role, contact.name, contact.email, contactPhoneText(contact)])]
-    : ['Contacts pending review']
+    : [data.operationsAccess === 'public' ? 'Administrator access required' : 'Contacts pending review']
   return [
     `Facility ${facilityNumber(data.facility)}`,
     data.facility.id,
