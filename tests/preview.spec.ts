@@ -57,7 +57,8 @@ test('Preview plays a cinematic tour that starts in Washington and hides the reg
   }
   await expect(page.locator('.globe-credits')).toBeVisible()
   await expect(tour.locator('.preview-segment')).toHaveCount(13)
-  await expect(tour.locator('.preview-tick')).toHaveCount(facilities.length)
+  // University Park joins the tour once it has more information; until then it is not in a Dashboard region.
+  await expect(tour.locator('.preview-tick')).toHaveCount(facilities.filter((facility) => facility.id !== 'university-park-central').length)
   await expect(tour.locator('[data-chapter-label="0"]')).toContainText('Washington')
 
   const firstStop = await tour.getAttribute('data-preview-stop')
@@ -74,6 +75,11 @@ test('Next, Previous, and the progress ticks move between facilities', async ({ 
   await page.getByRole('button', { name: 'Pause preview' }).click()
   await expect(page.getByRole('button', { name: 'Play preview' })).toBeVisible()
 
+  // Under load the pause can land between stops; step onto a facility so Previous has one to return to.
+  if (!(await tour.getAttribute('data-preview-stop'))) {
+    await page.getByRole('button', { name: 'Next facility' }).click()
+    await expect.poll(() => tour.getAttribute('data-preview-stop')).toBeTruthy()
+  }
   const before = await tour.getAttribute('data-preview-stop')
   await page.getByRole('button', { name: 'Next facility' }).click()
   await expect(tour).not.toHaveAttribute('data-preview-stop', before!)

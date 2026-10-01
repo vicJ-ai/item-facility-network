@@ -24,6 +24,28 @@ export const facilityAvailableSpace: Partial<Record<string, FacilityAvailableSpa
   'joliet-brandon': { squareFeet: 110_000, asOf: '2026-10', note: 'Bulk; up to 150,000 SF with increased utilization · Rack: 3,000 pallet positions' },
 }
 
+// Warehouse-reported bulk floor space (SF) and rack capacity (pallet positions), keyed by facility id.
+// bulkUpToSquareFeet is how far bulk can stretch with increased utilization, when a site reports it.
+export type FacilityBulkRack = { bulkSquareFeet?: number; bulkUpToSquareFeet?: number; rackPalletPositions?: number; asOf: string }
+
+export const facilityBulkRack: Partial<Record<string, FacilityBulkRack>> = {
+  // User-provided on 2026-10-01 (Javier Gonzalez Montane).
+  'joliet-brandon': { bulkSquareFeet: 110_000, bulkUpToSquareFeet: 150_000, rackPalletPositions: 3_000, asOf: '2026-10' },
+}
+
+export const getFacilityBulkRack = (facilityId: string) => facilityBulkRack[facilityId]
+
+export function formatBulk(bulkRack?: FacilityBulkRack) {
+  if (bulkRack?.bulkSquareFeet === undefined) return 'Not provided'
+  const bulk = `${bulkRack.bulkSquareFeet.toLocaleString('en-US')} SF`
+  return bulkRack.bulkUpToSquareFeet ? `${bulk} · up to ${bulkRack.bulkUpToSquareFeet.toLocaleString('en-US')} SF` : bulk
+}
+
+export function formatRack(bulkRack?: FacilityBulkRack) {
+  if (bulkRack?.rackPalletPositions === undefined) return 'Not provided'
+  return `${bulkRack.rackPalletPositions.toLocaleString('en-US')} pallet positions`
+}
+
 export type FacilitySquareFootage = { totalSquareFeet?: number; available?: FacilityAvailableSpace }
 
 // Total square footage is the first numeric SF fact on the supplied site plan (the building or facility area).

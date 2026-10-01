@@ -191,7 +191,7 @@ export const facilitySitePlans: Partial<Record<string, FacilitySitePlan>> = {
     width: 902,
     height: 591,
     provenance: 'official-facility-sheet',
-    sourceNote: 'Official UNIS facility sheet (869 – Roanoke).',
+    sourceNote: 'Official UNIS facility sheet (689 – Roanoke).',
     facts: [
       { id: 'building-area', label: 'Building area', value: 568_632, unit: 'SF' },
       { id: 'dock-positions', label: 'Dock positions', value: 127, unit: 'plan total', note: '59 + 68' },

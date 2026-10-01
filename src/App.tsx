@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import {
-  ArrowLeft, Bell, Building2, Camera, Check, ChevronRight, CircleHelp, Clapperboard, ClipboardList, Clock, Earth,
+  ArrowLeft, Bell, Boxes, Building2, Camera, Check, ChevronRight, CircleHelp, Clapperboard, ClipboardList, Clock, Earth,
   ExternalLink, FileQuestion, FileText, Grid2X2, Info, Layers3, LocateFixed, Mail, Maximize2,
   Map as MapIcon, MapPin, Menu, Moon, PackageSearch, Phone, Search, ShieldCheck,
   SlidersHorizontal, Sun, Warehouse, X,
@@ -27,7 +27,7 @@ import { getFacilityMedia, isOfficialFacilitySheetMedia, type FacilityMedia } fr
 import { getFacilityOperatingHours } from './data/facility-hours'
 import { getFacilityOperations, type FacilityContact, type FacilityOperations } from './data/facility-operations'
 import { getFacilitySitePlan, sitePlanProvenanceLabel, type FacilitySitePlan, type FacilitySitePlanFact } from './data/facility-site-plans'
-import { formatAvailableSpace, formatAvailableSpaceMonth, getFacilitySquareFootage } from './data/facility-space'
+import { formatAvailableSpace, formatAvailableSpaceMonth, formatBulk, formatRack, getFacilityBulkRack, getFacilitySquareFootage } from './data/facility-space'
 import { getUserProvidedFacilityPhotos, type UserProvidedFacilityPhotos } from './data/facility-user-photos'
 import { getRegionBoundary, type RegionBoundary } from './data/region-boundaries'
 import { getInitialQualityChoice, probeGraphics, QUALITY_TIERS, saveQualityChoice, type QualityChoice, type QualityTier } from './lib/globe-quality'
@@ -1416,7 +1416,7 @@ function App() {
           <section className="about-modal" role="dialog" aria-modal="true" aria-labelledby="about-title">
             <div className="modal-head"><div><span className="eyebrow">About this experience</span><h2 id="about-title">Reference prototype</h2></div><button className="icon-button" aria-label="Close about" onClick={() => setAboutOpen(false)}><X /></button></div>
             <p>This screenshot-based prototype uses exactly 27 user-provided facility addresses. It is not connected to WMS, YMS, inventory, facility, or operational APIs.</p>
-            <p>Sixteen facilities have supplied site plans, four of them from official facility sheets, and thirteen have separate user-provided photo galleries. Twelve facilities have official listing media, fifteen have user-provided photos with documented association limits, and Garden City uses its official facility sheet photo. 27 records are Active; Garden City is Unassigned because its sheet states no status, type, or operating hours. A changed Local status is saved only in this browser. All 28 facilities have address-based map coordinates.</p>
+            <p>Sixteen facilities have supplied site plans, four of them from official facility sheets, and thirteen have separate user-provided photo galleries. Twelve facilities have official listing media, fifteen have user-provided photos with documented association limits, and Garden City uses its official facility sheet photo. 27 records are Active; Garden City and University Park are Unassigned because no status, type, or operating hours have been supplied for them. A changed Local status is saved only in this browser. All 29 facilities have address-based map coordinates.</p>
             <button className="primary-button" onClick={() => setAboutOpen(false)}>Understood</button>
           </section>
         </div>
@@ -1641,12 +1641,28 @@ function OverviewContent({ facility, sitePlan, status, openState, onStatusChange
         </section>
       )}
 
+      <BulkRackSection facilityId={facility.id} />
+
       <section className="coordinate-section info-section">
         <h2><ShieldCheck />Map placement</h2>
         <div className="coordinate-row"><span className={`precision-chip ${facility.coordinatePrecision === 'Approximate' ? 'approximate' : facility.coordinatePrecision === 'Unavailable' ? 'unavailable' : ''}`}>{facility.coordinatePrecision}</span><span>{facility.coordinateSource}</span></div>
         {facility.geocodeNote && <p className="geocode-warning"><Info size={14} />{facility.geocodeNote}</p>}
       </section>
     </>
+  )
+}
+
+function BulkRackSection({ facilityId }: { facilityId: string }) {
+  const bulkRack = getFacilityBulkRack(facilityId)
+  return (
+    <section className="bulk-rack-section info-section" data-testid="bulk-rack" data-reported={bulkRack ? 'true' : 'false'}>
+      <h2><Boxes />Bulk &amp; rack</h2>
+      <div className="unavailable-grid">
+        <span data-testid="bulk-rack-bulk"><b>Bulk</b>{formatBulk(bulkRack)}</span>
+        <span data-testid="bulk-rack-rack"><b>Rack</b>{formatRack(bulkRack)}</span>
+      </div>
+      <p className="property-facts-note">{bulkRack ? `Warehouse-reported as of ${formatAvailableSpaceMonth(bulkRack.asOf)}.` : 'Bulk floor space (SF) and rack capacity (pallet positions) have not been reported yet.'}</p>
+    </section>
   )
 }
 
