@@ -15,6 +15,7 @@ export default defineConfig({
       targets: ['ThirdParty', 'Workers', 'Assets', 'Widgets'].map((folder) => ({ src: `${cesiumSource}/${folder}`, dest: cesiumBaseUrl, rename: { stripBase: 4 } })),
     }),
   ],
-  server: { host: '0.0.0.0', port: 5173 },
+  // Source PDFs dropped into extra_resources are never imported; watching them can crash the dev server while Windows still has them locked mid-copy.
+  server: { host: '0.0.0.0', port: 5173, watch: { ignored: ['**/extra_resources/**'] } },
   preview: { host: '0.0.0.0', port: 4173, allowedHosts: true },
 })

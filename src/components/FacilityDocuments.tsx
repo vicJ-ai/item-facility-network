@@ -10,7 +10,7 @@ import type { UserProvidedFacilityPhotos } from '../data/facility-user-photos'
 type FacilityDocumentsProps = {
   facility: Facility
   facilityTitle: string
-  operatingHours: FacilityOperatingHours
+  operatingHours?: FacilityOperatingHours
   media?: FacilityMedia
   operations?: FacilityOperations
   sitePlan?: FacilitySitePlan
@@ -20,6 +20,7 @@ type FacilityDocumentsProps = {
 type DownloadState = 'idle' | 'loading' | 'success' | 'error'
 
 function existingMediaLabel(media: FacilityMedia) {
+  if (media.verification === 'official-facility-sheet') return 'Official facility sheet photo'
   return media.verification.startsWith('user-provided') ? 'Existing user-provided photo' : 'Official listing photo'
 }
 

@@ -6,6 +6,13 @@ export type TourRegion = { id: string; label: string; facilityNumbers: readonly 
 
 /** `hop` stops are close to the previous stop, so the camera slides over instead of flying. */
 export type TourStop = { facility: TourFacility; kind: 'flight' | 'hop'; index: number }
+/** What a tour stop shows beside its title: the cover photo, square footage, and a couple of site-plan facts. */
+export type TourStopDetails = {
+  photo?: { src: string; alt: string }
+  totalSquareFeet?: number
+  available: string
+  facts: { label: string; value: string }[]
+}
 export type TourChapter = { regionId: string; label: string; number: number; boundary: RegionBoundary | null; stops: TourStop[] }
 
 /** West to east. This list is the only thing that decides the chapter order. */

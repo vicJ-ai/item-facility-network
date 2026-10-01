@@ -1,11 +1,28 @@
 import { getFacilitySitePlan } from './facility-site-plans'
 
-// asOf is the 'YYYY-MM' month the warehouse reported the figure.
-export type FacilityAvailableSpace = { squareFeet: number; asOf: string }
+// asOf is the 'YYYY-MM' month the warehouse reported the figure. squareFeet 0 means the site reported no open space.
+// An 'unconfirmed' figure was reported but is still pending confirmation; note carries any context supplied with it.
+export type FacilityAvailableSpace = { squareFeet: number; asOf: string; status?: 'unconfirmed'; note?: string }
 
 // Warehouse-reported available square footage, refreshed monthly and keyed by facility id.
-// Empty until warehouses supply figures, e.g. 'buena-park-valley-view': { squareFeet: 120_000, asOf: '2026-10' }.
-export const facilityAvailableSpace: Partial<Record<string, FacilityAvailableSpace>> = {}
+// Sites without an entry show Pending; Moreno Valley was reported as pending on 2026-10-01.
+export const facilityAvailableSpace: Partial<Record<string, FacilityAvailableSpace>> = {
+  // User-provided on 2026-10-01.
+  'roanoke-highway-114': { squareFeet: 4_000, asOf: '2026-10' },
+  'houston-citypark': { squareFeet: 5_000, asOf: '2026-10' },
+  'tacoma-lincoln': { squareFeet: 80_000, asOf: '2026-10' },
+  'tacoma-steele': { squareFeet: 0, asOf: '2026-10' },
+  'kent-85th-avenue-range': { squareFeet: 0, asOf: '2026-10', note: 'No UF customer on this site' },
+  'sparks-vista': { squareFeet: 8_500, asOf: '2026-10' },
+  'waddell-cotton': { squareFeet: 40_000, asOf: '2026-10' },
+  'west-sacramento-overland': { squareFeet: 0, asOf: '2026-10', note: 'Cubework facility (1 UF customer)' },
+  'salt-lake-city-jimmy-doolittle': { squareFeet: 0, asOf: '2026-10', note: 'Cubework facility (1 UF customer)' },
+  'riverside-alessandro': { squareFeet: 120_000, asOf: '2026-10', status: 'unconfirmed' },
+  'somerset-cottontail': { squareFeet: 0, asOf: '2026-10' },
+  'las-vegas-marion-building-5': { squareFeet: 0, asOf: '2026-10' },
+  'long-beach-willow': { squareFeet: 10_000, asOf: '2026-10', note: 'About 10,000 SF empty; 100 incoming Bendon containers (40 displays each) to be palletized on CHEP pallets and strapped' },
+  'joliet-brandon': { squareFeet: 110_000, asOf: '2026-10', note: 'Bulk; up to 150,000 SF with increased utilization · Rack: 3,000 pallet positions' },
+}
 
 export type FacilitySquareFootage = { totalSquareFeet?: number; available?: FacilityAvailableSpace }
 
@@ -16,6 +33,13 @@ export function getFacilitySquareFootage(facilityId: string): FacilitySquareFoot
     totalSquareFeet: typeof areaFact?.value === 'number' ? areaFact.value : undefined,
     available: facilityAvailableSpace[facilityId],
   }
+}
+
+/** Short available-space wording shared by the map preview and the Preview tour: "80,000 SQF", "None", or "Pending". */
+export function formatAvailableSpace(available?: FacilityAvailableSpace) {
+  if (!available) return 'Pending'
+  const amount = available.squareFeet === 0 ? 'None' : `${available.squareFeet.toLocaleString('en-US')} SQF`
+  return available.status === 'unconfirmed' ? `${amount} (not confirmed)` : amount
 }
 
 export function formatAvailableSpaceMonth(asOf: string) {

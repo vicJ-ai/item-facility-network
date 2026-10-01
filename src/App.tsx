@@ -23,16 +23,16 @@ import {
   type Facility,
   type FacilityType,
 } from './data/facilities'
-import { getFacilityMedia, type FacilityMedia } from './data/facility-media'
+import { getFacilityMedia, isOfficialFacilitySheetMedia, type FacilityMedia } from './data/facility-media'
 import { getFacilityOperatingHours } from './data/facility-hours'
 import { getFacilityOperations, type FacilityContact, type FacilityOperations } from './data/facility-operations'
-import { getFacilitySitePlan, type FacilitySitePlan, type FacilitySitePlanFact } from './data/facility-site-plans'
-import { formatAvailableSpaceMonth, getFacilitySquareFootage } from './data/facility-space'
+import { getFacilitySitePlan, sitePlanProvenanceLabel, type FacilitySitePlan, type FacilitySitePlanFact } from './data/facility-site-plans'
+import { formatAvailableSpace, formatAvailableSpaceMonth, getFacilitySquareFootage } from './data/facility-space'
 import { getUserProvidedFacilityPhotos, type UserProvidedFacilityPhotos } from './data/facility-user-photos'
 import { getRegionBoundary, type RegionBoundary } from './data/region-boundaries'
 import { getInitialQualityChoice, probeGraphics, QUALITY_TIERS, saveQualityChoice, type QualityChoice, type QualityTier } from './lib/globe-quality'
 import type { TourCameraApi } from './lib/preview-tour/camera-api'
-import { buildTour } from './lib/preview-tour/script'
+import { buildTour, type TourStopDetails } from './lib/preview-tour/script'
 import { getFacilityOpenState, type FacilityOpenState } from './lib/facility-open'
 import { isValidTimeZone } from './lib/time-zone'
 
@@ -96,7 +96,7 @@ const dashboardRegions = [
   { id: 'northern-california', label: 'Northern California', facilityNumbers: [21] },
   { id: 'texas', label: 'Texas', facilityNumbers: [4, 5, 14, 17, 23, 27] },
   { id: 'washington', label: 'Washington', facilityNumbers: [10, 11, 20] },
-  { id: 'georgia', label: 'Georgia', facilityNumbers: [6, 7] },
+  { id: 'georgia', label: 'Georgia', facilityNumbers: [6, 7, 28] },
   { id: 'south-carolina', label: 'South Carolina', facilityNumbers: [8] },
   { id: 'tennessee', label: 'Tennessee', facilityNumbers: [9, 24] },
   { id: 'florida', label: 'Florida', facilityNumbers: [12] },
@@ -171,6 +171,7 @@ function mediaSourceValue(value: string, linkedLabel: string) {
 }
 
 function mediaCategory(media: FacilityMedia) {
+  if (isOfficialFacilitySheetMedia(media)) return 'Official facility sheet photo'
   return isUserProvidedMedia(media) ? 'User-provided photo' : 'Official listing media'
 }
 
@@ -181,6 +182,15 @@ function formatSitePlanFact(fact: FacilitySitePlanFact) {
 
 function OperatingHoursDisplay({ facilityId, variant }: { facilityId: string; variant: 'preview' | 'overview' | 'drawer' | 'operations' }) {
   const hours = getFacilityOperatingHours(facilityId)
+
+  if (!hours) {
+    return (
+      <span className={`operating-hours operating-hours-${variant}`} data-testid={`operating-hours-${variant}`} data-hours-status="not-provided">
+        <Clock size={variant === 'preview' ? 12 : 14} />
+        <span><strong>Hours not provided</strong></span>
+      </span>
+    )
+  }
 
   return (
     <span
@@ -206,9 +216,14 @@ function SquareFootagePreview({ facilityId }: { facilityId: string }) {
       <Warehouse size={12} />
       <span>
         {totalSquareFeet !== undefined && <span data-testid="square-footage-total">Total <strong>{totalSquareFeet.toLocaleString('en-US')} SQF</strong></span>}
-        <span data-testid="square-footage-available" data-available-status={available ? 'reported' : 'pending'}>
+        <span data-testid="square-footage-available" data-available-status={available ? available.status ?? 'reported' : 'pending'}>
           Available {available
-            ? <><strong>{available.squareFeet.toLocaleString('en-US')} SQF</strong> · as of {formatAvailableSpaceMonth(available.asOf)}</>
+            ? <>
+                <strong>{available.squareFeet === 0 ? 'None' : `${available.squareFeet.toLocaleString('en-US')} SQF`}</strong>
+                {available.status === 'unconfirmed' && <em className="square-footage-pending"> (not confirmed)</em>}
+                {' '}· as of {formatAvailableSpaceMonth(available.asOf)}
+                {available.note && <> · {available.note}</>}
+              </>
             : <em className="square-footage-pending">Pending</em>}
         </span>
       </span>
@@ -216,7 +231,37 @@ function SquareFootagePreview({ facilityId }: { facilityId: string }) {
   )
 }
 
+// Plan-count units ("shown", "plan total") read as noise on a tour card, so only measurement units are kept.
+const TOUR_FACT_COUNT_UNITS = new Set(['shown', 'plan total', 'plan capacity', 'stalls'])
+
+function tourStopDetails(facility: Facility): TourStopDetails {
+  const gallery = getUserProvidedFacilityPhotos(facility.id)
+  const cover = gallery?.photos.find((photo) => photo.id === gallery.coverPhotoId) ?? gallery?.photos[0]
+  const media = getFacilityMedia(facility.id)
+  const photo = cover ? { src: cover.assetUrl, alt: cover.alt } : media ? { src: media.detail.assetUrl, alt: media.detail.alt } : undefined
+  const { totalSquareFeet, available } = getFacilitySquareFootage(facility.id)
+  // The first numeric SF fact is already shown as the total, so the facts are the next two after it.
+  const facts = (getFacilitySitePlan(facility.id)?.facts ?? [])
+    .filter((fact) => !(fact.unit === 'SF' && fact.value === totalSquareFeet))
+    .slice(0, 2)
+    .map((fact) => ({
+      label: fact.label,
+      value: `${typeof fact.value === 'number' ? fact.value.toLocaleString('en-US') : fact.value}${fact.unit && !TOUR_FACT_COUNT_UNITS.has(fact.unit) ? ` ${fact.unit}` : ''}`,
+    }))
+  return { photo, totalSquareFeet, available: formatAvailableSpace(available), facts }
+}
+
 function OpenStateBadge({ state, variant }: { state: FacilityOpenState; variant: 'compact' | 'full' }) {
+  // The full variant always sits beside OperatingHoursDisplay, which already says the hours are missing.
+  if (!state.hoursKnown && variant === 'full') return null
+  if (!state.hoursKnown) {
+    return (
+      <span className={`open-state open-state-${variant} is-unknown`} data-testid="open-state" data-open="unknown" title="Operating hours not provided">
+        <Clock size={variant === 'compact' ? 12 : 13} aria-hidden="true" />
+        <span><b>{variant === 'compact' ? 'No hours' : 'Hours not provided'}</b></span>
+      </span>
+    )
+  }
   const Icon = state.isOpen ? Sun : Moon
   return (
     <span className={`open-state open-state-${variant} ${state.isOpen ? 'is-open' : 'is-closed'}`} data-testid="open-state" data-open={state.isOpen} title={`${state.summary} · ${state.localTime} at facility`}>
@@ -718,6 +763,7 @@ function App() {
     return Object.fromEntries(facilities.map((facility) => [facility.id, getFacilityOpenState(facility, getFacilityOperatingHours(facility.id), at)])) as Record<string, FacilityOpenState>
   }, [mapTime])
   const openCount = facilities.filter((facility) => openStates[facility.id].isOpen).length
+  const facilitiesWithHoursCount = facilities.filter((facility) => openStates[facility.id].hoursKnown).length
 
   const counts = useMemo(() => {
     const statuses = facilities.map((facility) => resolveFacilityStatus(facility, statusAssignments))
@@ -947,7 +993,7 @@ function App() {
               </div>
               <div className="facility-identity">
                 <FacilityPhoto media={selectedMedia} variant="detail" />
-                <div><span className="eyebrow">Facility {String(selected.number).padStart(2, '0')}</span><strong>{getFacilityTitle(selected)}</strong><small>Logistics network location</small><small className="facility-network-type" data-testid="facility-network-type">{selected.facilityType}</small></div>
+                <div><span className="eyebrow">Facility {String(selected.number).padStart(2, '0')}</span><strong>{getFacilityTitle(selected)}</strong><small>Logistics network location</small><small className="facility-network-type" data-testid="facility-network-type">{selected.facilityType ?? 'Type not specified'}</small></div>
                 <span className={`precision-chip ${selected.coordinatePrecision === 'Approximate' ? 'approximate' : selected.coordinatePrecision === 'Unavailable' ? 'unavailable' : ''}`}><ShieldCheck size={13} />{selected.coordinatePrecision}</span>
               </div>
               <div className="detail-header">
@@ -1291,7 +1337,7 @@ function App() {
             expanded={dayNight.expanded}
             timeZone={dayNight.timeZone}
             openCount={openCount}
-            total={facilities.length}
+            total={facilitiesWithHoursCount}
             onShadingChange={(shading) => setDayNight((current) => ({ ...current, shading }))}
             onExpandedChange={(expanded) => setDayNight((current) => ({ ...current, expanded }))}
             onTimeZoneChange={(timeZone) => setDayNight((current) => ({ ...current, timeZone }))}
@@ -1314,8 +1360,9 @@ function App() {
             api={tourApi}
             chapters={previewChapters}
             interactionTarget={mapStageElement}
-            localTime={(facility) => openStates[facility.id].localTime}
+            localTime={(facility) => openStates[facility.id].localTime || 'not provided'}
             renderOpenState={(facility) => <OpenStateBadge state={openStates[facility.id]} variant="compact" />}
+            stopDetails={tourStopDetails}
             onFocusChange={setTourFocus}
             onExit={exitPreview}
             speed={PREVIEW_SPEED}
@@ -1369,7 +1416,7 @@ function App() {
           <section className="about-modal" role="dialog" aria-modal="true" aria-labelledby="about-title">
             <div className="modal-head"><div><span className="eyebrow">About this experience</span><h2 id="about-title">Reference prototype</h2></div><button className="icon-button" aria-label="Close about" onClick={() => setAboutOpen(false)}><X /></button></div>
             <p>This screenshot-based prototype uses exactly 27 user-provided facility addresses. It is not connected to WMS, YMS, inventory, facility, or operational APIs.</p>
-            <p>Fourteen facilities have supplied site plans and thirteen have separate user-provided photo galleries. Twelve facilities have official listing media and fifteen have user-provided photos with documented association limits. All 27 records are Active. A changed Local status is saved only in this browser. All 27 facilities have address-based map coordinates.</p>
+            <p>Sixteen facilities have supplied site plans, four of them from official facility sheets, and thirteen have separate user-provided photo galleries. Twelve facilities have official listing media, fifteen have user-provided photos with documented association limits, and Garden City uses its official facility sheet photo. 27 records are Active; Garden City is Unassigned because its sheet states no status, type, or operating hours. A changed Local status is saved only in this browser. All 28 facilities have address-based map coordinates.</p>
             <button className="primary-button" onClick={() => setAboutOpen(false)}>Understood</button>
           </section>
         </div>
@@ -1382,7 +1429,7 @@ function SitePlanContent({ facility, sitePlan }: { facility: Facility; sitePlan:
   return (
     <section className="site-plan-detail" aria-label={`Site plan for ${facility.fullAddress}`}>
       <header className="site-plan-heading">
-        <div><span className="eyebrow">User-provided site plan</span><h2>Property plan details</h2></div>
+        <div><span className="eyebrow">{sitePlanProvenanceLabel(sitePlan)}</span><h2>Property plan details</h2></div>
         <p>{sitePlan.sourceNote ?? 'Supplied property facts and plan details.'}</p>
       </header>
       <dl className="site-plan-facts">
@@ -1420,7 +1467,11 @@ function OperationsContactCard({ contact }: { contact: FacilityContact }) {
         <span className="operations-contact-role">{contact.role}</span>
         <h3>{contact.name}</h3>
         <address>
-          <a href={`mailto:${contact.email}`}><Mail size={14} />{contact.email}</a>
+          {contact.email ? (
+            <a href={`mailto:${contact.email}`}><Mail size={14} />{contact.email}</a>
+          ) : (
+            <span className="operations-contact-missing"><Mail size={14} />Email not provided</span>
+          )}
           {phones.length > 0 ? (
             phones.map((phone) => (
               <a href={`tel:${phone.href}`} key={`${phone.label}-${phone.href}`}>
@@ -1560,7 +1611,7 @@ function OverviewContent({ facility, sitePlan, status, openState, onStatusChange
       </section>
 
       <section className="status-assignment">
-        <div><span className="eyebrow">Local planning field</span><h2>Facility status</h2><p>All facilities are Active by default; the status can be changed locally.</p></div>
+        <div><span className="eyebrow">Local planning field</span><h2>Facility status</h2><p>{facility.status === 'Active' ? 'This facility is Active by default; the status can be changed locally.' : 'No status was supplied for this facility; the status can be changed locally.'}</p></div>
         <label><span>Local status</span><select aria-label={`Set status for ${facility.fullAddress}`} value={status} onChange={(event) => onStatusChange(event.target.value as DisplayStatus)}>{assignableStatuses.map((item) => <option key={item}>{item}</option>)}</select></label>
       </section>
 
