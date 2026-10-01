@@ -98,7 +98,7 @@ const expectedOperationsRows = {
   'jacksonville-ignition': { row: 9, columns: ['D', 'E', 'F', 'G', 'H'] },
   'las-vegas-marion-building-5': { row: 16, columns: ['D', 'E', 'F', 'I', 'J'] },
   'long-beach-willow': { row: 6, columns: ['D', 'E', 'F', 'H'] },
-  'joliet-brandon': { row: 13, columns: ['D', 'E', 'F', 'G', 'H'] },
+  'joliet-brandon': { row: 13, columns: ['D', 'E', 'F', 'G'] },
   'el-paso-emerald-12102-building-5': { row: 22, columns: ['D', 'E'] },
   'waddell-cotton': { row: 3, columns: ['D', 'E', 'H', 'J'] },
   'ontario-airport': { row: 7, columns: ['D', 'E', 'F', 'H', 'J'] },
@@ -2012,9 +2012,9 @@ test('property tabs show honest unavailable states and coordinate limitations', 
   await expect(page.getByTestId('selected-showcase').locator('.geocode-warning')).toHaveCount(0)
 })
 
-test('Operations sidecar maps 18 exact sheet rows, all 79 role entries, and exact portrait assignments', () => {
+test('Operations sidecar maps 18 exact sheet rows, all 78 role entries, and exact portrait assignments', () => {
   expect(Object.keys(facilityOperations)).toEqual(Object.keys(expectedOperationsRows))
-  expect(Object.values(facilityOperations).reduce((count, record) => count + (record?.contacts.length ?? 0), 0)).toBe(79)
+  expect(Object.values(facilityOperations).reduce((count, record) => count + (record?.contacts.length ?? 0), 0)).toBe(78)
   expect(facilitiesNeedingOperationsContactReview).toEqual(expectedOperationsReviewIds)
 
   for (const [facilityId, expected] of Object.entries(expectedOperationsRows)) {
@@ -2043,8 +2043,7 @@ test('Operations sidecar maps 18 exact sheet rows, all 79 role entries, and exac
     { label: 'Mobile', display: '662-408-2279', href: '+16624082279' },
   ])
   expect(facilityOperations['joliet-brandon']?.contacts.filter((contact) => contact.name === 'Javier Montane').map((contact) => [contact.sourceColumn, contact.role, contact.id])).toEqual([
-    ['G', 'Director of Operations', 'g-javier-montane'],
-    ['H', 'VP of Operations', 'h-javier-montane'],
+    ['G', 'Operations Director', 'g-javier-montane'],
   ])
   expect(facilityOperations['el-paso-emerald-12102-building-5']?.contacts.map((contact) => contact.phones?.[0].display)).toEqual(['626.829.3161', '626-899-2364'])
 
@@ -2062,17 +2061,21 @@ test('Operations sidecar maps 18 exact sheet rows, all 79 role entries, and exac
   const otherVicePresidents = Object.values(facilityOperations).flatMap((record) => record?.contacts
     .filter((contact) => contact.email !== JOHN_DIAZ_EMAIL && contact.role === 'VP of Operations')
     .map((contact) => contact.name) ?? [])
-  expect(new Set(otherVicePresidents)).toEqual(new Set(['John Gleason', 'Javier Montane']))
+  expect(new Set(otherVicePresidents)).toEqual(new Set(['John Gleason']))
 
   const otherPortraits = Object.values(facilityOperations).flatMap((record) => record?.contacts
-    .filter((contact) => contact.email !== JOHN_DIAZ_EMAIL && contact.photoUrl)
+    .filter((contact) => ![JOHN_DIAZ_EMAIL, 'harold.cuarezma@unisco.com'].includes(contact.email) && contact.photoUrl)
     .map((contact) => `${record.facilityId}:${contact.id}:${contact.photoUrl}`) ?? [])
   expect(otherPortraits).toEqual([
     'buena-park-valley-view:ruben-jauregui:/media/operations/buena-park-valley-view/ruben-jauregui.png',
     'buena-park-valley-view:mark-tuttle:/media/operations/buena-park-valley-view/mark-tuttle.png',
+    'tennessee-quality-drive:h-javier-montane:/media/operations/people/javier-montane.png',
+    'joliet-brandon:f-fabian-quiroz:/media/operations/joliet-brandon/fabian-quiroz.png',
+    'joliet-brandon:g-javier-montane:/media/operations/people/javier-montane.png',
+    'memphis-delp:h-javier-montane:/media/operations/people/javier-montane.png',
   ])
   expect(Object.values(facilityOperations).flatMap((record) => record?.contacts ?? [])
-    .filter((contact) => ![JOHN_DIAZ_EMAIL, 'ruben.jauregui@unisco.com', 'mark.tuttle@unisco.com'].includes(contact.email))
+    .filter((contact) => ![JOHN_DIAZ_EMAIL, 'ruben.jauregui@unisco.com', 'mark.tuttle@unisco.com', 'fabian.quiroz@unisco.com', 'javier.montane@unisco.com', 'harold.cuarezma@unisco.com'].includes(contact.email))
     .every((contact) => !contact.photoUrl)).toBe(true)
   for (const facilityId of expectedOperationsReviewIds) expect(facilityOperations[facilityId]).toBeUndefined()
 })
@@ -2185,8 +2188,8 @@ test('matched Operations contacts retain representative roles, links, multiple p
   await expect(riversidePanel).toContainText('User-provided facility contact sheet, row 4')
   await expect(riversidePanel).toContainText('8:00 AM–4:30 PM PST M-F')
   await expect(riversidePanel.locator('.operations-contact-card')).toHaveCount(5)
-  await expect(riversidePanel.locator('.operations-contact-card img')).toHaveCount(1)
-  await expect(riversidePanel.locator('.operations-contact-photo.is-blank')).toHaveCount(4)
+  await expect(riversidePanel.locator('.operations-contact-card img')).toHaveCount(2)
+  await expect(riversidePanel.locator('.operations-contact-photo.is-blank')).toHaveCount(3)
   const riversideJohn = riversidePanel.locator('.operations-contact-card').filter({ hasText: JOHN_DIAZ_EMAIL })
   await expect(riversideJohn.locator('.operations-contact-role')).toHaveText(JOHN_DIAZ_ROLE)
   await expect(riversideJohn.getByRole('img', { name: 'Portrait of John Diaz' })).toHaveAttribute('src', JOHN_DIAZ_PHOTO_URL)
@@ -2410,4 +2413,105 @@ test('Street basemap is the initial default and manual layer selection persists 
   await expect(satellite).toHaveAttribute('aria-pressed', 'true')
   await expect(street).toHaveAttribute('aria-pressed', 'false')
   await expect.poll(() => satelliteTiles.count()).toBeGreaterThan(0)
+})
+
+test('Joliet shows supplied Fabian and Javier portraits with no duplicate VP entry', async ({ page }) => {
+  const joliet = facilities.find((facility) => facility.id === 'joliet-brandon')!
+  await chooseFromDirectory(page, joliet.fullAddress)
+  await page.getByRole('tab', { name: 'Operations' }).click()
+  const panel = page.getByRole('region', { name: `Operations contacts for ${joliet.fullAddress}` })
+  await expect(panel.locator('.operations-contact-card')).toHaveCount(4)
+  await expect(panel.locator('.operations-contact-card').filter({ hasText: 'Javier Montane' })).toHaveCount(1)
+  await expect(panel.getByText('VP of Operations', { exact: true })).toHaveCount(0)
+  for (const [name, filename, source, role] of [
+    ['Fabian Quiroz', 'fabian-quiroz.png', '/home/user/workspace/Fabian.png', 'General Manager'],
+    ['Javier Montane', 'javier-montane.png', '/home/user/workspace/javier.png', 'Operations Director'],
+  ]) {
+    const card = panel.locator('.operations-contact-card').filter({ hasText: name })
+    await expect(card).toContainText(role)
+    const portrait = card.getByRole('img', { name: `Portrait of ${name}` })
+    await expect(portrait).toHaveAttribute('src', `/media/operations/${name === 'Javier Montane' ? 'people' : 'joliet-brandon'}/${filename}`)
+    await expect(portrait).toHaveCSS('object-fit', 'contain')
+    await expect.poll(() => portrait.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth === 1254 && image.naturalHeight === 1254)).toBe(true)
+    const response = await page.request.get(`/media/operations/${name === 'Javier Montane' ? 'people' : 'joliet-brandon'}/${filename}`)
+    expect(response.ok()).toBe(true)
+    // When original uploads are available, verify the served asset preserves their exact bytes.
+    const original = await readFile(source).catch(() => undefined)
+    if (original) expect(createHash('sha256').update(await response.body()).digest('hex')).toBe(createHash('sha256').update(original).digest('hex'))
+  }
+  await page.screenshot({ path: 'test-results/joliet-desktop.png', fullPage: true })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(panel.locator('img')).toHaveCount(2)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await page.screenshot({ path: 'test-results/joliet-mobile.png', fullPage: true })
+})
+
+test('Every Javier contact uses Operations Director and the exact supplied shared portrait', async ({ page }) => {
+  test.setTimeout(120_000)
+  const refs = Object.values(facilityOperations).flatMap(record => record?.contacts.filter(c => c.name === 'Javier Montane').map(c => ({ facilityId: record.facilityId, contact: c })) ?? [])
+  expect(refs.map(r => r.facilityId)).toEqual(['tennessee-quality-drive', 'joliet-brandon', 'memphis-delp'])
+  for (const { facilityId, contact } of refs) {
+    expect(contact.role).toBe('Operations Director')
+    expect(contact.photoUrl).toBe('/media/operations/people/javier-montane.png')
+    const facility = facilities.find(f => f.id === facilityId)!
+    await chooseFromDirectory(page, facility.fullAddress)
+    await page.getByRole('tab', { name: 'Operations' }).click()
+    const card = page.locator('.operations-contact-card').filter({ hasText: 'Javier Montane' })
+    await expect(card).toHaveCount(1)
+    await card.scrollIntoViewIfNeeded()
+    await expect(card).toContainText('Operations Director')
+    await expect(card.getByRole('link', { name: contact.email })).toHaveAttribute('href', `mailto:${contact.email}`)
+    await expect(card.locator('a[href^="tel:"]')).toHaveAttribute('href', 'tel:+16577057452')
+    const image = card.getByRole('img', { name: 'Portrait of Javier Montane' })
+    await expect(image).toHaveAttribute('src', contact.photoUrl!)
+    await expect.poll(() => image.evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth === 1254)).toBe(true)
+    await card.screenshot({ path: `test-results/${facilityId}-javier.png` })
+    await returnToDirectory(page)
+    const number = facilityId === 'tennessee-quality-drive' ? '09' : facilityId === 'joliet-brandon' ? '16' : '24'
+    const pdf = await downloadFacilityProfile(page, facility.fullAddress, `facility-${number}-${facilityId}-profile.pdf`)
+    expectVisiblePdfContacts(pdf.visibleText, facilityId)
+    expect(pdf.visibleText).toContain('Operations Director')
+    expect(pdf.visibleText).not.toContain('VP of Operations')
+    expect(pdf.assetPaths.some(path => path.startsWith('/media/operations/'))).toBe(false)
+    await returnToDirectory(page)
+  }
+})
+
+test('Harold supplied portrait renders on every existing contact without changing roles or phones', async ({ page }) => {
+  test.setTimeout(120_000)
+  const refs = Object.values(facilityOperations).flatMap(record => record?.contacts.filter(c => c.email === 'harold.cuarezma@unisco.com').map(c => ({ facilityId: record.facilityId, contact: c })) ?? [])
+  expect(refs.map(r => r.facilityId)).toEqual(['riverside-alessandro', 'moreno-valley-heacock', 'tacoma-lincoln', 'tacoma-steele', 'las-vegas-marion-building-5', 'waddell-cotton', 'ontario-airport', 'sparks-vista'])
+  const asset = '/media/operations/people/harold-cuarezma.png'
+  const response = await page.request.get(asset)
+  expect(response.ok()).toBe(true)
+  const original = await readFile('/home/user/workspace/harold.png').catch(() => undefined)
+  if (original) expect(createHash('sha256').update(await response.body()).digest('hex')).toBe(createHash('sha256').update(original).digest('hex'))
+  for (const { facilityId, contact } of refs) {
+    expect(contact.photoUrl).toBe(asset)
+    expect(contact.role).toBe('Regional Director of Field Operations')
+    const facility = facilities.find(f => f.id === facilityId)!
+    await chooseFromDirectory(page, facility.fullAddress)
+    await page.getByRole('tab', { name: 'Operations' }).click()
+    const card = page.locator('.operations-contact-card').filter({ hasText: 'Harold Cuarezma' })
+    await expect(card).toHaveCount(1)
+    await card.scrollIntoViewIfNeeded()
+    await expect(card).toContainText(contact.role)
+    await expect(card.getByRole('link', { name: contact.email })).toHaveAttribute('href', `mailto:${contact.email}`)
+    await expect(card.getByRole('link', { name: 'Cell 909-753-6346' })).toHaveAttribute('href', 'tel:+19097536346')
+    await expect(card.getByRole('link', { name: 'Mobile 626-362-9596' })).toHaveAttribute('href', 'tel:+16263629596')
+    const image = card.getByRole('img', { name: 'Portrait of Harold Cuarezma' })
+    await expect(image).toHaveAttribute('src', asset)
+    await expect(image).toHaveCSS('object-fit', 'contain')
+    await expect.poll(() => image.evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth === 500 && i.naturalHeight === 640)).toBe(true)
+    await card.screenshot({ path: `test-results/${facilityId}-harold.png` })
+    await returnToDirectory(page)
+  }
+  await page.setViewportSize({ width: 390, height: 844 })
+  await chooseFromDirectory(page, facilities.find(f => f.id === 'riverside-alessandro')!.fullAddress)
+  await page.getByRole('tab', { name: 'Operations' }).click()
+  const card = page.locator('.operations-contact-card').filter({ hasText: 'Harold Cuarezma' })
+  await card.scrollIntoViewIfNeeded()
+  await expect(card.locator('img')).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await card.screenshot({ path: 'test-results/harold-mobile.png' })
 })
