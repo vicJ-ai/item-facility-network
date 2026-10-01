@@ -10,9 +10,11 @@ export default defineConfig({
     baseURL: 'http://127.0.0.1:4191',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
-    launchOptions: process.env.PLAYWRIGHT_CHROME_PATH
-      ? { executablePath: process.env.PLAYWRIGHT_CHROME_PATH }
-      : undefined,
+    launchOptions: {
+      // Headless Chromium has no GPU; SwiftShader provides the WebGL the 3D globe needs.
+      args: ['--enable-unsafe-swiftshader'],
+      ...(process.env.PLAYWRIGHT_CHROME_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROME_PATH } : {}),
+    },
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'], viewport: { width: 1536, height: 1024 } } },
