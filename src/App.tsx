@@ -15,6 +15,7 @@ import { GlobeQualityControl } from './components/GlobeQualityControl'
 import { RegionHighlightLayer } from './components/RegionHighlightLayer'
 import { FacilityDocuments } from './components/FacilityDocuments'
 import { AccessControls } from './components/AccessControls'
+import { OperationsWorkbench } from './components/OperationsWorkbench'
 import { FacilityPhoto } from './components/FacilityPhoto'
 import { UserProvidedPhotoGallery } from './components/UserProvidedPhotoGallery'
 import {
@@ -28,9 +29,10 @@ import { getFacilityMedia, type FacilityMedia } from './data/facility-media'
 import { getFacilityOperatingHours } from './data/facility-hours'
 import { useAccess } from './auth/access-context'
 import { useFacilityOperations } from './auth/useFacilityOperations'
+import { useFacilityAvailability } from './hooks/useFacilityAvailability'
 import type { FacilityContact, FacilityOperations } from './types/operations'
 import { getFacilitySitePlan, type FacilitySitePlan, type FacilitySitePlanFact } from './data/facility-site-plans'
-import { formatAvailableSpaceMonth, getFacilitySquareFootage } from './data/facility-space'
+import { getFacilitySquareFootage } from './data/facility-space'
 import { getUserProvidedFacilityPhotos, type UserProvidedFacilityPhotos } from './data/facility-user-photos'
 import { getRegionBoundary, type RegionBoundary } from './data/region-boundaries'
 import { getInitialQualityChoice, probeGraphics, QUALITY_TIERS, saveQualityChoice, type QualityChoice, type QualityTier } from './lib/globe-quality'
@@ -64,7 +66,7 @@ const PREVIEW_MAX_FPS = previewParam('previewFps', 120)
 
 type Tab = 'Overview' | 'Site Plan' | 'Photos' | 'Documents' | 'Operations'
 type Theme = 'light' | 'dark'
-type AppView = 'dashboard' | 'locations'
+type AppView = 'dashboard' | 'locations' | 'operations'
 type StatusFilter = 'All' | DisplayStatus
 type FacilityTypeFilter = 'All' | FacilityType
 type StatusAssignments = Record<string, DisplayStatus>
@@ -201,17 +203,17 @@ function OperatingHoursDisplay({ facilityId, variant }: { facilityId: string; va
   )
 }
 
-function SquareFootagePreview({ facilityId }: { facilityId: string }) {
-  const { totalSquareFeet, available } = getFacilitySquareFootage(facilityId)
+function SquareFootagePreview({ facilityId, availableSquareFeet }: { facilityId: string; availableSquareFeet?: number }) {
+  const { totalSquareFeet } = getFacilitySquareFootage(facilityId)
 
   return (
     <span className="square-footage-preview" data-testid="square-footage-preview">
       <Warehouse size={12} />
       <span>
         {totalSquareFeet !== undefined && <span data-testid="square-footage-total">Total <strong>{totalSquareFeet.toLocaleString('en-US')} SQF</strong></span>}
-        <span data-testid="square-footage-available" data-available-status={available ? 'reported' : 'pending'}>
-          Available {available
-            ? <><strong>{available.squareFeet.toLocaleString('en-US')} SQF</strong> · as of {formatAvailableSpaceMonth(available.asOf)}</>
+        <span data-testid="square-footage-available" data-available-status={availableSquareFeet !== undefined ? 'reported' : 'pending'}>
+          Available {availableSquareFeet !== undefined
+            ? <strong>{availableSquareFeet.toLocaleString('en-US')} SQFT</strong>
             : <em className="square-footage-pending">Pending</em>}
         </span>
       </span>
@@ -528,6 +530,7 @@ function EmptyState({ icon: Icon = FileText, title, body, children }: { icon?: t
 
 function App() {
   const access = useAccess()
+  const { availability, availabilityError, applyAvailability } = useFacilityAvailability()
   const [theme, setTheme] = useState<Theme>(getInitialTheme)
   const [appView, setAppView] = useState<AppView>('locations')
   const [selected, setSelected] = useState<Facility | null>(null)
@@ -632,6 +635,12 @@ function App() {
     const timer = window.setInterval(() => setNow(Date.now()), CLOCK_TICK_MS)
     return () => window.clearInterval(timer)
   }, [])
+
+  useEffect(() => {
+    // Access revocation moves the user away from the protected workbench.
+    // oxlint-disable-next-line react/set-state-in-effect
+    if (!access.loading && !access.user && appView === 'operations') setAppView('locations')
+  }, [access.loading, access.user, appView])
 
   useEffect(() => {
     if (!isResizing) return
@@ -746,7 +755,7 @@ function App() {
         <span className="dashboard-pin-preview-address">{facility.fullAddress}</span>
         <OperatingHoursDisplay facilityId={facility.id} variant="preview" />
         <OpenStateBadge state={openStates[facility.id]} variant="full" />
-        <SquareFootagePreview facilityId={facility.id} />
+        <SquareFootagePreview facilityId={facility.id} availableSquareFeet={availability[facility.id]} />
       </span>
     </div>
   )
@@ -893,9 +902,9 @@ function App() {
 
   const allNavItems: ReadonlyArray<readonly [string, typeof Grid2X2, AppView | null]> = [
     ['Dashboard', Grid2X2, 'dashboard'], ['Facilities', MapIcon, 'locations'],
-    ['Operations', SlidersHorizontal, null], ['Analytics', PackageSearch, null], ['Reports', ClipboardList, null],
+    ['Operations', SlidersHorizontal, 'operations'], ['Analytics', PackageSearch, null], ['Reports', ClipboardList, null],
   ]
-  const navItems = allNavItems.filter(([label]) => label !== 'Operations' || access.user)
+  const navItems = allNavItems.filter(([label]) => !['Operations', 'Analytics', 'Reports'].includes(label) || access.user)
 
   return (
     <div className={`app-shell${previewing ? ' is-previewing' : ''}`}>
@@ -914,6 +923,7 @@ function App() {
               onClick={() => {
                 if (view === 'dashboard') showDashboard()
                 else if (view === 'locations') showLocations()
+                else if (view === 'operations') { setAppView('operations'); setMobileNav(false); setShowcaseOpen(false) }
                 else {
                   setMobileNav(false)
                   setNotice(`${label} is outside this reference prototype.`)
@@ -938,7 +948,8 @@ function App() {
         </div>
       </header>
 
-      <main ref={dashboardRef} className={`dashboard${appView === 'dashboard' ? ' dashboard-map-only' : ''}${isResizing ? ' is-resizing' : ''}`} style={{ '--directory-width': `${directoryWidth}px` } as CSSProperties}>
+      <main ref={dashboardRef} className={`dashboard${appView === 'dashboard' || appView === 'operations' ? ' dashboard-map-only' : ''}${appView === 'operations' ? ' operations-view' : ''}${isResizing ? ' is-resizing' : ''}`} style={{ '--directory-width': `${directoryWidth}px` } as CSSProperties}>
+        {appView === 'operations' && access.user && <OperationsWorkbench onAvailabilityChanged={applyAvailability} />}
         {appView === 'locations' && (
           <div className="mobile-explorer-switch" role="group" aria-label="Explorer view">
             <button aria-pressed={mobileView === 'list'} className={mobileView === 'list' ? 'active' : ''} onClick={() => setMobileView('list')}><ClipboardList size={16} />List</button>
@@ -969,7 +980,7 @@ function App() {
                 {tabs.map((item) => <button key={item} role="tab" aria-selected={displayedTab === item} className={displayedTab === item ? 'active' : ''} onClick={() => setTab(item)}>{item}</button>)}
               </div>
               <div className="detail-content">
-                {displayedTab === 'Overview' && <OverviewContent facility={selected} sitePlan={selectedSitePlan} status={selectedStatus} openState={openStates[selected.id]} onStatusChange={(value) => assignStatus(selected, value)} />}
+                {displayedTab === 'Overview' && <OverviewContent facility={selected} sitePlan={selectedSitePlan} status={selectedStatus} openState={openStates[selected.id]} availableSquareFeet={availability[selected.id]} availabilityUnavailable={availabilityError} onStatusChange={(value) => assignStatus(selected, value)} />}
                 {displayedTab === 'Site Plan' && (selectedSitePlan
                   ? <SitePlanContent facility={selected} sitePlan={selectedSitePlan} />
                   : <EmptyState icon={MapIcon} title="Site plan not provided" body="No site plan was supplied for this facility." />)}
@@ -1049,7 +1060,7 @@ function App() {
           onPointerCancel={finishResize}
         ><span aria-hidden="true" /></div>}
 
-        <section
+        {appView !== 'operations' && <section
           ref={setMapStageElement}
           className={`map-stage${appView === 'locations' && mobileView === 'list' ? ' mobile-hidden' : ''}${globeActive ? ' is-globe' : ''}`}
           aria-label="Facility network map"
@@ -1315,7 +1326,7 @@ function App() {
           />
           {appView === 'locations' && filtered.length === 0 && <div className="no-map-results"><Search size={20} /><strong>No facilities found</strong><button onClick={() => { setSearch(''); setStatusFilter('All'); setFacilityTypeFilter('All') }}>Clear filters</button></div>}
           {appView === 'locations' && filtered.length > 0 && mappableFilteredFacilities.length === 0 && <div className="no-map-results"><MapPin size={20} /><strong>Map location unavailable</strong><span>The matching facility has no verified coordinates.</span></div>}
-        </section>
+        </section>}
       </main>
 
       {notice && <div className="toast" role="status"><Check size={17} />{notice}</div>}
@@ -1364,6 +1375,7 @@ function App() {
                 <div><dt>City</dt><dd>{selected.city ?? 'Not provided'}</dd></div>
                 <div><dt>State</dt><dd>{selected.state} · {selected.stateName}</dd></div>
                 <div><dt>ZIP</dt><dd>{selected.zip ?? 'Not provided'}</dd></div>
+                <div><dt>Available space</dt><dd data-testid="drawer-available-space">{availability[selected.id] !== undefined ? `${availability[selected.id].toLocaleString('en-US')} SQFT` : 'Pending'}</dd></div>
                 <div className="detail-list-hours"><dt>Operating hours</dt><dd><OperatingHoursDisplay facilityId={selected.id} variant="drawer" /><OpenStateBadge state={openStates[selected.id]} variant="full" /></dd></div>
                 <div><dt>Coordinates</dt><dd>{selected.coordinates ? selected.coordinates.map((value) => value.toFixed(6)).join(', ') : 'Unavailable'}</dd></div>
                 <div><dt>Coordinate precision</dt><dd>{selected.coordinatePrecision}</dd></div>
@@ -1555,7 +1567,7 @@ function PhotosContent({ facility, media, userPhotos }: { facility: Facility; me
   )
 }
 
-function OverviewContent({ facility, sitePlan, status, openState, onStatusChange }: { facility: Facility; sitePlan?: FacilitySitePlan; status: DisplayStatus; openState: FacilityOpenState; onStatusChange: (status: DisplayStatus) => void }) {
+function OverviewContent({ facility, sitePlan, status, openState, availableSquareFeet, availabilityUnavailable, onStatusChange }: { facility: Facility; sitePlan?: FacilitySitePlan; status: DisplayStatus; openState: FacilityOpenState; availableSquareFeet?: number; availabilityUnavailable: boolean; onStatusChange: (status: DisplayStatus) => void }) {
   return (
     <>
       <section
@@ -1585,6 +1597,12 @@ function OverviewContent({ facility, sitePlan, status, openState, onStatusChange
           <div><dt>ZIP</dt><dd>{facility.zip ?? 'Not provided'}</dd></div>
           <div className="known-details-hours"><dt>Operating hours</dt><dd><OperatingHoursDisplay facilityId={facility.id} variant="overview" /><OpenStateBadge state={openState} variant="full" /></dd></div>
         </dl>
+      </section>
+
+      <section className="availability-summary info-section" data-testid="overview-available-space">
+        <div><span className="eyebrow">Administrator-maintained</span><h2><Warehouse />Available space</h2><p>Separate from supplied building-capacity and site-plan facts.</p></div>
+        <strong data-available-status={availableSquareFeet !== undefined ? 'reported' : 'pending'}>{availableSquareFeet !== undefined ? `${availableSquareFeet.toLocaleString('en-US')} SQFT` : 'Pending'}</strong>
+        {availabilityUnavailable && <small>Latest availability could not be refreshed.</small>}
       </section>
 
       {sitePlan ? (

@@ -12,7 +12,7 @@ export default async function globalSetup() {
   const db = createDb({ databaseUrl, databaseSchema: E2E_SCHEMA })
   try {
     await migrate(db)
-    await db.query('TRUNCATE facility_sessions, facility_access_audit, facility_admins, facility_login_throttle RESTART IDENTITY CASCADE')
+    await db.query('TRUNCATE facility_sessions, facility_availability_audit, facility_availability, facility_access_audit, facility_admins, facility_login_throttle RESTART IDENTITY CASCADE')
   } finally {
     await db.close()
   }

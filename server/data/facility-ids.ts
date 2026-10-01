@@ -1,0 +1,32 @@
+export const facilityIds = [
+  'buena-park-valley-view',
+  'riverside-alessandro',
+  'moreno-valley-heacock',
+  'houston-citypark',
+  'roanoke-highway-114',
+  'pooler-morgan-lakes',
+  'pooler-seabrook-building-2',
+  'summerville-cypress-tradeport',
+  'tennessee-quality-drive',
+  'tacoma-lincoln',
+  'tacoma-steele',
+  'jacksonville-ignition',
+  'las-vegas-marion-building-5',
+  'el-paso-emerald-12100',
+  'long-beach-willow',
+  'joliet-brandon',
+  'el-paso-emerald-12102-building-5',
+  'waddell-cotton',
+  'ontario-airport',
+  'kent-85th-avenue-range',
+  'west-sacramento-overland',
+  'sparks-vista',
+  'houston-navigation',
+  'memphis-delp',
+  'salt-lake-city-jimmy-doolittle',
+  'somerset-cottontail',
+  'plano-10th-f-avenue',
+] as const
+
+const knownFacilityIds = new Set<string>(facilityIds)
+export const isKnownFacilityId = (value: string) => knownFacilityIds.has(value)

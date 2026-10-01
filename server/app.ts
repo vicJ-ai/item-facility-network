@@ -12,6 +12,8 @@ import {
 import { clearSessionCookie, sameOrigin, setSessionCookie, sha256 } from './security.js'
 import { authenticateEmployee, revalidateEmployee, searchEmployees, UpstreamError } from './upstream.js'
 import { facilitiesNeedingOperationsContactReview, facilityOperations } from './data/facility-operations.js'
+import { adminAvailability, availabilityHistory, publicAvailability, saveAvailability, validSquareFeet } from './availability.js'
+import { isKnownFacilityId } from './data/facility-ids.js'
 
 type Dependencies = { config: AppConfig; db: Db }
 type AuthorizedRequest = Request & { admin?: AdminAccess }
@@ -80,6 +82,10 @@ export function createApp({ config, db }: Dependencies) {
     try { await db.query('SELECT 1'); response.json({ ok: true }) } catch { fail(response, 503, 'database_unavailable') }
   })
 
+  app.get('/api/availability', async (_request, response) => {
+    try { response.json({ availability: await publicAvailability(db) }) } catch { fail(response, 503, 'service_unavailable') }
+  })
+
   app.get('/api/auth/session', async (request, response) => {
     try {
       const admin = await resolveSession(db, config, request)
@@ -140,6 +146,33 @@ export function createApp({ config, db }: Dependencies) {
   })
 
   app.get('/media/operations/*path', (_request, response) => fail(response, 404, 'not_found'))
+
+  app.get('/api/admin/availability', requireAuth, async (_request, response) => {
+    try { response.json({ availability: await adminAvailability(db) }) } catch { fail(response, 503, 'service_unavailable') }
+  })
+
+  app.get('/api/admin/availability/history', requireAuth, async (request, response) => {
+    const rawPage = typeof request.query.page === 'string' ? request.query.page : '1'
+    const facilityId = typeof request.query.facilityId === 'string' && request.query.facilityId ? request.query.facilityId : undefined
+    if (!/^\d+$/.test(rawPage) || (facilityId && !isKnownFacilityId(facilityId))) return fail(response, 400, 'invalid_query')
+    try { response.json(await availabilityHistory(db, { page: Number(rawPage), ...(facilityId ? { facilityId } : {}) })) } catch { fail(response, 400, 'invalid_query') }
+  })
+
+  app.post('/api/admin/availability/:facilityId', requireAuth, requireMutation, async (request: AuthorizedRequest, response) => {
+    const facilityId = Array.isArray(request.params.facilityId) ? request.params.facilityId[0] : request.params.facilityId
+    const squareFeet = request.body?.squareFeet
+    const version = request.body?.version
+    if (!isKnownFacilityId(facilityId) || !validSquareFeet(squareFeet) || !Number.isSafeInteger(version) || version < 0) return fail(response, 400, 'invalid_availability')
+    try {
+      response.json({ ok: true, availability: await saveAvailability(db, config.tenantId, request.admin!, { facilityId, squareFeet, version }) })
+    } catch (error) {
+      const code = error instanceof Error ? error.message : ''
+      if (code === 'actor_access_revoked') return fail(response, 403, code)
+      if (code === 'stale_availability') return fail(response, 409, code)
+      if (code === 'unknown_facility' || code === 'invalid_availability') return fail(response, 400, code)
+      return fail(response, 503, 'service_unavailable')
+    }
+  })
 
   app.get('/api/admin/access', requireAuth, requireConfiguration, async (_request, response) => {
     try { response.json(await listAdmins(db)) } catch { fail(response, 503, 'service_unavailable') }

@@ -136,8 +136,11 @@ For a production preview:
 
 ```bash
 npm run build
+npm run migrate
 npm run start
 ```
+
+Run `npm run migrate` as the production predeploy job after the build and before starting the new runtime. It is additive and idempotent: existing administrator, session, and audit data are preserved while required tables and indexes are created.
 
 The preview uses the exact `PUBLIC_ORIGIN` and `PORT` configured in `.env.local`. For the canonical local preview, use `PUBLIC_ORIGIN=http://127.0.0.1:4210` and `PORT=4210`.
 

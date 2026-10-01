@@ -57,7 +57,7 @@ function testConfig(): AppConfig {
 }
 
 async function resetDb() {
-  await db.query('TRUNCATE facility_sessions, facility_access_audit, facility_admins, facility_login_throttle RESTART IDENTITY CASCADE')
+  await db.query('TRUNCATE facility_sessions, facility_availability_audit, facility_availability, facility_access_audit, facility_admins, facility_login_throttle RESTART IDENTITY CASCADE')
   malformedDirectory = false
   malformedProfile = false
   resetServiceTokenForTests()

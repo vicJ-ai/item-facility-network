@@ -617,7 +617,7 @@ test('stale v2 non-Active statuses cannot override the intrinsic Active status',
 
 test('top navigation exposes the functioning Facilities view once and omits Locations and Inventory on desktop and mobile', async ({ page }) => {
   const navigation = page.getByRole('navigation', { name: 'Primary navigation' })
-  const expectedItems = ['Dashboard', 'Facilities', 'Analytics', 'Reports']
+  const expectedItems = ['Dashboard', 'Facilities']
 
   await expect(navigation.getByRole('button')).toHaveText(expectedItems)
   await expect(navigation.getByRole('button', { name: 'Facilities', exact: true })).toHaveCount(1)

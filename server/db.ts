@@ -86,5 +86,31 @@ export async function migrate(db: Db) {
       first_failure_at timestamptz NOT NULL DEFAULT now(),
       blocked_until timestamptz
     );
+    CREATE TABLE IF NOT EXISTS facility_availability (
+      facility_id text PRIMARY KEY,
+      square_feet bigint NOT NULL CHECK (square_feet >= 0 AND square_feet <= 9007199254740991),
+      version integer NOT NULL DEFAULT 1 CHECK (version >= 1),
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      updated_by_admin_id uuid NOT NULL REFERENCES facility_admins(id)
+    );
+    CREATE TABLE IF NOT EXISTS facility_availability_audit (
+      id bigserial PRIMARY KEY,
+      facility_id text NOT NULL,
+      old_square_feet bigint CHECK (old_square_feet IS NULL OR (old_square_feet >= 0 AND old_square_feet <= 9007199254740991)),
+      new_square_feet bigint NOT NULL CHECK (new_square_feet >= 0 AND new_square_feet <= 9007199254740991),
+      version integer NOT NULL CHECK (version >= 1),
+      actor_admin_id uuid NOT NULL REFERENCES facility_admins(id),
+      actor_iam_user_id text NOT NULL CHECK (actor_iam_user_id ~ '^[0-9]{1,128}$'),
+      actor_username text NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS facility_availability_audit_history_idx ON facility_availability_audit(created_at DESC,id DESC);
+    CREATE INDEX IF NOT EXISTS facility_availability_audit_facility_history_idx ON facility_availability_audit(facility_id,created_at DESC,id DESC);
+    CREATE OR REPLACE FUNCTION prevent_facility_availability_audit_mutation() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN RAISE EXCEPTION 'facility availability audit is append-only'; END
+    $$;
+    DROP TRIGGER IF EXISTS facility_availability_audit_immutable ON facility_availability_audit;
+    CREATE TRIGGER facility_availability_audit_immutable BEFORE UPDATE OR DELETE ON facility_availability_audit
+      FOR EACH ROW EXECUTE FUNCTION prevent_facility_availability_audit_mutation();
   `)
 }
