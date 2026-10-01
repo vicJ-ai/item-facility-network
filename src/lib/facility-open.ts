@@ -17,7 +17,9 @@ const openDaysByLabel: Record<FacilityOperatingHours['days'], readonly number[]>
 
 export type FacilityOpenState = {
   isOpen: boolean
-  timeZone: string
+  /** False when no operating hours were supplied; isOpen is then false and no local time is shown. */
+  hoursKnown: boolean
+  timeZone?: string
   /** Facility-local wall-clock time, for example "10:08 AM PDT". */
   localTime: string
   /** Short status with the next change, for example "Open · closes 4:30 PM". */
@@ -63,7 +65,8 @@ export function formatFacilityLocalTime(date: Date, timeZone: string) {
 }
 
 /** Whether a facility is inside its supplied operating hours at `date`. Holidays are not modeled. */
-export function getFacilityOpenState(facility: Pick<Facility, 'state'>, hours: FacilityOperatingHours, date: Date): FacilityOpenState {
+export function getFacilityOpenState(facility: Pick<Facility, 'state'>, hours: FacilityOperatingHours | undefined, date: Date): FacilityOpenState {
+  if (!hours) return { isOpen: false, hoursKnown: false, localTime: '', summary: 'Hours not provided' }
   const timeZone = getFacilityTimeZone(facility, hours)
   const openDays = openDaysByLabel[hours.days]
   const opensAt = parseClockTime(hours.startTime)
@@ -73,11 +76,11 @@ export function getFacilityOpenState(facility: Pick<Facility, 'state'>, hours: F
   const isOpen = openToday && minutes >= opensAt && minutes < closesAt
   const localTime = formatFacilityLocalTime(date, timeZone)
 
-  if (isOpen) return { isOpen, timeZone, localTime, summary: `Open · closes ${hours.endTime}` }
-  if (openToday && minutes < opensAt) return { isOpen, timeZone, localTime, summary: `Closed · opens ${hours.startTime}` }
+  if (isOpen) return { isOpen, hoursKnown: true, timeZone, localTime, summary: `Open · closes ${hours.endTime}` }
+  if (openToday && minutes < opensAt) return { isOpen, hoursKnown: true, timeZone, localTime, summary: `Closed · opens ${hours.startTime}` }
 
   let daysAhead = 1
   while (!openDays.includes((weekday + daysAhead) % 7)) daysAhead += 1
   const nextDay = daysAhead === 1 ? 'tomorrow' : weekdayNames[(weekday + daysAhead) % 7]
-  return { isOpen, timeZone, localTime, summary: `Closed · opens ${nextDay} ${hours.startTime}` }
+  return { isOpen, hoursKnown: true, timeZone, localTime, summary: `Closed · opens ${nextDay} ${hours.startTime}` }
 }

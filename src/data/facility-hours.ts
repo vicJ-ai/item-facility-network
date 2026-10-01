@@ -74,7 +74,8 @@ const confirmedExpansion = (
   matchNote: `Confirmed by the user with the ten-site roster expansion on 2026-09-28 as 8:00 AM–4:30 PM ${timezone} M-F.`,
 })
 
-export const facilityOperatingHours: Record<string, FacilityOperatingHours> = {
+// Facilities without supplied hours (Garden City) are intentionally absent.
+export const facilityOperatingHours: Partial<Record<string, FacilityOperatingHours>> = {
   'buena-park-valley-view': provided('buena-park-valley-view', 'CA Buena Park (Valley View)', 'PST'),
   'riverside-alessandro': provided('riverside-alessandro', 'CA Alessandro', 'PST'),
   'moreno-valley-heacock': provided('moreno-valley-heacock', 'CA Heacock', 'PST'),

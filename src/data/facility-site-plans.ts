@@ -12,8 +12,13 @@ export type FacilitySitePlan = {
   width: number
   height: number
   sourceNote?: string
+  // Set when the plan comes from an official one-page UNIS facility sheet rather than a user-supplied file.
+  provenance?: 'official-facility-sheet'
   facts: FacilitySitePlanFact[]
 }
+
+export const sitePlanProvenanceLabel = (plan: FacilitySitePlan) =>
+  plan.provenance === 'official-facility-sheet' ? 'Official site plan' : 'User-provided site plan'
 
 export const facilitySitePlans: Partial<Record<string, FacilitySitePlan>> = {
   'buena-park-valley-view': {
@@ -56,26 +61,41 @@ export const facilitySitePlans: Partial<Record<string, FacilitySitePlan>> = {
       { id: 'trailer-spaces', label: 'Trailer spaces', value: 62, unit: 'shown' },
     ],
   },
-  'houston-citypark': {
-    assetUrl: '/media/site-plans/houston-citypark.jpg',
-    alt: 'User-provided site plan for 8833 Citypark Loop showing the building outline and labeled building area',
-    width: 1200,
-    height: 927,
+  'garden-city-prosperity': {
+    assetUrl: '/media/site-plans/garden-city-prosperity.png',
+    alt: 'Official UNIS site plan for 140 Prosperity Drive showing the cross-dock building with inbound and outbound dock sides, office, and surrounding parking',
+    width: 1614,
+    height: 787,
+    provenance: 'official-facility-sheet',
+    sourceNote: 'Official UNIS facility sheet (804 – Garden City).',
     facts: [
-      { id: 'building-area', label: 'Building area', value: 254_229, unit: 'SF' },
+      { id: 'building-area', label: 'Building area', value: 505_902, unit: 'SF' },
+      { id: 'dock-sides', label: 'Dock sides', value: 'Inbound + outbound', note: 'As labeled on plan' },
+    ],
+  },
+  'houston-citypark': {
+    assetUrl: '/media/site-plans/houston-citypark-official.png',
+    alt: 'Official UNIS floor plan for 8833 Citypark Loop showing the column grid, numbered dock doors, and the labeled 119,700 square feet',
+    width: 1875,
+    height: 850,
+    provenance: 'official-facility-sheet',
+    sourceNote: 'Official UNIS facility sheet (144 – City Park).',
+    facts: [
+      { id: 'facility-area', label: 'Facility area', value: 119_700, unit: 'SF' },
+      { id: 'trailer-dock-doors', label: 'Trailer dock doors', value: 35, unit: 'shown', note: 'Includes 1 drive-in door' },
     ],
   },
   'jacksonville-ignition': {
     assetUrl: '/media/site-plans/jacksonville-ignition.png',
-    alt: 'User-provided site plan for 2619 Ignition Drive showing the labeled area segment, leased segment, parking, dock-high doors, ramp, and trailer parking',
-    width: 1140,
-    height: 860,
+    alt: 'Official UNIS site plan for 2619 Ignition Drive showing the office, driver office, staging lane, 17 rack rows, a leased area, and 18 numbered dock doors',
+    width: 1612,
+    height: 636,
+    provenance: 'official-facility-sheet',
+    sourceNote: 'Official UNIS facility sheet (140 – Jacksonville).',
     facts: [
-      { id: 'area-labeled', label: 'Area labeled on plan', value: 174_288, unit: 'SF' },
-      { id: 'standard-parking', label: 'Standard parking', value: 93, unit: 'shown' },
-      { id: 'trailer-parking', label: 'Trailer parking', value: 43, unit: 'shown' },
-      { id: 'dock-high-doors', label: 'Dock-high doors', value: 93, unit: 'shown' },
-      { id: 'ramp', label: 'Ramp', value: 1, unit: 'shown' },
+      { id: 'dock-doors', label: 'Dock doors', value: 18, unit: 'shown', note: 'Numbered 01–18' },
+      { id: 'rack-rows', label: 'Rack rows', value: 17, unit: 'shown', note: 'Rack 01–17' },
+      { id: 'leased-area', label: 'Leased area', value: 'Marked on plan', note: 'No area stated' },
     ],
   },
   'joliet-brandon': {
@@ -138,6 +158,20 @@ export const facilitySitePlans: Partial<Record<string, FacilitySitePlan>> = {
       { id: 'auto-parking', label: 'Auto parking', value: 82, unit: 'shown' },
     ],
   },
+  'pooler-seabrook-building-2': {
+    assetUrl: '/media/site-plans/pooler-seabrook-building-2.png',
+    alt: 'Official UNIS site plan for 300 Seabrook Parkway Building 2 showing the cross-dock building, dock-high doors on both sides, ramps, trailer parking, and standard parking',
+    width: 1609,
+    height: 658,
+    provenance: 'official-facility-sheet',
+    sourceNote: 'Official UNIS facility sheet (823 – Pooler).',
+    facts: [
+      { id: 'dock-high-doors', label: 'Dock-high doors', value: 269, unit: 'plan total', note: '134 + 135' },
+      { id: 'ramps', label: 'Ramps', value: 2, unit: 'shown' },
+      { id: 'trailer-parking', label: 'Trailer parking', value: 335, unit: 'plan total', note: '161 + 174' },
+      { id: 'standard-parking', label: 'Standard parking', value: 125, unit: 'plan total', note: '94 + 31' },
+    ],
+  },
   'riverside-alessandro': {
     assetUrl: '/media/site-plans/riverside-alessandro-redraw.png',
     alt: 'User-provided footprint redraw for 2677 East Alessandro Boulevard showing the building, loading areas, parking, and frontage roads',
@@ -152,22 +186,28 @@ export const facilitySitePlans: Partial<Record<string, FacilitySitePlan>> = {
     ],
   },
   'roanoke-highway-114': {
-    assetUrl: '/media/site-plans/roanoke-highway-114.png',
-    alt: 'User-provided site plan along Highway 114 showing labeled dock positions, car parking, and trailer spaces',
-    width: 2550,
-    height: 1600,
+    assetUrl: '/media/site-plans/roanoke-highway-114-official.png',
+    alt: 'Official UNIS site plan for 1230 W Highway 114 showing the 568,632 square foot building, dock positions and truck courts on both sides, trailer spaces, and parking along the truck bypass drives',
+    width: 902,
+    height: 591,
+    provenance: 'official-facility-sheet',
+    sourceNote: 'Official UNIS facility sheet (869 – Roanoke).',
     facts: [
-      { id: 'building-area', label: 'Building area', value: 568_632, unit: 'SF', note: 'Provided by user' },
-      { id: 'dock-positions', label: 'Dock positions', value: 118, unit: 'plan total', note: '54 + 64' },
-      { id: 'car-parking', label: 'Car parking', value: 229, unit: 'plan total', note: '5 + 12 + 105 + 107' },
+      { id: 'building-area', label: 'Building area', value: 568_632, unit: 'SF' },
+      { id: 'dock-positions', label: 'Dock positions', value: 127, unit: 'plan total', note: '59 + 68' },
+      { id: 'car-parking', label: 'Parking spaces', value: 212, unit: 'plan total', note: '105 + 107' },
       { id: 'trailer-spaces', label: 'Trailer spaces', value: 111, unit: 'plan total', note: '46 + 65' },
+      { id: 'truck-courts', label: 'Truck courts', value: 125, unit: 'ft', note: 'Both dock sides' },
+      { id: 'building-dimensions', label: 'Building dimensions', value: "1,092' × 520'", note: '21 bays @ 52\'' },
     ],
   },
   'summerville-cypress-tradeport': {
-    assetUrl: '/media/site-plans/summerville-cypress-tradeport.jpg',
-    alt: 'User-provided site plan along North Cypress Drive showing the labeled building area, parking, dock-high doors, ramps, and trailer parking',
-    width: 1185,
-    height: 856,
+    assetUrl: '/media/site-plans/summerville-cypress-tradeport.png',
+    alt: 'Official UNIS site plan for 369 North Cypress Drive showing the labeled building area, Cubework space, parking, dock-high doors, ramps, and trailer parking',
+    width: 1602,
+    height: 785,
+    provenance: 'official-facility-sheet',
+    sourceNote: 'Official UNIS facility sheet (875 – Summerville).',
     facts: [
       { id: 'building-area', label: 'Building area', value: 574_789, unit: 'SF' },
       { id: 'standard-parking', label: 'Standard parking', value: 271, unit: 'plan total', note: '131 + 140' },

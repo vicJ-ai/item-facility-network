@@ -9,14 +9,35 @@ export type FacilityMediaAsset = {
 export type FacilityMedia = {
   facilityId: string
   sourcePage: string
-  retrievedDate: '2026-09-25' | '2026-09-27' | '2026-09-28' | '2026-09-29' | '2026-09-29'
-  verification: 'official-source-address-correlated' | 'official-listing-contextual' | 'official-listing-address-candidate' | 'user-provided-address-matched' | 'user-provided-address-unconfirmed' | 'user-provided-address-user-verified'
+  retrievedDate: '2026-09-25' | '2026-09-27' | '2026-09-28' | '2026-09-29' | '2026-10-01'
+  verification: 'official-facility-sheet' | 'official-source-address-correlated' | 'official-listing-contextual' | 'official-listing-address-candidate' | 'user-provided-address-matched' | 'user-provided-address-unconfirmed' | 'user-provided-address-user-verified'
   matchNote: string
   thumbnail: FacilityMediaAsset
   detail: FacilityMediaAsset
 }
 
 export const facilityMedia: Record<string, FacilityMedia> = {
+  'garden-city-prosperity': {
+    facilityId: 'garden-city-prosperity',
+    sourcePage: 'Official UNIS facility sheet (804 – Garden City)',
+    retrievedDate: '2026-10-01',
+    verification: 'official-facility-sheet',
+    matchNote: 'Building photo from the official 804 – Garden City facility sheet. The building number visible on the facade reads 140, matching the sheet address.',
+    thumbnail: {
+      assetUrl: '/media/thumbnails/garden-city-prosperity.webp',
+      sourceUrl: 'Official UNIS facility sheet (804 – Garden City)',
+      alt: 'A white and orange industrial warehouse marked 140 with a glass office entrance, palm trees, and a lawn under a blue sky',
+      width: 418,
+      height: 418,
+    },
+    detail: {
+      assetUrl: '/media/garden-city/official-exterior.jpg',
+      sourceUrl: 'Official UNIS facility sheet (804 – Garden City)',
+      alt: 'A white and orange industrial warehouse marked 140 with a glass office entrance, palm trees, and a lawn under a blue sky',
+      width: 557,
+      height: 418,
+    },
+  },
   'moreno-valley-heacock': {
     facilityId: 'moreno-valley-heacock',
     sourcePage: 'https://www.google.com/maps/place/Cubework/@33.8769096,-117.2418954,15z',
@@ -358,7 +379,7 @@ export const facilityMedia: Record<string, FacilityMedia> = {
     sourcePage: 'https://www.unisco.com/locations',
     retrievedDate: '2026-09-25',
     verification: 'official-listing-address-candidate',
-    matchNote: 'Official directory lists 369 N Cypress Dr, matching the roster primary address text. The roster also includes 410 Tradeport Dr and its geocoder matched that alternate; this media does not verify building or coordinate identity.',
+    matchNote: 'Official directory lists 369 N Cypress Dr, matching the roster address from the official 875 – Summerville facility sheet. This media does not verify building or coordinate identity.',
     thumbnail: {
       assetUrl: '/media/thumbnails/summerville-cypress-tradeport.png',
       sourceUrl: 'https://cdn.unisco.com/api/media/file/unis-summerville-500x500.png',
@@ -586,4 +607,6 @@ export const facilityMedia: Record<string, FacilityMedia> = {
   },
 }
 
-export const getFacilityMedia = (facilityId: string) => facilityMedia[facilityId]
+export const getFacilityMedia = (facilityId: string): FacilityMedia | undefined => facilityMedia[facilityId]
+
+export const isOfficialFacilitySheetMedia = (media: FacilityMedia) => media.verification === 'official-facility-sheet'

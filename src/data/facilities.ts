@@ -7,7 +7,8 @@ export type Facility = {
   id: string
   number: number
   status: DisplayStatus
-  facilityType: FacilityType
+  // Omitted when no source states whether the site is UF ONLY or UF/CUBEWORKS.
+  facilityType?: FacilityType
   street: string
   city?: string
   state: string
@@ -15,7 +16,7 @@ export type Facility = {
   zip?: string
   fullAddress: string
   coordinates: [number, number] | null
-  coordinateSource: 'Esri World Geocoding Service'
+  coordinateSource: 'Esri World Geocoding Service' | 'Official facility site plan'
   coordinatePrecision: CoordinatePrecision
   geocoderMatch: string
   geocodeNote?: string
@@ -43,10 +44,10 @@ export const facilities: Facility[] = [
     coordinateSource: 'Esri World Geocoding Service', coordinatePrecision: 'Point address', geocoderMatch: '8833 Citypark Loop, Houston, TX, 77013, USA',
   },
   {
-    id: 'roanoke-highway-114', number: 5, status: 'Active', facilityType: 'UF ONLY', street: '1230 Highway 114', city: 'Roanoke', state: 'TX', stateName: 'Texas',
-    fullAddress: '1230 Highway 114, Roanoke, TX', coordinates: [33.01758290409, -97.244989833443],
+    id: 'roanoke-highway-114', number: 5, status: 'Active', facilityType: 'UF ONLY', street: '1230 W Highway 114', city: 'Roanoke', state: 'TX', stateName: 'Texas', zip: '76262',
+    fullAddress: '1230 W Highway 114, Roanoke, TX 76262', coordinates: [33.01758290409, -97.244989833443],
     coordinateSource: 'Esri World Geocoding Service', coordinatePrecision: 'Point address', geocoderMatch: '1230 W State Highway 114, Roanoke, TX, 76262, USA',
-    geocodeNote: 'The geocoder returned ZIP 76262; no ZIP was supplied, so it is not added to the facility address.',
+    geocodeNote: 'The street direction and ZIP 76262 come from the official 869 – Roanoke facility sheet.',
   },
   {
     id: 'pooler-morgan-lakes', number: 6, status: 'Active', facilityType: 'UF ONLY', street: '335 Morgan Lakes Industrial Blvd.', city: 'Pooler', state: 'GA', stateName: 'Georgia',
@@ -61,10 +62,10 @@ export const facilities: Facility[] = [
     geocodeNote: 'The geocoder matched the street address but did not distinguish Building 2.',
   },
   {
-    id: 'summerville-cypress-tradeport', number: 8, status: 'Active', facilityType: 'UF ONLY', street: '369 N Cypress (410 Tradeport Dr.)', city: 'Summerville', state: 'SC', stateName: 'South Carolina',
-    fullAddress: '369 N Cypress (410 Tradeport Dr.), Summerville, SC', coordinates: [33.096630369824, -80.196154685782],
-    coordinateSource: 'Esri World Geocoding Service', coordinatePrecision: 'Point address', geocoderMatch: '410 Tradeport Dr, Summerville, SC, 29486, USA',
-    geocodeNote: 'The geocoder matched the parenthetical 410 Tradeport Dr. address.',
+    id: 'summerville-cypress-tradeport', number: 8, status: 'Active', facilityType: 'UF ONLY', street: '369 N Cypress Dr', city: 'Summerville', state: 'SC', stateName: 'South Carolina',
+    fullAddress: '369 N Cypress Dr, Summerville, SC', coordinates: [33.10855482, -80.19483182],
+    coordinateSource: 'Official facility site plan', coordinatePrecision: 'Point address', geocoderMatch: 'Not geocoded; coordinates labeled on the official 875 – Summerville site plan',
+    geocodeNote: 'Address and coordinates come from the official 875 – Summerville facility sheet.',
   },
   {
     id: 'tennessee-quality-drive', number: 9, status: 'Active', facilityType: 'UF ONLY', street: '4550 Quality Drive', state: 'TN', stateName: 'Tennessee',
@@ -164,6 +165,12 @@ export const facilities: Facility[] = [
     fullAddress: '910 10th Street / 880 F Ave., Plano, TX', coordinates: [33.0123245, -96.7025856],
     coordinateSource: 'Esri World Geocoding Service', coordinatePrecision: 'Point address', geocoderMatch: '910 10th St, Plano, TX, 75074, USA',
     geocodeNote: 'The marker uses the primary 910 10th St point-address candidate. The supplied alternate 880 F Ave. address is preserved but is not represented by a separate pin; no ZIP is added because none was supplied.',
+  },
+  {
+    id: 'garden-city-prosperity', number: 28, status: 'Unassigned', street: '140 Prosperity Dr', city: 'Garden City', state: 'GA', stateName: 'Georgia', zip: '31408',
+    fullAddress: '140 Prosperity Dr, Garden City, GA 31408', coordinates: [32.074542144348, -81.178988824216],
+    coordinateSource: 'Esri World Geocoding Service', coordinatePrecision: 'Point address', geocoderMatch: '140 Prosperity Dr, Savannah, GA, 31408, USA',
+    geocodeNote: 'Added from the official 804 – Garden City facility sheet, which states no status, facility type, or operating hours. The geocoder places this point address in Savannah, GA 31408; the sheet address is unchanged.',
   },
 ]
 

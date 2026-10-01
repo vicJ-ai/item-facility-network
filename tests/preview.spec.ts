@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { facilities } from '../src/data/facilities'
+import { userProvidedFacilityPhotos } from '../src/data/facility-user-photos'
 
 // The tour renders the globe continuously; in software WebGL a smaller desktop viewport keeps that
 // cheap enough to run alongside the other suites (it stays above the 1040px desktop-header breakpoint).
@@ -97,9 +98,21 @@ test('Next, Previous, and the progress ticks move between facilities', async ({ 
   await expect(tour).toHaveAttribute('data-preview-stop', facilityId(9))
   const index = await tennesseeTick.getAttribute('data-tick')
   await expect(tour.locator(`.preview-stop[data-stop="${index}"] h2`)).toHaveText('TENNESSEE')
+  // Each stop shows its cover photo, square footage, and the next site-plan facts.
+  const tennesseeCard = tour.locator(`.preview-stop[data-stop="${index}"] [data-testid="preview-stop-card"]`)
+  await expect(tennesseeCard.locator('img')).toHaveAttribute('src', userProvidedFacilityPhotos['tennessee-quality-drive']!.photos.find((photo) => photo.id === 'oblique-aerial-exterior')!.assetUrl)
+  await expect(tennesseeCard).toContainText('Total220,100 SF')
+  await expect(tennesseeCard.getByTestId('preview-stop-available')).toHaveText('AvailablePending')
+  await expect(tennesseeCard).toContainText('Auto parking122')
+
+  const roanokeTick = tour.getByRole('button', { name: 'Jump to facility 05, Roanoke' })
+  await roanokeTick.click()
+  const roanokeCard = tour.locator(`.preview-stop[data-stop="${await roanokeTick.getAttribute('data-tick')}"] [data-testid="preview-stop-card"]`)
+  await expect(roanokeCard.getByTestId('preview-stop-available')).toHaveText('Available4,000 SQF')
+  await expect(roanokeCard).toContainText('Dock positions127')
 
   for (let step = 0; step < facilities.length; step += 1) await page.keyboard.press('ArrowRight')
-  await expect(tour.locator('[data-finale]')).toContainText('27 FACILITIES · 13 REGIONS')
+  await expect(tour.locator('[data-finale]')).toContainText('28 FACILITIES · 13 REGIONS')
 })
 
 // The tour's chapters west to east, each with its facilities in visiting order.
@@ -114,7 +127,7 @@ const TOUR_ORDER: [string, number[]][] = [
   ['illinois', [16]],
   ['tennessee', [9, 24]],
   ['florida', [12]],
-  ['georgia', [7, 6]],
+  ['georgia', [28, 7, 6]],
   ['south-carolina', [8]],
   ['new-jersey', [26]],
 ]

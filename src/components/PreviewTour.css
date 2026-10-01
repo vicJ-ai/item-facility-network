@@ -32,6 +32,14 @@
 .preview-stop-state, .preview-chapter-intro p { color: rgba(255, 255, 255, .82); font-size: clamp(13px, 1.3vw, 17px); font-weight: 700; letter-spacing: .42em; text-transform: uppercase; }
 .preview-stop-detail { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; color: rgba(255, 255, 255, .86); font-size: 14px; font-weight: 500; letter-spacing: .02em; }
 .preview-stop-detail .open-state { text-shadow: none; }
+/* Each stop's photo and square-footage/plan facts, under the address. */
+.preview-stop-card { width: min(100%, 520px); margin-top: 18px; display: grid; grid-template-columns: minmax(0, 200px) minmax(0, 1fr); gap: 16px; align-items: stretch; text-shadow: none; }
+.preview-stop-card:not(:has(.preview-stop-photo)) { grid-template-columns: minmax(0, 1fr); }
+.preview-stop-photo { width: 100%; height: 100%; min-height: 120px; max-height: 150px; object-fit: cover; border: 1px solid rgba(255, 255, 255, .18); border-radius: 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, .45); background: rgba(255, 255, 255, .06); }
+.preview-stop-facts { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; align-content: center; padding: 12px 14px; border: 1px solid rgba(255, 255, 255, .14); border-radius: 12px; background: rgba(5, 4, 13, .55); backdrop-filter: blur(6px); }
+.preview-stop-facts div { min-width: 0; }
+.preview-stop-facts dt { color: #c4b3f7; font-size: 10px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; }
+.preview-stop-facts dd { margin: 3px 0 0; color: #fff; font-size: 15px; font-weight: 700; letter-spacing: .01em; overflow-wrap: anywhere; }
 .preview-finale { --title-size: clamp(30px, 4.2vw, 64px); }
 .preview-finale p { color: #c4b3f7; font-size: clamp(14px, 1.5vw, 20px); font-weight: 700; letter-spacing: .5em; text-transform: uppercase; }
 
@@ -69,6 +77,8 @@
   .preview-titles { width: 100%; background: linear-gradient(90deg, rgba(5, 4, 13, .6), rgba(5, 4, 13, .1)); }
   .preview-title { left: 20px; right: 16px; }
   .preview-stop-number { font-size: 84px; }
+  .preview-stop-card { grid-template-columns: minmax(0, 1fr); margin-top: 12px; }
+  .preview-stop-photo { display: none; }
   .preview-title { --title-size: 40px; }
   .preview-logo, .preview-controls .preview-stop-button span { display: none; }
   .preview-controls .preview-stop-button { padding: 0; }
