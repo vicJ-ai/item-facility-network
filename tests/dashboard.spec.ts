@@ -521,6 +521,8 @@ async function expectLocationFilterLayout(page: Page, mobile = false) {
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     if (!localStorage.getItem('locations-theme')) localStorage.setItem('locations-theme', 'light')
+    // These suites cover the flat Dashboard map; tests/globe.spec.ts covers the 3D globe.
+    if (!localStorage.getItem('dashboard-projection-v1')) localStorage.setItem('dashboard-projection-v1', 'map')
   })
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Facility directory' })).toBeVisible()
@@ -720,7 +722,9 @@ test('every Dashboard region, including Arizona, focuses the map on its pinned f
   for (const [label, numbers] of regions) {
     const regionFacilities = facilities.filter((facility) => numbers.some((number) => number === facility.number))
     await panel.getByRole('button', { name: new RegExp(label) }).first().click()
-    await expect(page.locator('.location-marker-wrap')).toHaveCount(regionFacilities.length)
+    await expect(page.locator('.location-marker-wrap:not(.is-out-of-region)')).toHaveCount(regionFacilities.length)
+    await expect(page.locator('.location-marker-wrap.is-out-of-region')).toHaveCount(facilities.length - regionFacilities.length)
+    await expect(page.locator('.region-highlight-area')).toHaveCount(1)
     await expectFacilitiesInMapBounds(map, regionFacilities)
     for (const facility of regionFacilities) expect(facility.coordinates).not.toBeNull()
   }
@@ -735,7 +739,7 @@ test('Dashboard Regions softly highlights Southern California, retains a closed-
   await expect(regionsToggle).toBeVisible()
   await expect(regionsToggle).toHaveAttribute('aria-expanded', 'false')
   await expect(page.getByRole('complementary', { name: 'Dashboard regions' })).toHaveCount(0)
-  await expect(page.locator('.dashboard-region-focus-area')).toHaveCount(0)
+  await expect(page.locator('.region-highlight-area')).toHaveCount(0)
   await expect(page.locator('.dashboard-facility-highlight')).toHaveCount(0)
   await expect(page.locator('.location-marker-wrap')).toHaveCount(27)
 
@@ -752,7 +756,7 @@ test('Dashboard Regions softly highlights Southern California, retains a closed-
   await southernCaliforniaHeading.click()
   await expect(southernCaliforniaHeading).toHaveAttribute('aria-expanded', 'true')
   await expect(southernCaliforniaHeading).toHaveAttribute('aria-pressed', 'true')
-  await expect(page.locator('.location-marker-wrap')).toHaveCount(5)
+  await expect(page.locator('.location-marker-wrap:not(.is-out-of-region)')).toHaveCount(5)
   await expectFacilitiesInMapBounds(map, southernCalifornia)
 
   const rows = panel.getByTestId('dashboard-region-facility')
@@ -771,7 +775,10 @@ test('Dashboard Regions softly highlights Southern California, retains a closed-
     }
   }
 
-  await expect(page.locator('.dashboard-region-focus-area')).toHaveCount(0)
+  await expect(page.locator('.region-highlight-area')).toHaveCount(1)
+  await expect(page.locator('.region-highlight-mask')).toHaveCount(1)
+  expect(await page.locator('.region-highlight-mask, .region-highlight-area').evaluateAll((elements) => elements.every((element) => window.getComputedStyle(element).pointerEvents === 'none'))).toBe(true)
+  await expect(page.locator('.location-marker-wrap.is-out-of-region')).toHaveCount(22)
   const highlights = page.locator('.dashboard-facility-highlight')
   await expect(highlights).toHaveCount(10)
   await expect(page.locator('.dashboard-facility-highlight-outer')).toHaveCount(5)
@@ -787,7 +794,7 @@ test('Dashboard Regions softly highlights Southern California, retains a closed-
   await expect(southernCaliforniaHeading).toHaveAttribute('aria-expanded', 'false')
   await expect(southernCaliforniaHeading).toHaveAttribute('aria-pressed', 'true')
   await expect(rows).toHaveCount(0)
-  await expect(page.locator('.location-marker-wrap')).toHaveCount(5)
+  await expect(page.locator('.location-marker-wrap:not(.is-out-of-region)')).toHaveCount(5)
   await expect(highlights).toHaveCount(10)
   await expect(map).toHaveAttribute('data-center', focusedCenter!)
   await expect(map).toHaveAttribute('data-zoom', focusedZoom!)
@@ -798,7 +805,7 @@ test('Dashboard Regions softly highlights Southern California, retains a closed-
 
   await panel.getByRole('button', { name: 'Close regions' }).click()
   await expect(panel).toHaveCount(0)
-  await expect(page.locator('.location-marker-wrap')).toHaveCount(5)
+  await expect(page.locator('.location-marker-wrap:not(.is-out-of-region)')).toHaveCount(5)
   await expect(highlights).toHaveCount(10)
   await expect(regionsToggle).toContainText('Southern California')
   await expect(page.getByTestId('dashboard-focus-label')).toContainText('Illustrative')
@@ -825,7 +832,7 @@ test('Dashboard Regions softly highlights Southern California, retains a closed-
 
   await panel.getByRole('button', { name: /All facilities/ }).click()
   await expect(page.locator('.location-marker-wrap')).toHaveCount(27)
-  await expect(page.locator('.dashboard-region-focus-area')).toHaveCount(0)
+  await expect(page.locator('.region-highlight-area')).toHaveCount(0)
   await expect(highlights).toHaveCount(0)
   await expect(page.getByTestId('dashboard-focus-label')).toHaveCount(0)
   await expect(southernCaliforniaHeading).toHaveAttribute('aria-expanded', 'false')
@@ -838,7 +845,7 @@ test('Dashboard Regions softly highlights Southern California, retains a closed-
   await expect(page.getByTestId('selected-showcase')).toContainText(facilities[0].fullAddress)
   await page.getByRole('button', { name: 'Dashboard', exact: true }).click()
   await expect(page.locator('.location-marker-wrap')).toHaveCount(27)
-  await expect(page.locator('.dashboard-region-focus-area')).toHaveCount(0)
+  await expect(page.locator('.region-highlight-area')).toHaveCount(0)
   await expect(highlights).toHaveCount(0)
   await expect(regionsToggle).toHaveAttribute('aria-expanded', 'false')
   await expectAllFacilitiesInMapBounds(map)
@@ -882,8 +889,9 @@ test('mobile Dashboard Regions sheet stays in bounds and leaves map controls usa
 
   const southernCaliforniaHeading = panel.getByRole('button', { name: /Southern California/ })
   await southernCaliforniaHeading.click()
-  await expect(page.locator('.location-marker-wrap')).toHaveCount(5)
-  await expect(page.locator('.dashboard-region-focus-area')).toHaveCount(0)
+  await expect(page.locator('.location-marker-wrap:not(.is-out-of-region)')).toHaveCount(5)
+  await expect(page.locator('.region-highlight-area')).toHaveCount(1)
+  await expect(page.locator('.region-highlight-mask')).toHaveCount(1)
   await expect(page.locator('.dashboard-facility-highlight')).toHaveCount(10)
   await expectFacilitiesInMapBounds(map, [facilities[0], facilities[1], facilities[2], facilities[14], facilities[18]])
 
@@ -892,7 +900,7 @@ test('mobile Dashboard Regions sheet stays in bounds and leaves map controls usa
   await expect(southernCaliforniaHeading).toHaveAttribute('aria-expanded', 'false')
   await expect(southernCaliforniaHeading).toHaveAttribute('aria-pressed', 'true')
   await expect(panel.getByTestId('dashboard-region-facility')).toHaveCount(0)
-  await expect(page.locator('.location-marker-wrap')).toHaveCount(5)
+  await expect(page.locator('.location-marker-wrap:not(.is-out-of-region)')).toHaveCount(5)
   await expect(page.locator('.dashboard-facility-highlight')).toHaveCount(10)
   await page.keyboard.press('Enter')
   await expect(southernCaliforniaHeading).toHaveAttribute('aria-expanded', 'true')
@@ -907,7 +915,7 @@ test('mobile Dashboard Regions sheet stays in bounds and leaves map controls usa
 
   await page.keyboard.press('Escape')
   await expect(panel).toHaveCount(0)
-  await expect(page.locator('.location-marker-wrap')).toHaveCount(5)
+  await expect(page.locator('.location-marker-wrap:not(.is-out-of-region)')).toHaveCount(5)
   await expect(regionsToggle).toBeFocused()
   const dimensions = await page.evaluate(() => ({ viewport: document.documentElement.clientWidth, content: document.documentElement.scrollWidth }))
   expect(dimensions.content).toBeLessThanOrEqual(dimensions.viewport)

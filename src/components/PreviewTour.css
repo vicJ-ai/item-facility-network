@@ -1,0 +1,81 @@
+/* Preview tour: a full-cinematic, looping tour of every region and facility. Loaded with the tour. */
+
+/* While the tour plays, the regular map chrome steps aside; attribution stays visible above the bars. */
+.is-previewing :is(.dashboard-preview-toggle, .quality-control, .dashboard-region-toggle, .dashboard-region-panel, .dashboard-focus-badge, .map-tools, .projection-control, .recenter-control, .daynight-control, .globe-zoom, .globe-preview, .leaflet-control-zoom, .leaflet-tooltip, .dashboard-facility-highlight, .toast) { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .3s ease, visibility 0s linear .3s; }
+.is-previewing .globe-credits { bottom: 76px; }
+.is-previewing .leaflet-control-attribution { margin-bottom: 76px !important; }
+
+.preview-tour { --preview-top: 72px; --preview-bottom: 76px; position: fixed; z-index: 1300; inset: 0; pointer-events: none; color: #fff; font-family: 'Satoshi', sans-serif; }
+.preview-bar { position: absolute; left: 0; right: 0; display: flex; align-items: center; gap: 24px; padding: 0 28px; background: #000; pointer-events: auto; }
+.preview-bar-top { top: 0; height: var(--preview-top); animation: preview-bar-top-in .6s cubic-bezier(.7, 0, .2, 1) both; }
+.preview-bar-bottom { bottom: 0; height: var(--preview-bottom); animation: preview-bar-bottom-in .6s cubic-bezier(.7, 0, .2, 1) both; }
+.preview-tour.is-closing .preview-bar-top { animation: preview-bar-top-out .45s cubic-bezier(.7, 0, .2, 1) both; }
+.preview-tour.is-closing .preview-bar-bottom { animation: preview-bar-bottom-out .45s cubic-bezier(.7, 0, .2, 1) both; }
+.preview-tour.is-closing .preview-titles { opacity: 0; transition: opacity .25s ease; }
+@keyframes preview-bar-top-in { from { transform: translateY(-100%); } }
+@keyframes preview-bar-bottom-in { from { transform: translateY(100%); } }
+@keyframes preview-bar-top-out { to { transform: translateY(-100%); } }
+@keyframes preview-bar-bottom-out { to { transform: translateY(100%); } }
+
+.preview-slot { position: relative; flex: 1; min-width: 0; height: 100%; }
+.preview-slot > span { position: absolute; top: 0; bottom: 0; left: 0; display: flex; align-items: center; visibility: hidden; opacity: 0; color: rgba(255, 255, 255, .74); font-size: 12px; font-weight: 700; letter-spacing: .24em; text-transform: uppercase; white-space: nowrap; }
+.preview-local-times { flex: 0 1 280px; }
+.preview-local-times > span { left: auto; right: 0; }
+
+.preview-titles { position: absolute; top: var(--preview-top); bottom: var(--preview-bottom); left: 0; width: min(52vw, 680px); background: linear-gradient(90deg, rgba(5, 4, 13, .66) 0%, rgba(5, 4, 13, .38) 55%, rgba(5, 4, 13, 0) 100%); }
+.preview-title { position: absolute; inset: 0 24px 0 48px; container-type: inline-size; display: flex; flex-direction: column; justify-content: center; visibility: hidden; opacity: 0; text-shadow: 0 2px 22px rgba(0, 0, 0, .5); }
+/* --title-chars is the title's longest word; Satoshi Black capitals with this tracking, once split into letters, stay under .9em each. */
+.preview-title { --title-size: clamp(40px, 5.6vw, 88px); }
+.preview-title h2 { margin: 6px 0 0; font-size: min(var(--title-size), 100cqi / (var(--title-chars, 1) * .9)); font-weight: 900; line-height: .95; letter-spacing: .05em; }
+.preview-title p { margin: 10px 0 0; }
+.preview-stop-number { display: block; color: transparent; -webkit-text-stroke: 1.5px rgba(255, 255, 255, .38); font-size: clamp(96px, 13vw, 196px); font-weight: 900; line-height: .8; letter-spacing: -.04em; text-shadow: none; }
+.preview-stop-state, .preview-chapter-intro p { color: rgba(255, 255, 255, .82); font-size: clamp(13px, 1.3vw, 17px); font-weight: 700; letter-spacing: .42em; text-transform: uppercase; }
+.preview-stop-detail { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; color: rgba(255, 255, 255, .86); font-size: 14px; font-weight: 500; letter-spacing: .02em; }
+.preview-stop-detail .open-state { text-shadow: none; }
+.preview-finale { --title-size: clamp(30px, 4.2vw, 64px); }
+.preview-finale p { color: #c4b3f7; font-size: clamp(14px, 1.5vw, 20px); font-weight: 700; letter-spacing: .5em; text-transform: uppercase; }
+
+.preview-progress { position: relative; flex: 1; min-width: 0; height: 24px; }
+.preview-progress::before, .preview-progress-fill { content: ''; position: absolute; top: 11px; left: 0; height: 2px; border-radius: 2px; }
+.preview-progress::before { right: 0; background: rgba(255, 255, 255, .18); }
+.preview-progress-fill { right: 0; transform: scaleX(0); transform-origin: left center; background: linear-gradient(90deg, var(--brand), #a78bfa); will-change: transform; }
+.preview-segment, .preview-finale-zone { position: absolute; top: 0; height: 24px; padding: 0; border: 0; background: none; cursor: pointer; }
+.preview-segment:focus-visible, .preview-finale-zone:focus-visible { outline: none; }
+.preview-segment::before { content: ''; position: absolute; top: 6px; left: 0; height: 12px; border-left: 1px solid rgba(255, 255, 255, .32); }
+.preview-segment::after, .preview-finale-zone::after { content: ''; position: absolute; top: 7px; left: 0; right: 0; height: 10px; border-radius: 5px; background: rgba(167, 139, 250, .2); opacity: 0; transition: opacity .15s ease; }
+.preview-segment:is(:hover, :focus-visible)::after, .preview-finale-zone:is(:hover, :focus-visible)::after { opacity: 1; }
+.preview-progress-hint { position: absolute; bottom: calc(100% + 12px); display: flex; flex-direction: column; gap: 3px; padding: 8px 12px; border: 1px solid rgba(255, 255, 255, .14); border-radius: 10px; background: rgba(12, 10, 26, .96); box-shadow: 0 10px 30px rgba(0, 0, 0, .45); transform: translateX(-50%); white-space: nowrap; pointer-events: none; animation: preview-hint-in .15s ease-out both; }
+.preview-progress-hint small { color: #c4b3f7; font-size: 10px; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; }
+.preview-progress-hint strong { font-size: 14px; font-weight: 700; }
+@keyframes preview-hint-in { from { opacity: 0; transform: translate(-50%, 4px); } }
+.preview-tick { position: absolute; top: 6px; width: 12px; height: 12px; margin-left: -6px; padding: 0; border: 2px solid rgba(255, 255, 255, .55); border-radius: 50%; background: #000; cursor: pointer; transition: transform .2s ease, background .2s ease, border-color .2s ease; }
+.preview-tick:hover, .preview-tick:focus-visible { border-color: #fff; transform: scale(1.3); outline: none; }
+.preview-tick.is-current { border-color: #fff; background: var(--brand); transform: scale(1.4); }
+.preview-controls { display: flex; align-items: center; gap: 8px; }
+.preview-controls button { min-width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0; border: 1px solid rgba(255, 255, 255, .16); border-radius: var(--radius-full); color: #fff; background: rgba(255, 255, 255, .08); transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease); }
+.preview-controls button:hover { border-color: rgba(255, 255, 255, .4); background: rgba(255, 255, 255, .16); }
+.preview-controls button:focus-visible { outline: 2px solid #a78bfa; outline-offset: 2px; }
+.preview-controls .preview-stop-button { padding: 0 14px 0 10px; font-size: 13px; font-weight: 700; }
+.preview-logo { height: 22px; opacity: .92; }
+
+.globe-pin.is-beacon::after { content: ''; position: absolute; top: 36px; left: 15px; width: 14px; height: 14px; margin: -7px 0 0 -7px; border: 2px solid #a78bfa; border-radius: 50%; pointer-events: none; animation: pin-beacon 1.4s ease-out both; }
+@keyframes pin-beacon { from { opacity: 1; transform: scale(.4); } to { opacity: 0; transform: scale(5); } }
+
+@media (max-width: 720px) {
+  .preview-tour { --preview-top: 52px; --preview-bottom: 64px; }
+  .preview-bar { gap: 12px; padding: 0 14px; }
+  .preview-slot > span { font-size: 10px; letter-spacing: .16em; }
+  .preview-local-times { flex-basis: 120px; }
+  .preview-titles { width: 100%; background: linear-gradient(90deg, rgba(5, 4, 13, .6), rgba(5, 4, 13, .1)); }
+  .preview-title { left: 20px; right: 16px; }
+  .preview-stop-number { font-size: 84px; }
+  .preview-title { --title-size: 40px; }
+  .preview-logo, .preview-controls .preview-stop-button span { display: none; }
+  .preview-controls .preview-stop-button { padding: 0; }
+  .is-previewing .globe-credits { bottom: 64px; }
+  .is-previewing .leaflet-control-attribution { margin-bottom: 64px !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .preview-bar-top, .preview-bar-bottom, .preview-tour.is-closing .preview-bar-top, .preview-tour.is-closing .preview-bar-bottom { animation: none; }
+  .globe-pin.is-beacon::after, .preview-progress-hint { animation: none; }
+}
