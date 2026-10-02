@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import {
-  ArrowLeft, Bell, Boxes, Building2, Camera, Check, ChevronRight, CircleHelp, Clapperboard, ClipboardList, Clock, Earth,
-  ExternalLink, FileQuestion, FileText, Grid2X2, Info, Layers3, LocateFixed, Mail, Maximize2,
+  ArrowLeft, Bell, Boxes, Building2, CalendarClock, Camera, Check, ChevronRight, CircleHelp, Clapperboard, ClipboardList, Clock, Earth,
+  ExternalLink, FileText, Grid2X2, Info, Layers3, LocateFixed, Mail, Maximize2,
   Map as MapIcon, MapPin, Menu, Moon, PackageSearch, Phone, Search, ShieldCheck,
   SlidersHorizontal, Sun, Warehouse, X,
 } from 'lucide-react'
@@ -23,11 +23,13 @@ import {
   type Facility,
   type FacilityType,
 } from './data/facilities'
+import { FACILITY_BUILDING_SOURCE_NOTE, formatCeilingHeight, formatLeaseExpiration, formatLoadingDocks, formatOfficeArea, getFacilityBuildingDetails } from './data/facility-building'
+import { getFacilityTopCustomers, TOP_CUSTOMERS_SOURCE_NOTE } from './data/facility-customers'
 import { getFacilityMedia, isOfficialFacilitySheetMedia, type FacilityMedia } from './data/facility-media'
 import { getFacilityOperatingHours } from './data/facility-hours'
 import { getFacilityOperations, type FacilityContact, type FacilityOperations } from './data/facility-operations'
 import { displayFactUnit, getFacilitySitePlan, sitePlanProvenanceLabel, type FacilitySitePlan, type FacilitySitePlanFact } from './data/facility-site-plans'
-import { formatAvailableSpace, formatAvailableSpaceMonth, formatBulk, formatRack, getFacilityBulkRack, getFacilitySquareFootage, getSitePlanAreaFact } from './data/facility-space'
+import { formatAvailableSpace, formatAvailableSpaceMonth, formatBulk, formatBulkSquareFeet, formatRack, formatTotalSquareFeet, getFacilityBulkRack, getFacilitySquareFootage, getSitePlanAreaFact, hasReportedAvailableSpace } from './data/facility-space'
 import { getUserProvidedFacilityPhotos, type UserProvidedFacilityPhotos } from './data/facility-user-photos'
 import { getRegionBoundary, type RegionBoundary } from './data/region-boundaries'
 import { getInitialQualityChoice, probeGraphics, QUALITY_TIERS, saveQualityChoice, type QualityChoice, type QualityTier } from './lib/globe-quality'
@@ -208,29 +210,35 @@ function OperatingHoursDisplay({ facilityId, variant }: { facilityId: string; va
   )
 }
 
+/** Shows a reported value in bold, or the shared "Pending" placeholder in muted italics. */
+function PendingOr({ value }: { value: string }) {
+  return value === 'Pending' ? <em className="square-footage-pending">Pending</em> : <strong>{value}</strong>
+}
+
 function SquareFootagePreview({ facilityId }: { facilityId: string }) {
   const { totalSquareFeet, available } = getFacilitySquareFootage(facilityId)
+  const bulkRack = getFacilityBulkRack(facilityId)
 
   return (
     <span className="square-footage-preview" data-testid="square-footage-preview">
       <Warehouse size={12} />
       <span>
-        <span data-testid="square-footage-total">Total {totalSquareFeet !== undefined
-          ? <strong>{totalSquareFeet.toLocaleString('en-US')} SQF</strong>
-          : <em className="square-footage-pending">Pending</em>}
-        </span>
+        <span data-testid="square-footage-total">Total <PendingOr value={formatTotalSquareFeet(totalSquareFeet)} /></span>
+        {/* Available heads the bulk and rack lines; it shows a figure only when one is reported, never a Pending placeholder. */}
         <span data-testid="square-footage-available" data-available-status={available ? available.status ?? 'reported' : 'pending'}>
-          Available {available && available.status !== 'unconfirmed'
-            ? <strong>{available.squareFeet.toLocaleString('en-US')} SQF</strong>
-            : <em className="square-footage-pending">Pending</em>}
+          Available{hasReportedAvailableSpace(available) && <> <strong>{formatAvailableSpace(available)}</strong></>}
+        </span>
+        {/* Bulk and rack hold a Pending placeholder until a site reports them; the Overview tab shows the full breakdown. */}
+        <span className="square-footage-sub" data-testid="square-footage-bulk" data-reported={bulkRack?.bulkSquareFeet !== undefined ? 'true' : 'false'}>
+          Bulk: <PendingOr value={formatBulkSquareFeet(bulkRack)} />
+        </span>
+        <span className="square-footage-sub" data-testid="square-footage-rack" data-reported={bulkRack?.rackPalletPositions !== undefined ? 'true' : 'false'}>
+          Rack: <PendingOr value={formatRack(bulkRack)} />
         </span>
       </span>
     </span>
   )
 }
-
-// Plan-count units ("shown", "plan total") read as noise on a tour card, so only measurement units are kept.
-const TOUR_FACT_COUNT_UNITS = new Set(['shown', 'plan total', 'plan capacity', 'stalls'])
 
 function tourStopDetails(facility: Facility): TourStopDetails {
   const gallery = getUserProvidedFacilityPhotos(facility.id)
@@ -238,16 +246,16 @@ function tourStopDetails(facility: Facility): TourStopDetails {
   const media = getFacilityMedia(facility.id)
   const photo = cover ? { src: cover.assetUrl, alt: cover.alt } : media ? { src: media.detail.assetUrl, alt: media.detail.alt } : undefined
   const { totalSquareFeet, available } = getFacilitySquareFootage(facility.id)
-  // The plan's area is either the total or superseded by a user-provided one, so the facts are the next two after it.
-  const areaFact = getSitePlanAreaFact(facility.id)
-  const facts = (getFacilitySitePlan(facility.id)?.facts ?? [])
-    .filter((fact) => fact !== areaFact && !(fact.unit === 'SF' && fact.value === totalSquareFeet))
-    .slice(0, 2)
-    .map((fact) => ({
-      label: fact.label,
-      value: `${typeof fact.value === 'number' ? fact.value.toLocaleString('en-US') : fact.value}${fact.unit && !TOUR_FACT_COUNT_UNITS.has(fact.unit) ? ` ${displayFactUnit(fact.unit)}` : ''}`,
-    }))
-  return { photo, totalSquareFeet, available: formatAvailableSpace(available), facts }
+  const bulkRack = getFacilityBulkRack(facility.id)
+  const building = getFacilityBuildingDetails(facility.id)
+  // Every stop shows the same four warehouse facts, holding a Pending placeholder until a site reports them.
+  const facts = [
+    { label: 'Bulk', value: formatBulkSquareFeet(bulkRack) },
+    { label: 'Rack', value: formatRack(bulkRack) },
+    { label: 'Ceiling height', value: formatCeilingHeight(building, 'Pending') },
+    { label: 'Loading docks', value: formatLoadingDocks(building, 'Pending') },
+  ]
+  return { photo, totalSquareFeet, available: hasReportedAvailableSpace(available) ? formatAvailableSpace(available) : undefined, facts }
 }
 
 function OpenStateBadge({ state, variant }: { state: FacilityOpenState; variant: 'compact' | 'full' }) {
@@ -1494,9 +1502,9 @@ function OperationsContent({ facility, operations }: { facility: Facility; opera
 
   return (
     <section className="facility-operations" aria-label={`Operations contacts for ${facility.fullAddress}`}>
+      {/* The contact source note is kept in the data but not shown beside the heading. */}
       <header className="operations-heading">
         <div><span className="eyebrow">Facility operations</span><h2>Hours & contact heads</h2></div>
-        <span>{operations?.source ?? 'Contact match pending review'}</span>
       </header>
       <section className="operations-hours" aria-labelledby="operations-hours-title">
         <div><Clock size={19} /><span><small>Facility {String(facility.number).padStart(2, '0')}</small><h3 id="operations-hours-title">Operating hours</h3></span></div>
@@ -1526,6 +1534,31 @@ function OperationsContent({ facility, operations }: { facility: Facility; opera
           <strong>Contacts pending review</strong>
           <span>No staff contacts were confidently matched to this facility.</span>
         </div>
+      )}
+      <TopCustomersSection facilityId={facility.id} />
+    </section>
+  )
+}
+
+function TopCustomersSection({ facilityId }: { facilityId: string }) {
+  const topCustomers = getFacilityTopCustomers(facilityId)
+  return (
+    <section className="operations-contact-group top-customers" aria-labelledby="top-customers-title" data-testid="top-customers">
+      <header>
+        <span className="eyebrow">Client base</span>
+        <h3 id="top-customers-title">Top customers</h3>
+      </header>
+      {topCustomers ? (
+        <>
+          <ol className="top-customers-list">
+            {topCustomers.customers.map((name, index) => <li key={`${index}-${name}`}><span>{index + 1}</span>{name}</li>)}
+          </ol>
+          <p className="top-customers-note">
+            Ranked as listed for location {topCustomers.locationCode}{topCustomers.abbreviation ? ` · ${topCustomers.abbreviation}` : ''}. {TOP_CUSTOMERS_SOURCE_NOTE}
+          </p>
+        </>
+      ) : (
+        <p className="top-customers-note">No top customers have been provided for this facility yet.</p>
       )}
     </section>
   )
@@ -1625,22 +1658,13 @@ function OverviewContent({ facility, sitePlan, status, openState, onStatusChange
         </dl>
       </section>
 
-      {sitePlan ? (
-        <section className="property-facts-summary info-section">
-          <h2><FileText />Sourced property facts</h2>
-          <div className="unavailable-grid">
-            {sitePlan.facts.slice(0, 4).map((fact) => <span key={fact.id}><b>{fact.label}</b>{formatSitePlanFact(fact)}</span>)}
-          </div>
-          <p className="property-facts-note">From the supplied Site Plan record. See that tab for source notes and all facts.</p>
-        </section>
-      ) : (
-        <section className="unavailable-section info-section">
-          <h2><FileQuestion />Property attributes</h2>
-          <div className="unavailable-grid"><span><b>Total area</b>Not provided</span><span><b>Dock doors</b>Not provided</span><span><b>Grade doors</b>Not provided</span><span><b>Clear height</b>Not provided</span></div>
-        </section>
-      )}
+      <SquareFootageSection facilityId={facility.id} />
 
       <BulkRackSection facilityId={facility.id} />
+
+      <SitePlanFactsSection facilityId={facility.id} sitePlan={sitePlan} />
+
+      <BuildingLeaseSection facilityId={facility.id} />
 
       <section className="coordinate-section info-section">
         <h2><ShieldCheck />Map placement</h2>
@@ -1661,6 +1685,53 @@ function BulkRackSection({ facilityId }: { facilityId: string }) {
         <span data-testid="bulk-rack-rack"><b>Rack</b>{formatRack(bulkRack)}</span>
       </div>
       <p className="property-facts-note">{bulkRack ? `Warehouse-reported as of ${formatAvailableSpaceMonth(bulkRack.asOf)}.` : 'Bulk floor space (SQF) and rack capacity (pallet positions) have not been reported yet.'}</p>
+    </section>
+  )
+}
+
+// Total and available square footage, read through the same helpers as the Dashboard preview, Preview tour, and PDF.
+function SquareFootageSection({ facilityId }: { facilityId: string }) {
+  const { totalSquareFeet, available } = getFacilitySquareFootage(facilityId)
+  return (
+    <section className="square-footage-section info-section" data-testid="overview-square-footage">
+      <h2><Warehouse />Square footage</h2>
+      <div className="unavailable-grid">
+        <span data-testid="overview-total"><b>Total</b>{formatTotalSquareFeet(totalSquareFeet)}</span>
+        {hasReportedAvailableSpace(available) && <span data-testid="overview-available"><b>Available</b>{formatAvailableSpace(available)}</span>}
+      </div>
+      <p className="property-facts-note">{hasReportedAvailableSpace(available) ? `Available space warehouse-reported as of ${formatAvailableSpaceMonth(available.asOf)}.` : 'Available space has not been reported yet.'}</p>
+    </section>
+  )
+}
+
+// The plan's own area is left out here because the Total above supersedes it; the Site Plan tab keeps the full record.
+function SitePlanFactsSection({ facilityId, sitePlan }: { facilityId: string; sitePlan?: FacilitySitePlan }) {
+  const areaFact = getSitePlanAreaFact(facilityId)
+  const facts = (sitePlan?.facts ?? []).filter((fact) => fact !== areaFact).slice(0, 4)
+  if (facts.length === 0) return null
+  return (
+    <section className="property-facts-summary info-section">
+      <h2><FileText />Sourced property facts</h2>
+      <div className="unavailable-grid">
+        {facts.map((fact) => <span key={fact.id}><b>{fact.label}</b>{formatSitePlanFact(fact)}</span>)}
+      </div>
+      <p className="property-facts-note">From the supplied Site Plan record. See that tab for source notes and all facts.</p>
+    </section>
+  )
+}
+
+function BuildingLeaseSection({ facilityId }: { facilityId: string }) {
+  const details = getFacilityBuildingDetails(facilityId)
+  return (
+    <section className="building-lease-section info-section" data-testid="building-lease" data-reported={details ? 'true' : 'false'}>
+      <h2><CalendarClock />Building &amp; lease</h2>
+      <div className="unavailable-grid">
+        <span data-testid="building-lease-office"><b>Office</b>{formatOfficeArea(details, 'Pending')}</span>
+        <span data-testid="building-lease-ceiling"><b>Ceiling height</b>{formatCeilingHeight(details, 'Pending')}</span>
+        <span data-testid="building-lease-docks"><b>Loading docks</b>{formatLoadingDocks(details, 'Pending')}</span>
+        <span data-testid="building-lease-expiration"><b>Lease expiration</b>{formatLeaseExpiration(details, 'Pending')}</span>
+      </div>
+      <p className="property-facts-note">{details ? FACILITY_BUILDING_SOURCE_NOTE : 'Office area, ceiling height, loading docks, and lease expiration have not been provided yet.'}</p>
     </section>
   )
 }

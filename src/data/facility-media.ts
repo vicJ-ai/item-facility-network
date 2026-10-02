@@ -9,7 +9,7 @@ export type FacilityMediaAsset = {
 export type FacilityMedia = {
   facilityId: string
   sourcePage: string
-  retrievedDate: '2026-09-25' | '2026-09-27' | '2026-09-28' | '2026-09-29' | '2026-10-01'
+  retrievedDate: '2026-09-25' | '2026-09-27' | '2026-09-28' | '2026-09-29' | '2026-10-01' | '2026-10-02'
   verification: 'official-facility-sheet' | 'official-source-address-correlated' | 'official-listing-contextual' | 'official-listing-address-candidate' | 'user-provided-address-matched' | 'user-provided-address-unconfirmed' | 'user-provided-address-user-verified'
   matchNote: string
   thumbnail: FacilityMediaAsset
@@ -603,6 +603,27 @@ export const facilityMedia: Record<string, FacilityMedia> = {
       alt: 'An aerial view of a large industrial campus of white warehouse roofs with loading docks and trailers, next to a railway line, with a suburban city and a blue sky in the background',
       width: 882,
       height: 588,
+    },
+  },
+  'university-park-central': {
+    facilityId: 'university-park-central',
+    sourcePage: 'user-provided screenshot (no public source URL)',
+    retrievedDate: '2026-10-02',
+    verification: 'user-provided-address-user-verified',
+    matchNote: 'User-provided photo supplied as a screenshot on 2026-10-02. The address/building association was verified by the user who supplied it and was not independently verified by this prototype. This is not official UNIS listing media; the original image source and publication rights are not verified. A one-pixel top line and two-pixel left strip from the screenshot were trimmed; the square thumbnail is a full-height crop centered on the office block.',
+    thumbnail: {
+      assetUrl: '/media/thumbnails/university-park-central.webp',
+      sourceUrl: 'user-provided screenshot (no public source URL)',
+      alt: 'A long white and tan concrete warehouse with a taller office block and blue accent stripes, trailers at its loading docks, seen across a pond lined with tall golden reeds under a blue sky',
+      width: 500,
+      height: 500,
+    },
+    detail: {
+      assetUrl: '/media/university-park-central.jpg',
+      sourceUrl: 'user-provided screenshot (no public source URL)',
+      alt: 'A long white and tan concrete warehouse with a taller office block and blue accent stripes, trailers at its loading docks, seen across a pond lined with tall golden reeds under a blue sky',
+      width: 1638,
+      height: 663,
     },
   },
 }

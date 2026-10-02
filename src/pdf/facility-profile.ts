@@ -7,10 +7,12 @@ import {
   type PDFPage,
 } from 'pdf-lib'
 import type { Facility } from '../data/facilities'
+import { formatCeilingHeight, formatLoadingDocks, getFacilityBuildingDetails } from '../data/facility-building'
 import { formatOperatingHours, type FacilityOperatingHours } from '../data/facility-hours'
 import type { FacilityMedia } from '../data/facility-media'
 import type { FacilityContact, FacilityOperations } from '../data/facility-operations'
 import { displayFactUnit, sitePlanProvenanceLabel, type FacilitySitePlan, type FacilitySitePlanFact } from '../data/facility-site-plans'
+import { formatAvailableSpace, formatBulkSquareFeet, formatTotalSquareFeet, getFacilityBulkRack, getFacilitySquareFootage, hasReportedAvailableSpace } from '../data/facility-space'
 import type { UserProvidedFacilityPhoto, UserProvidedFacilityPhotos } from '../data/facility-user-photos'
 
 export type FacilityProfileData = {
@@ -280,15 +282,19 @@ function operatingHoursSource(hours?: FacilityOperatingHours) {
     : `User-provided · As supplied · ${hours.sourceRowLabel}`
 }
 
+// Page 1 shows the same key facts, values, and wording as the Overview, Dashboard preview, and Preview tour. Available
+// appears only once a site reports it, and Bulk fills the fourth card otherwise.
 function pageOneFacts(data: FacilityProfileData) {
-  const facts: Array<{ label: string; value: string; note?: string }> = data.sitePlan?.facts.slice(0, 4).map((fact) => ({ label: fact.label, value: formatFact(fact) })) ?? []
-  if (facts.length === 0) {
-    facts.push(
-      { label: 'Facility', value: `Facility ${facilityNumber(data.facility)}` },
-      { label: 'Map precision', value: data.facility.coordinatePrecision },
-    )
-  }
-  return facts
+  const { totalSquareFeet, available } = getFacilitySquareFootage(data.facility.id)
+  const building = getFacilityBuildingDetails(data.facility.id)
+  const facts: Array<{ label: string; value: string; note?: string }> = [
+    { label: 'Total', value: formatTotalSquareFeet(totalSquareFeet) },
+    ...(hasReportedAvailableSpace(available) ? [{ label: 'Available', value: formatAvailableSpace(available) }] : []),
+    { label: 'Ceiling height', value: formatCeilingHeight(building, 'Pending') },
+    { label: 'Loading docks', value: formatLoadingDocks(building, 'Pending') },
+    { label: 'Bulk', value: formatBulkSquareFeet(getFacilityBulkRack(data.facility.id)) },
+  ]
+  return facts.slice(0, 4)
 }
 
 function contactPhoneText(contact: FacilityContact) {
@@ -315,16 +321,7 @@ function drawContactDirectory(page: PDFPage, fonts: Fonts, data: FacilityProfile
     return
   }
 
-  drawWrappedText(page, data.operations.source, {
-    x: box.x + 15,
-    y: box.y + box.height - 36,
-    width: box.width - 30,
-    font: fonts.regular,
-    size: 6.2,
-    color: rgb(0.76, 0.82, 0.88),
-    maxLines: 1,
-  })
-
+  // The contact source note stays in the PDF's metadata keywords but is not printed on the page.
   const contacts = data.operations.contacts.slice(0, 6)
   const rows = Math.ceil(contacts.length / 2)
   const columnGap = 18
