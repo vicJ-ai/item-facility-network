@@ -1,5 +1,5 @@
 export type FacilityContactPhone = {
-  label: 'Phone' | 'Cell' | 'Mobile' | 'Office'
+  label: 'Phone' | 'Cell' | 'Mobile' | 'Office' | 'Direct'
   display: string
   href: string
 }
@@ -7,6 +7,7 @@ export type FacilityContactPhone = {
 export type FacilityContact = {
   id: string
   group: 'account-management' | 'operations'
+  /** An empty role means the user asked for no title to be shown. */
   role: string
   name: string
   email?: string
@@ -52,7 +53,7 @@ const JOHN_GLEASON_PHONES: FacilityContactPhone[] = [{ label: 'Phone', display: 
 
 export const OSCAR_RODRIGUEZ_EMAIL = 'oscar.rodriguez@unisco.com'
 // The user asked on 2026-10-01 to show Oscar without a portrait until a replacement is supplied.
-// User-provided on 2026-10-01: Senior GM for Riverside, Moreno Valley, and Waddell (Amazon); the title also applies at Ontario.
+// User-provided on 2026-10-01: Senior GM for Riverside, Moreno Valley, and Waddell (Amazon). He was also listed at Ontario until the user replaced him there with Mark Tuttle on 2026-10-02.
 export const OSCAR_RODRIGUEZ_ROLE = 'Senior General Manager'
 // The contact sheet's Riverside number, extended to his other sites at the user's request.
 const OSCAR_RODRIGUEZ_PHONES: FacilityContactPhone[] = [{ label: 'Phone', display: '951-374-2495', href: '+19513742495' }]
@@ -106,6 +107,23 @@ export const JIMMY_ESPARZA_PHOTO_URL = '/media/operations/portraits/jimmy-esparz
 export const JIMMY_ESPARZA_SOURCE_NOTE = 'Jimmy Esparza contact and portrait supplied by user on 2026-10-01; identity not independently verified.'
 const JIMMY_ESPARZA_PHONES: FacilityContactPhone[] = [{ label: 'Phone', display: '626-341-7845', href: '+16263417845' }]
 
+// University Park's General Manager, from the "point of contact per warehouse" sheet the user supplied on 2026-10-02.
+// The supplied photo is small (152×205), so his portrait crop is tighter than the others; the original is kept beside it.
+export const BARRY_WASHINGTON_EMAIL = 'barry.washington@unisco.com'
+export const BARRY_WASHINGTON_PHOTO_URL = '/media/operations/portraits/barry-washington.jpg'
+const BARRY_WASHINGTON_PHONES: FacilityContactPhone[] = [{ label: 'Phone', display: '(626) 624-1145', href: '+16266241145' }]
+
+// Supplied by the user on 2026-10-02 with his photo; no phone was given. The email is lowercased to match every other
+// address (the user wrote "Jason.hop@unisco.com").
+export const JASON_HOP_EMAIL = 'jason.hop@unisco.com'
+export const JASON_HOP_PHOTO_URL = '/media/operations/portraits/jason-hop.jpg'
+export const JASON_HOP_ROLE = 'Assistant General Manager'
+
+export const MARK_TUTTLE_EMAIL = 'mark.tuttle@unisco.com'
+export const MARK_TUTTLE_PHOTO_URL = '/media/operations/portraits/mark-tuttle.jpg'
+// Director of Operations at Buena Park; the user also assigned him to Ontario on 2026-10-02, in place of Oscar Rodriguez.
+const MARK_TUTTLE_PHONES: FacilityContactPhone[] = [{ label: 'Phone', display: '657-689-6951', href: '+16576896951' }]
+
 export const WAYNE_BROOKS_EMAIL = 'wayne.brooks@unisco.com'
 export const WAYNE_BROOKS_PHOTO_URL = '/media/operations/portraits/wayne-brooks.jpg'
 
@@ -119,7 +137,105 @@ const sharedPhotoUrlsByEmail: Record<string, string> = {
   [JESSICA_BARAJAS_EMAIL]: JESSICA_BARAJAS_PHOTO_URL,
   [MARY_SMOTHERS_EMAIL]: MARY_SMOTHERS_PHOTO_URL,
   [MICHELLE_TOPETE_EMAIL]: MICHELLE_TOPETE_PHOTO_URL,
+  [MARK_TUTTLE_EMAIL]: MARK_TUTTLE_PHOTO_URL,
   [WAYNE_BROOKS_EMAIL]: WAYNE_BROOKS_PHOTO_URL,
+}
+
+// Account managers from the "contact list for Account manager" sheet the user supplied on 2026-10-02. Each profile is
+// ready to place; facility assignments come from a separate file the user will supply, so none are listed anywhere yet.
+// Names, titles, emails, and phones are kept exactly as the sheet writes them. Elizabeth Martinez has no title at the
+// user's request and Yessenia Tovar's has no phone. Melissa Ortiz's sheet entry had no title; the user set it to Account
+// Manager on 2026-10-02. Portraits are 400×400 crops
+// framed like the existing ones; the originals are kept in /media/operations/account-managers.
+export const ACCOUNT_MANAGER_SOURCE_NOTE = 'Account manager contact sheet supplied by the user on 2026-10-02.'
+
+export type AccountManagerProfile = {
+  name: string
+  role: string
+  email: string
+  phones: FacilityContactPhone[]
+  photoUrl?: string
+}
+
+const accountManagerPortrait = (slug: string) => `/media/operations/portraits/${slug}.jpg`
+const ACCOUNT_MANAGER = 'Account Manager'
+
+export const accountManagerProfiles = {
+  'alondra-toledano': { name: 'Alondra Toledano', role: ACCOUNT_MANAGER, email: 'alondra.toledano@unisco.com', phones: [{ label: 'Phone', display: '626-684-6944', href: '+16266846944' }], photoUrl: accountManagerPortrait('alondra-toledano') },
+  'francisca-aispuro': { name: 'Francisca Aispuro', role: ACCOUNT_MANAGER, email: 'francisca.aispuro@unisco.com', phones: [{ label: 'Phone', display: '(657) 465-8914', href: '+16574658914' }], photoUrl: accountManagerPortrait('francisca-aispuro') },
+  'kassandra-ibanez': { name: 'Kassandra Ibanez', role: ACCOUNT_MANAGER, email: 'kassandra.ibanez@unisco.com', phones: [{ label: 'Phone', display: '657-520-6497', href: '+16575206497' }], photoUrl: accountManagerPortrait('kassandra-ibanez') },
+  'thelma-tolentino': { name: 'Thelma Tolentino', role: ACCOUNT_MANAGER, email: 'thelma.tolentino@unisco.com', phones: [{ label: 'Phone', display: '626-689-6373', href: '+16266896373' }], photoUrl: accountManagerPortrait('thelma-tolentino') },
+  'susan-mendez': {
+    name: 'Susan Mendez', role: ACCOUNT_MANAGER, email: 'susan.mendez@unisco.com',
+    phones: [{ label: 'Mobile', display: '714.425.5857', href: '+17144255857' }, { label: 'Office', display: '(626) 626-9891', href: '+16266269891' }],
+    photoUrl: accountManagerPortrait('susan-mendez'),
+  },
+  'jennifer-stanek': { name: 'Jennifer Stanek', role: ACCOUNT_MANAGER, email: 'jennifer.stanek@unisco.com', phones: [{ label: 'Phone', display: '909-569-3849', href: '+19095693849' }], photoUrl: accountManagerPortrait('jennifer-stanek') },
+  'jehnifur-morvai': { name: 'Jehnifur Morvai', role: ACCOUNT_MANAGER, email: 'jehnifur.morvai@unisco.com', phones: [{ label: 'Phone', display: '626.362.7775', href: '+16263627775' }], photoUrl: accountManagerPortrait('jehnifur-morvai') },
+  // The sheet says "[leave title blank] Don't add title".
+  'elizabeth-martinez': { name: 'Elizabeth Martinez', role: '', email: 'elizabeth.martinez@unisco.com', phones: [{ label: 'Phone', display: '713-438-7170', href: '+17134387170' }], photoUrl: accountManagerPortrait('elizabeth-martinez') },
+  'karen-nesta': { name: 'Karen Nesta', role: ACCOUNT_MANAGER, email: 'karen.nesta@unisco.com', phones: [{ label: 'Phone', display: '909-956-3732', href: '+19099563732' }], photoUrl: accountManagerPortrait('karen-nesta') },
+  'raed-ali': { name: 'Raed Ali', role: ACCOUNT_MANAGER, email: 'raed.ali@unisco.com', phones: [{ label: 'Phone', display: '657.762.9308', href: '+16577629308' }], photoUrl: accountManagerPortrait('raed-ali') },
+  'matthew-david': { name: 'Matthew David', role: ACCOUNT_MANAGER, email: 'matthew.david@unisco.com', phones: [{ label: 'Phone', display: '626.362.7866', href: '+16263627866' }], photoUrl: accountManagerPortrait('matthew-david') },
+  'yesenia-diaz': { name: 'Yesenia Diaz', role: ACCOUNT_MANAGER, email: 'yesenia.diaz@unisco.com', phones: [{ label: 'Phone', display: '815.715.4755', href: '+18157154755' }], photoUrl: accountManagerPortrait('yesenia-diaz') },
+  // The sheet gives no phone for Yessenia Tovar.
+  'yessenia-tovar': { name: 'Yessenia Tovar', role: ACCOUNT_MANAGER, email: 'yessenia.tovar@unisco.com', phones: [], photoUrl: accountManagerPortrait('yessenia-tovar') },
+  'margaret-medina': { name: 'Margaret Medina', role: ACCOUNT_MANAGER, email: 'margaret.medina@unisco.com', phones: [{ label: 'Mobile', display: '626-420-6832', href: '+16264206832' }], photoUrl: accountManagerPortrait('margaret-medina') },
+  'melissa-ortiz': {
+    name: 'Melissa Ortiz', role: ACCOUNT_MANAGER, email: 'melissa.ortiz@unisco.com',
+    phones: [{ label: 'Office', display: '844.486.4726 ext. 1534', href: '+18444864726,1534' }, { label: 'Direct', display: '626.944.3945', href: '+16269443945' }],
+    photoUrl: accountManagerPortrait('melissa-ortiz'),
+  },
+  // Supplied by the user on 2026-10-02 with their photos (Natasha, Jessica); Rhonda's photo will follow later, and her
+  // title, which was not given, follows the assignment file's "Account Manager" column.
+  'natasha-gray': { name: 'Natasha Gray', role: ACCOUNT_MANAGER, email: 'natasha.gray@unisco.com', phones: [{ label: 'Phone', display: '657-689-6943', href: '+16576896943' }], photoUrl: accountManagerPortrait('natasha-gray') },
+  'jessica-chaidez': {
+    name: 'Jessica Chaidez', role: ACCOUNT_MANAGER, email: 'jessica.chaidez@unisco.com',
+    phones: [{ label: 'Direct', display: '912-712-0566 ext. 5312', href: '+19127120566,5312' }, { label: 'Cell', display: '657-689-6974', href: '+16576896974' }],
+    photoUrl: accountManagerPortrait('jessica-chaidez'),
+  },
+  'rhonda-moffett': { name: 'Rhonda Moffett', role: ACCOUNT_MANAGER, email: 'rhonda.moffett@unisco.com', phones: [{ label: 'Phone', display: '(909) 610-0149', href: '+19096100149' }] },
+} as const satisfies Record<string, AccountManagerProfile>
+
+export type AccountManagerKey = keyof typeof accountManagerProfiles
+
+/** A facility contact card for an account manager, ready to drop into a facility's contact list. */
+export const accountManagerContact = (key: AccountManagerKey, sourceColumn = 'K'): FacilityContact => {
+  const profile = accountManagerProfiles[key]
+  return {
+    id: `${sourceColumn.toLowerCase()}-${key}`,
+    sourceColumn,
+    group: 'account-management',
+    role: profile.role,
+    name: profile.name,
+    email: profile.email,
+    ...(profile.phones.length > 0 ? { phones: [...profile.phones] } : {}),
+    ...('photoUrl' in profile ? { photoUrl: profile.photoUrl } : {}),
+  }
+}
+
+export const ACCOUNT_MANAGER_ASSIGNMENT_NOTE = 'Account manager assignments supplied by the user on 2026-10-02'
+
+// Facility assignments from the "LOCATIONS 09012026 SOW 1 (Customers)" file, in the file's order. Its facility names were
+// matched to the roster: "Alessandro" is Riverside, "Willlow" Long Beach, "Airport" Ontario, "Heacock" Moreno Valley,
+// "Prosperity" Garden City, "Seabrook" Pooler Seabrook Building 2, "Delp" Memphis Delp, and "Memphis LENOVO" the Quality
+// Drive site (its top customers are Lenovo). Rows marked N/A list no account manager and are left unchanged. The file also
+// names Silvia Sanchez at Riverside; she is left out until her photo is supplied.
+export const accountManagerAssignments: Partial<Record<string, readonly AccountManagerKey[]>> = {
+  'waddell-cotton': ['karen-nesta'],
+  'riverside-alessandro': ['francisca-aispuro', 'alondra-toledano'],
+  'buena-park-valley-view': ['susan-mendez', 'margaret-medina', 'melissa-ortiz'],
+  'long-beach-willow': ['yessenia-tovar'],
+  'ontario-airport': ['alondra-toledano'],
+  'moreno-valley-heacock': ['alondra-toledano'],
+  'garden-city-prosperity': ['jessica-chaidez'],
+  'pooler-seabrook-building-2': ['natasha-gray'],
+  'joliet-brandon': ['yesenia-diaz', 'matthew-david', 'rhonda-moffett', 'raed-ali'],
+  'university-park-central': ['yesenia-diaz'],
+  'memphis-delp': ['thelma-tolentino'],
+  'tennessee-quality-drive': ['thelma-tolentino'],
+  'houston-citypark': ['elizabeth-martinez'],
+  'roanoke-highway-114': ['kassandra-ibanez'],
 }
 
 const normalizedEmail = (email?: string) => email?.trim().toLowerCase()
@@ -189,7 +305,7 @@ export const facilitiesNeedingOperationsContactReview = [
   'university-park-central',
 ] as const
 
-export const facilityOperations: Partial<Record<string, FacilityOperations>> = {
+const baseFacilityOperations: Partial<Record<string, FacilityOperations>> = {
   'buena-park-valley-view': {
     facilityId: 'buena-park-valley-view',
     source: `User-provided facility contact sheet, row 5 · ${JOHN_DIAZ_TITLE_SOURCE_NOTE}`,
@@ -229,10 +345,10 @@ export const facilityOperations: Partial<Record<string, FacilityOperations>> = {
         group: 'operations',
         role: 'Director of Operations',
         name: 'Mark Tuttle',
-        email: 'mark.tuttle@unisco.com',
+        email: MARK_TUTTLE_EMAIL,
         phone: '657-689-6951',
         phoneHref: '+16576896951',
-        photoUrl: '/media/operations/portraits/mark-tuttle.jpg',
+        photoUrl: MARK_TUTTLE_PHOTO_URL,
       },
       {
         id: 'john-diaz',
@@ -370,7 +486,8 @@ export const facilityOperations: Partial<Record<string, FacilityOperations>> = {
   'ontario-airport': sheetOperations('ontario-airport', 7, [
     sheetContact('D', 'account-management', 'Manager of Account Management & Client Onboarding', 'Michelle Topete', MICHELLE_TOPETE_EMAIL, MICHELLE_TOPETE_PHONES),
     sheetContact('E', 'account-management', 'Sr Director of Account Management & Client Onboarding', 'Mary Smothers', 'mary.smothers@unisco.com', [{ label: 'Phone', display: '626-899-2363', href: '+16268992363' }]),
-    sheetContact('F', 'operations', OSCAR_RODRIGUEZ_ROLE, 'Oscar Rodriguez', OSCAR_RODRIGUEZ_EMAIL),
+    // User-updated on 2026-10-02: Mark Tuttle replaces Oscar Rodriguez at Ontario.
+    sheetContact('G', 'operations', 'Director of Operations', 'Mark Tuttle', MARK_TUTTLE_EMAIL, MARK_TUTTLE_PHONES),
     sheetContact('H', 'operations', JOHN_DIAZ_ROLE, 'John Diaz', JOHN_DIAZ_EMAIL, JOHN_DIAZ_PHONES),
     sheetContact('J', 'operations', 'Regional Director of Field Operations', 'Harold Cuarezma', 'harold.cuarezma@unisco.com', [{ label: 'Cell', display: '909-753-6346', href: '+19097536346' }, { label: 'Mobile', display: '626-362-9596', href: '+16263629596' }]),
   ]),
@@ -429,10 +546,26 @@ export const facilityOperations: Partial<Record<string, FacilityOperations>> = {
   'university-park-central': withPointOfContactSheet(userContactUpdate('university-park-central', [
     sheetContact('D', 'account-management', 'Manager of Account Management & Client Onboarding', 'Michelle Topete', MICHELLE_TOPETE_EMAIL, MICHELLE_TOPETE_PHONES),
     sheetContact('E', 'account-management', 'Sr Director of Account Management & Client Onboarding', 'Mary Smothers', 'mary.smothers@unisco.com', [{ label: 'Phone', display: '626-899-2363', href: '+16268992363' }]),
+    sheetContact('F', 'operations', 'General Manager', 'Barry Washington', BARRY_WASHINGTON_EMAIL, BARRY_WASHINGTON_PHONES, BARRY_WASHINGTON_PHOTO_URL),
+    // Placed alongside Barry Washington at the user's request on 2026-10-02.
+    sheetContact('F', 'operations', JASON_HOP_ROLE, 'Jason Hop', JASON_HOP_EMAIL, [], JASON_HOP_PHOTO_URL),
     sheetContact('G', 'operations', JAVIER_MONTANE_ROLE, JAVIER_MONTANE_NAME, JAVIER_MONTANE_EMAIL, JAVIER_MONTANE_PHONES),
     sheetContact('H', 'operations', JOHN_DIAZ_ROLE, 'John Diaz', JOHN_DIAZ_EMAIL, JOHN_DIAZ_PHONES),
     sheetContact('J', 'operations', 'Regional Director of Operations', 'Jimmy Esparza', JIMMY_ESPARZA_EMAIL, JIMMY_ESPARZA_PHONES, JIMMY_ESPARZA_PHOTO_URL),
   ])),
 }
+
+// Each facility's contacts, with its assigned account managers listed after the existing account management contacts.
+export const facilityOperations: Partial<Record<string, FacilityOperations>> = Object.fromEntries(
+  Object.entries(baseFacilityOperations).map(([facilityId, record]) => {
+    const assigned = accountManagerAssignments[facilityId]
+    if (!record || !assigned) return [facilityId, record]
+    return [facilityId, {
+      ...record,
+      source: `${record.source} · ${ACCOUNT_MANAGER_ASSIGNMENT_NOTE}`,
+      contacts: [...record.contacts, ...assigned.map((key) => accountManagerContact(key))],
+    }]
+  }),
+)
 
 export const getFacilityOperations = (facilityId: string) => facilityOperations[facilityId]

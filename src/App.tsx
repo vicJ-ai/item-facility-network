@@ -1036,7 +1036,7 @@ function App() {
                   <option value="All">All statuses</option><option>Active</option><option>Coming Soon</option><option>Planned</option><option>Unassigned</option>
                 </select>
                 <select aria-label="Filter by facility type" value={facilityTypeFilter} onChange={(event) => setFacilityTypeFilter(event.target.value as FacilityTypeFilter)}>
-                  <option value="All">All types</option><option>UF ONLY</option><option>UF/CUBEWORKS</option>
+                  <option value="All">All types</option><option>UF ONLY</option><option>UF/CUBEWORKS</option><option>Samsung Warehouse</option>
                 </select>
               </div>
               <div className="table-wrap">
@@ -1471,7 +1471,7 @@ function OperationsContactCard({ contact }: { contact: FacilityContact }) {
         <span className="operations-contact-photo is-blank" role="img" aria-label={`Portrait not provided for ${contact.name}`} />
       )}
       <div className="operations-contact-copy">
-        <span className="operations-contact-role">{contact.role}</span>
+        {contact.role && <span className="operations-contact-role">{contact.role}</span>}
         <h3>{contact.name}</h3>
         <address>
           {contact.email ? (

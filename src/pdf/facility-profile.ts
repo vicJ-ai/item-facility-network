@@ -322,30 +322,39 @@ function drawContactDirectory(page: PDFPage, fonts: Fonts, data: FacilityProfile
   }
 
   // The contact source note stays in the PDF's metadata keywords but is not printed on the page.
-  const contacts = data.operations.contacts.slice(0, 6)
-  const rows = Math.ceil(contacts.length / 2)
-  const columnGap = 18
-  const columnWidth = (box.width - 30 - columnGap) / 2
+  // Three rows fit the box: two columns hold up to six contacts and three columns up to nine. Anything beyond that is
+  // counted in a note rather than silently dropped.
+  const MAX_CONTACTS = 9
+  const contacts = data.operations.contacts.slice(0, MAX_CONTACTS)
+  const hidden = data.operations.contacts.length - contacts.length
+  const columns = contacts.length > 6 ? 3 : 2
+  const rows = Math.ceil(contacts.length / columns)
+  const columnGap = columns === 3 ? 14 : 18
+  const columnWidth = (box.width - 30 - columnGap * (columns - 1)) / columns
   const cardsTop = box.y + box.height - 52
   const cardsBottom = box.y + 10
   const rowHeight = (cardsTop - cardsBottom) / Math.max(1, rows)
 
   contacts.forEach((contact, index) => {
-    const column = index < rows ? 0 : 1
-    const row = column === 0 ? index : index - rows
+    const column = Math.floor(index / rows)
+    const row = index % rows
     const x = box.x + 15 + column * (columnWidth + columnGap)
     const top = cardsTop - row * rowHeight
     const phone = contactPhoneText(contact)
-    drawWrappedText(page, contact.role, { x, y: top - 8, width: columnWidth, font: fonts.bold, size: 5.8, color: rgb(0.76, 0.82, 0.88), lineHeight: 6.6, maxLines: 1 })
-    drawWrappedText(page, contact.name, { x, y: top - 22, width: columnWidth, font: fonts.bold, size: 8.8, color: WHITE, maxLines: 1 })
-    if (contact.email) drawWrappedText(page, contact.email, { x, y: top - 35, width: columnWidth, font: fonts.regular, size: 6.3, color: rgb(0.88, 0.91, 0.94), maxLines: 1 })
-    if (phone) drawWrappedText(page, phone, { x, y: contact.email ? top - 47 : top - 35, width: columnWidth, font: fonts.regular, size: 6.2, color: rgb(0.88, 0.91, 0.94), maxLines: 1 })
+    // Long titles and phone lines may wrap to a second line in the narrower three-column layout.
+    if (contact.role) drawWrappedText(page, contact.role, { x, y: top - 8, width: columnWidth, font: fonts.bold, size: 5.8, color: rgb(0.76, 0.82, 0.88), lineHeight: 6.4, maxLines: 2 })
+    drawWrappedText(page, contact.name, { x, y: top - 25, width: columnWidth, font: fonts.bold, size: 8.8, color: WHITE, maxLines: 1 })
+    if (contact.email) drawWrappedText(page, contact.email, { x, y: top - 37, width: columnWidth, font: fonts.regular, size: 6.3, color: rgb(0.88, 0.91, 0.94), maxLines: 1 })
+    if (phone) drawWrappedText(page, phone, { x, y: contact.email ? top - 48 : top - 37, width: columnWidth, font: fonts.regular, size: 6.2, color: rgb(0.88, 0.91, 0.94), lineHeight: 7.2, maxLines: 2 })
     if (row < rows - 1) page.drawLine({ start: { x, y: top - rowHeight + 5 }, end: { x: x + columnWidth, y: top - rowHeight + 5 }, thickness: 0.45, color: rgb(0.27, 0.37, 0.47) })
   })
 
-  if (contacts.length > rows) {
-    const dividerX = box.x + box.width / 2
+  for (let column = 1; column < Math.ceil(contacts.length / rows); column += 1) {
+    const dividerX = box.x + 15 + column * (columnWidth + columnGap) - columnGap / 2
     page.drawLine({ start: { x: dividerX, y: cardsBottom }, end: { x: dividerX, y: cardsTop }, thickness: 0.45, color: rgb(0.27, 0.37, 0.47) })
+  }
+  if (hidden > 0) {
+    page.drawText(`+${hidden} more in the Operations tab`, { x: box.x + box.width - 120, y: box.y + box.height - 22, size: 6.5, font: fonts.regular, color: rgb(0.76, 0.82, 0.88) })
   }
 }
 

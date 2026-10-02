@@ -9,7 +9,8 @@ export type FacilityAvailableSpace = { squareFeet: number; asOf: string; status?
 export const facilityAvailableSpace: Partial<Record<string, FacilityAvailableSpace>> = {
   // User-provided on 2026-10-01.
   'roanoke-highway-114': { squareFeet: 4_000, asOf: '2026-10' },
-  'houston-citypark': { squareFeet: 5_000, asOf: '2026-10' },
+  // Was 5,000 SQF (2026-10-01); updated on 2026-10-02 to the same figures as Houston Navigation, per the user.
+  'houston-citypark': { squareFeet: 86_000, asOf: '2026-10' },
   'tacoma-lincoln': { squareFeet: 80_000, asOf: '2026-10' },
   'tacoma-steele': { squareFeet: 0, asOf: '2026-10' },
   'kent-85th-avenue-range': { squareFeet: 0, asOf: '2026-10', note: 'No UF customer on this site' },
@@ -27,6 +28,10 @@ export const facilityAvailableSpace: Partial<Record<string, FacilityAvailableSpa
   'university-park-central': { squareFeet: 0, asOf: '2026-10' },
   // User-provided on 2026-10-02 (first given on 2026-10-01 and mistakenly recorded as Ontario's total).
   'ontario-airport': { squareFeet: 140_000, asOf: '2026-10' },
+  // User-provided on 2026-10-02 (labelled "Houston Navigation, TX (Citypark)"); the user confirmed it applies to both
+  // Houston Navigation and Houston Citypark.
+  'houston-navigation': { squareFeet: 86_000, asOf: '2026-10' },
+  'plano-10th-f-avenue': { squareFeet: 0, asOf: '2026-10' },
 }
 
 // User-provided total square footage. It wins over a site plan's area, so it also covers plans that are missing,
@@ -67,6 +72,24 @@ export type FacilityBulkRack = { bulkSquareFeet?: number; bulkUpToSquareFeet?: n
 export const facilityBulkRack: Partial<Record<string, FacilityBulkRack>> = {
   // User-provided on 2026-10-01 (Javier Gonzalez Montane).
   'joliet-brandon': { bulkSquareFeet: 110_000, bulkUpToSquareFeet: 150_000, rackPalletPositions: 3_000, asOf: '2026-10' },
+  // User-provided on 2026-10-02; "24K" and "2K" are recorded as 24,000 SF and 2,000 pallet positions.
+  'houston-navigation': { bulkSquareFeet: 5_000, rackPalletPositions: 0, asOf: '2026-10' },
+  'houston-citypark': { bulkSquareFeet: 5_000, rackPalletPositions: 0, asOf: '2026-10' },
+  'plano-10th-f-avenue': { bulkSquareFeet: 62_000, rackPalletPositions: 0, asOf: '2026-10' },
+  'jacksonville-ignition': { bulkSquareFeet: 24_000, rackPalletPositions: 2_000, asOf: '2026-10' },
+  'pooler-morgan-lakes': { bulkSquareFeet: 200_000, rackPalletPositions: 0, asOf: '2026-10' },
+  'el-paso-emerald-12100': { bulkSquareFeet: 0, rackPalletPositions: 0, asOf: '2026-10' },
+  'el-paso-emerald-12102-building-5': { bulkSquareFeet: 0, rackPalletPositions: 0, asOf: '2026-10' },
+  'summerville-cypress-tradeport': { bulkSquareFeet: 70_000, rackPalletPositions: 0, asOf: '2026-10' },
+  // User-provided on 2026-10-02 (bulk only; rack stays 0 from the zero-fill below).
+  'pooler-seabrook-building-2': { bulkSquareFeet: 100_000, rackPalletPositions: 0, asOf: '2026-10' },
+  // The user asked on 2026-10-02 to record 0 bulk and 0 rack for every site still without figures.
+  ...Object.fromEntries([
+    'buena-park-valley-view', 'riverside-alessandro', 'moreno-valley-heacock', 'roanoke-highway-114',
+    'tennessee-quality-drive', 'tacoma-lincoln', 'tacoma-steele', 'las-vegas-marion-building-5', 'long-beach-willow',
+    'waddell-cotton', 'ontario-airport', 'kent-85th-avenue-range', 'west-sacramento-overland', 'sparks-vista',
+    'memphis-delp', 'salt-lake-city-jimmy-doolittle', 'somerset-cottontail', 'garden-city-prosperity', 'university-park-central',
+  ].map((facilityId) => [facilityId, { bulkSquareFeet: 0, rackPalletPositions: 0, asOf: '2026-10' }])),
 }
 
 export const getFacilityBulkRack = (facilityId: string) => facilityBulkRack[facilityId]

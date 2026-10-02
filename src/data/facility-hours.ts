@@ -74,7 +74,21 @@ const confirmedExpansion = (
   matchNote: `Confirmed by the user with the ten-site roster expansion on 2026-09-28 as 8:00 AM–4:30 PM ${timezone} M-F.`,
 })
 
-// Facilities without supplied hours (Garden City) are intentionally absent.
+// On 2026-10-02 the user stated that every facility keeps 8:00 AM–4:30 PM M-F in its local time zone. That rule fills in the
+// sites that had no supplied hours, using the same zone label as their neighbours (Pooler for Garden City, Joliet for
+// University Park).
+const standardHours = (facilityId: string, sourceRowLabel: string, timezone: ConfirmedOperatingHours['timezone']): ConfirmedOperatingHours => ({
+  facilityId,
+  status: 'confirmed',
+  startTime: '8:00 AM',
+  endTime: '4:30 PM',
+  timezone,
+  days: 'M-F',
+  source: CONFIRMED_OPERATING_HOURS_SOURCE,
+  sourceRowLabel,
+  matchNote: `Set from the user's 2026-10-02 rule that every facility keeps 8:00 AM–4:30 PM M-F in its local time zone (${timezone}).`,
+})
+
 export const facilityOperatingHours: Partial<Record<string, FacilityOperatingHours>> = {
   'buena-park-valley-view': provided('buena-park-valley-view', 'CA Buena Park (Valley View)', 'PST'),
   'riverside-alessandro': provided('riverside-alessandro', 'CA Alessandro', 'PST'),
@@ -103,6 +117,8 @@ export const facilityOperatingHours: Partial<Record<string, FacilityOperatingHou
   'salt-lake-city-jimmy-doolittle': confirmedExpansion('salt-lake-city-jimmy-doolittle', 'UT Salt Lake City · 485 N Jimmy Doolittle Rd', 'MST'),
   'somerset-cottontail': confirmedExpansion('somerset-cottontail', 'NJ Somerset · 101 Cottontail Ln', 'EST'),
   'plano-10th-f-avenue': confirmedExpansion('plano-10th-f-avenue', 'TX Plano · 910 10th Street / 880 F Ave.', 'CST'),
+  'garden-city-prosperity': standardHours('garden-city-prosperity', 'GA Garden City · 140 Prosperity Dr', 'EST'),
+  'university-park-central': standardHours('university-park-central', 'IL University Park · 701 S Central Ave', 'CST'),
 }
 
 export function getFacilityOperatingHours(facilityId: string) {
