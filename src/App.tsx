@@ -215,15 +215,13 @@ function SquareFootagePreview({ facilityId }: { facilityId: string }) {
     <span className="square-footage-preview" data-testid="square-footage-preview">
       <Warehouse size={12} />
       <span>
-        {totalSquareFeet !== undefined && <span data-testid="square-footage-total">Total <strong>{totalSquareFeet.toLocaleString('en-US')} SQF</strong></span>}
+        <span data-testid="square-footage-total">Total {totalSquareFeet !== undefined
+          ? <strong>{totalSquareFeet.toLocaleString('en-US')} SQF</strong>
+          : <em className="square-footage-pending">Pending</em>}
+        </span>
         <span data-testid="square-footage-available" data-available-status={available ? available.status ?? 'reported' : 'pending'}>
-          Available {available
-            ? <>
-                <strong>{available.squareFeet === 0 ? 'None' : `${available.squareFeet.toLocaleString('en-US')} SQF`}</strong>
-                {available.status === 'unconfirmed' && <em className="square-footage-pending"> (not confirmed)</em>}
-                {' '}· as of {formatAvailableSpaceMonth(available.asOf)}
-                {available.note && <> · {available.note}</>}
-              </>
+          Available {available && available.status !== 'unconfirmed'
+            ? <strong>{available.squareFeet.toLocaleString('en-US')} SQF</strong>
             : <em className="square-footage-pending">Pending</em>}
         </span>
       </span>

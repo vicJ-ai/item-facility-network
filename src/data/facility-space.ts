@@ -20,7 +20,7 @@ export const facilityAvailableSpace: Partial<Record<string, FacilityAvailableSpa
   'riverside-alessandro': { squareFeet: 120_000, asOf: '2026-10', status: 'unconfirmed' },
   'somerset-cottontail': { squareFeet: 0, asOf: '2026-10' },
   'las-vegas-marion-building-5': { squareFeet: 0, asOf: '2026-10' },
-  'long-beach-willow': { squareFeet: 10_000, asOf: '2026-10', note: 'About 10,000 SF empty; 100 incoming Bendon containers (40 displays each) to be palletized on CHEP pallets and strapped' },
+  'long-beach-willow': { squareFeet: 10_000, asOf: '2026-10' },
   'joliet-brandon': { squareFeet: 110_000, asOf: '2026-10', note: 'Bulk; up to 150,000 SF with increased utilization · Rack: 3,000 pallet positions' },
 }
 

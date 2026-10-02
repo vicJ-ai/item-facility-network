@@ -32,7 +32,7 @@ export const JAVIER_MONTANE_EMAIL = 'javier.montane@unisco.com'
 export const JAVIER_MONTANE_NAME = 'Javier Gonzalez Montane'
 export const JAVIER_MONTANE_ROLE = 'Director of Operations'
 const JAVIER_MONTANE_PHONES: FacilityContactPhone[] = [{ label: 'Mobile', display: '657-705-7452', href: '+16577057452' }]
-export const JAVIER_MONTANE_PHOTO_URL = '/media/operations/people/javier-montane.png'
+export const JAVIER_MONTANE_PHOTO_URL = '/media/operations/people/javier-montane-v2.png'
 
 export const JOHN_DIAZ_EMAIL = 'john.diaz@unisco.com'
 export const JOHN_DIAZ_PHOTO_URL = '/media/operations/people/john-diaz.png'
@@ -42,7 +42,7 @@ export const JOHN_DIAZ_TITLE_SOURCE_NOTE = 'John Diaz title corrected by user on
 const JOHN_DIAZ_PHONES: FacilityContactPhone[] = [{ label: 'Phone', display: '626-705-1154', href: '+16267051154' }]
 
 export const JOHN_GLEASON_EMAIL = 'john.gleason@unisco.com'
-export const JOHN_GLEASON_PHOTO_URL = '/media/operations/people/john-gleason.png'
+export const JOHN_GLEASON_PHOTO_URL = '/media/operations/people/john-gleason-v2.png'
 
 export const OSCAR_RODRIGUEZ_EMAIL = 'oscar.rodriguez@unisco.com'
 export const OSCAR_RODRIGUEZ_PHOTO_URL = '/media/operations/people/oscar-rodriguez.png'
@@ -63,15 +63,31 @@ export const RICK_GRISWOLD_PHOTO_URL = '/media/operations/people/rick-griswold.p
 const RICK_GRISWOLD_PHONES: FacilityContactPhone[] = [{ label: 'Phone', display: '657-689-6442', href: '+16576896442' }]
 
 export const JESSICA_BARAJAS_EMAIL = 'jessica.barajas@unisco.com'
-export const JESSICA_BARAJAS_PHOTO_URL = '/media/operations/people/jessica-barajas.jpg'
+export const JESSICA_BARAJAS_PHOTO_URL = '/media/operations/people/jessica-barajas-v2.png'
 // User-provided on 2026-10-01: Operations Manager for both El Paso, TX sites; the user kept only her work number.
 const JESSICA_BARAJAS_PHONES: FacilityContactPhone[] = [{ label: 'Office', display: '915.777.7257', href: '+19157777257' }]
 
+export const LENIVY_JACKSON_PHOTO_URL = '/media/operations/pooler-seabrook-building-2/lenivy-jackson-v2.png'
+// Replacement portraits supplied and filename-identified by the user on 2026-10-02; identities were not independently verified.
+export const REPLACEMENT_PORTRAIT_SOURCE_NOTE = 'Javier Gonzalez Montane, Jessica Barajas, John Gleason, and Lenivy Jackson portraits supplied and filename-identified by user on 2026-10-02.'
+
+export const ADAM_LUBIN_PHOTO_URL = '/media/operations/jacksonville-ignition/adam-lubin-v2.png'
+export const STEPHEN_SCHUMAKER_PHOTO_URL = '/media/operations/summerville-cypress-tradeport/stephen-schumaker-v2.png'
+export const FRANK_FELICIANO_PHOTO_URL = '/media/operations/garden-city-prosperity/frank-feliciano-v2.png'
+export const EFRAIN_ISLAS_ALCARAZ_PHOTO_URL = '/media/operations/people/efrain-islas-alcaraz.png'
+// Portraits supplied and filename-identified by the user on 2026-10-02; identities were not independently verified.
+export const OPERATIONS_PORTRAIT_SOURCE_NOTE = 'Adam Lubin, Stephen Schumaker, Frank Feliciano, and Efrain Islas Alcaraz portraits supplied and filename-identified by user on 2026-10-02.'
+
 export const MICHELLE_TOPETE_EMAIL = 'michelle.topete@unisco.com'
 export const MICHELLE_TOPETE_PHOTO_URL = '/media/operations/people/michelle-topete.jpg'
-// User-provided on 2026-10-01, based in Moreno Valley, CA. Work and mobile were both given as 909-780-3984, so it is listed once;
-// it replaces the contact sheet's 626.829.3160 (626.829.3161 on the El Paso Building 5 row).
-const MICHELLE_TOPETE_PHONES: FacilityContactPhone[] = [{ label: 'Phone', display: '909-780-3984', href: '+19097803984' }]
+// User-corrected on 2026-10-01; this shared number applies everywhere Michelle is listed.
+export const MICHELLE_TOPETE_CONTACT_SOURCE_NOTE = 'Michelle Topete contact corrected by user on 2026-10-01.'
+const MICHELLE_TOPETE_PHONES: FacilityContactPhone[] = [{ label: 'Phone', display: '626.829.3160', href: '+16268293160' }]
+
+export const MARY_SMOTHERS_EMAIL = 'mary.smothers@unisco.com'
+export const MARY_SMOTHERS_PHOTO_URL = '/media/operations/people/mary-smothers.jpg'
+// Portrait supplied and identified as Mary Smothers by the user on 2026-10-01; not independently identity-verified.
+export const MARY_SMOTHERS_PHOTO_SOURCE_NOTE = 'Mary Smothers portrait supplied and identified by user on 2026-10-01; identity not independently verified.'
 
 export const WAYNE_BROOKS_EMAIL = 'wayne.brooks@unisco.com'
 export const WAYNE_BROOKS_PHOTO_URL = '/media/operations/people/wayne-brooks.png'
@@ -85,6 +101,7 @@ const sharedPhotoUrlsByEmail: Record<string, string> = {
   [JUAN_BARRAGAN_EMAIL]: JUAN_BARRAGAN_PHOTO_URL,
   [RICK_GRISWOLD_EMAIL]: RICK_GRISWOLD_PHOTO_URL,
   [JESSICA_BARAJAS_EMAIL]: JESSICA_BARAJAS_PHOTO_URL,
+  [MARY_SMOTHERS_EMAIL]: MARY_SMOTHERS_PHOTO_URL,
   [MICHELLE_TOPETE_EMAIL]: MICHELLE_TOPETE_PHOTO_URL,
   [WAYNE_BROOKS_EMAIL]: WAYNE_BROOKS_PHOTO_URL,
 }
@@ -165,9 +182,10 @@ export const facilityOperations: Partial<Record<string, FacilityOperations>> = {
         group: 'account-management',
         role: 'Sr Director of Account Management & Client Onboarding',
         name: 'Mary Smothers',
-        email: 'mary.smothers@unisco.com',
+        email: MARY_SMOTHERS_EMAIL,
         phone: '626-899-2363',
         phoneHref: '+16268992363',
+        photoUrl: MARY_SMOTHERS_PHOTO_URL,
       },
       {
         id: 'ruben-jauregui',
@@ -252,26 +270,26 @@ export const facilityOperations: Partial<Record<string, FacilityOperations>> = {
   'jacksonville-ignition': sheetOperations('jacksonville-ignition', 9, [
     sheetContact('D', 'account-management', 'Manager of Account Management & Client Onboarding', 'Michelle Topete', MICHELLE_TOPETE_EMAIL, MICHELLE_TOPETE_PHONES),
     sheetContact('E', 'account-management', 'Sr Director of Account Management & Client Onboarding', 'Mary Smothers', 'mary.smothers@unisco.com', [{ label: 'Phone', display: '626-899-2363', href: '+16268992363' }]),
-    sheetContact('F', 'operations', 'General Manager', 'Adam Lubin', 'adam.lubin@unisco.com', [{ label: 'Phone', display: '657.705.7457', href: '+16577057457' }], '/media/operations/jacksonville-ignition/adam-lubin.png'),
+    sheetContact('F', 'operations', 'General Manager', 'Adam Lubin', 'adam.lubin@unisco.com', [{ label: 'Phone', display: '657.705.7457', href: '+16577057457' }], ADAM_LUBIN_PHOTO_URL),
     sheetContact('G', 'operations', 'Director of Operations', 'Wayne Brooks', 'wayne.brooks@unisco.com', [{ label: 'Phone', display: '912.660.0703', href: '+19126600703' }]),
     sheetContact('H', 'operations', 'VP of Operations', 'John Gleason', 'john.gleason@unisco.com', [{ label: 'Phone', display: '909.993.7174', href: '+19099937174' }]),
   ]),
   'pooler-seabrook-building-2': officialSheetOperations('pooler-seabrook-building-2', '823 – Pooler', [
     sheetContact('D', 'account-management', 'Manager of Account Management & Client Onboarding', 'Michelle Topete', MICHELLE_TOPETE_EMAIL, MICHELLE_TOPETE_PHONES),
     sheetContact('E', 'account-management', 'Sr Director of Account Management & Client Onboarding', 'Mary Smothers', 'mary.smothers@unisco.com', [{ label: 'Phone', display: '626-899-2363', href: '+16268992363' }]),
-    sheetContact('F', 'operations', 'General Manager', 'Lenivy Jackson', undefined, [], '/media/operations/pooler-seabrook-building-2/lenivy-jackson.png'),
+    sheetContact('F', 'operations', 'General Manager', 'Lenivy Jackson', undefined, [], LENIVY_JACKSON_PHOTO_URL),
     sheetContact('G', 'operations', 'Director of Operations', 'Wayne Brooks', WAYNE_BROOKS_EMAIL, [{ label: 'Phone', display: '912.660.0703', href: '+19126600703' }]),
     sheetContact('H', 'operations', 'VP of Operations', 'John Gleason', JOHN_GLEASON_EMAIL, [{ label: 'Phone', display: '909.993.7174', href: '+19099937174' }]),
   ]),
   'summerville-cypress-tradeport': officialSheetOperations('summerville-cypress-tradeport', '875 – Summerville', [
     sheetContact('D', 'account-management', 'Manager of Account Management & Client Onboarding', 'Michelle Topete', MICHELLE_TOPETE_EMAIL, MICHELLE_TOPETE_PHONES),
     sheetContact('E', 'account-management', 'Sr Director of Account Management & Client Onboarding', 'Mary Smothers', 'mary.smothers@unisco.com', [{ label: 'Phone', display: '626-899-2363', href: '+16268992363' }]),
-    sheetContact('F', 'operations', 'General Manager', 'Stephen Schumaker', undefined, [], '/media/operations/summerville-cypress-tradeport/stephen-schumaker.png'),
+    sheetContact('F', 'operations', 'General Manager', 'Stephen Schumaker', undefined, [], STEPHEN_SCHUMAKER_PHOTO_URL),
     sheetContact('G', 'operations', 'Director of Operations', 'Wayne Brooks', WAYNE_BROOKS_EMAIL, [{ label: 'Phone', display: '912.660.0703', href: '+19126600703' }]),
     sheetContact('H', 'operations', 'VP of Operations', 'John Gleason', JOHN_GLEASON_EMAIL, [{ label: 'Phone', display: '909.993.7174', href: '+19099937174' }]),
   ]),
   'garden-city-prosperity': officialSheetOperations('garden-city-prosperity', '804 – Garden City', [
-    sheetContact('F', 'operations', 'General Manager', 'Frank Feliciano', undefined, [], '/media/operations/garden-city-prosperity/frank-feliciano.png'),
+    sheetContact('F', 'operations', 'General Manager', 'Frank Feliciano', undefined, [], FRANK_FELICIANO_PHOTO_URL),
     sheetContact('G', 'operations', 'Director of Operations', 'Wayne Brooks', WAYNE_BROOKS_EMAIL, [{ label: 'Phone', display: '912.660.0703', href: '+19126600703' }]),
     sheetContact('H', 'operations', 'VP of Operations', 'John Gleason', JOHN_GLEASON_EMAIL, [{ label: 'Phone', display: '909.993.7174', href: '+19099937174' }]),
   ]),
@@ -286,7 +304,7 @@ export const facilityOperations: Partial<Record<string, FacilityOperations>> = {
     sheetContact('D', 'account-management', 'Manager of Account Management & Client Onboarding', 'Michelle Topete', MICHELLE_TOPETE_EMAIL, MICHELLE_TOPETE_PHONES),
     sheetContact('E', 'account-management', 'Sr Director of Account Management & Client Onboarding', 'Mary Smothers', 'mary.smothers@unisco.com', [{ label: 'Phone', display: '626-899-2363', href: '+16268992363' }]),
     // Full name and title user-provided on 2026-10-01 (the contact sheet listed Efrain Islas, General Manager).
-    sheetContact('F', 'operations', 'Warehouse Lead', 'Efrain Islas Alcaraz', 'efrain.islas@unisco.com', [{ label: 'Phone', display: '626-313-8756', href: '+16263138756' }]),
+    sheetContact('F', 'operations', 'Warehouse Lead', 'Efrain Islas Alcaraz', 'efrain.islas@unisco.com', [{ label: 'Phone', display: '626-313-8756', href: '+16263138756' }], EFRAIN_ISLAS_ALCARAZ_PHOTO_URL),
     sheetContact('H', 'operations', JOHN_DIAZ_ROLE, 'John Diaz', JOHN_DIAZ_EMAIL, JOHN_DIAZ_PHONES),
   ]),
   'joliet-brandon': sheetOperations('joliet-brandon', 13, [
