@@ -26,10 +26,29 @@ export const facilityAvailableSpace: Partial<Record<string, FacilityAvailableSpa
   'university-park-central': { squareFeet: 0, asOf: '2026-10' },
 }
 
-// User-provided total square footage for sites without a site plan; a site plan's area wins when both exist.
+// User-provided total square footage. It wins over a site plan's area, so it also covers plans that are missing,
+// state no area, or are awaiting correction.
 export const facilityTotalSquareFeet: Partial<Record<string, number>> = {
   // User-provided on 2026-10-01.
   'ontario-airport': 140_000,
+  // User-provided on 2026-10-02.
+  'tacoma-lincoln': 416_492,
+  'tacoma-steele': 273_816,
+  'waddell-cotton': 915_160,
+  'kent-85th-avenue-range': 300_000,
+  'west-sacramento-overland': 105_493,
+  'sparks-vista': 50_000,
+  'salt-lake-city-jimmy-doolittle': 89_296,
+  'somerset-cottontail': 98_153,
+  'university-park-central': 1_552_475,
+  // User-provided on 2026-10-02; the official Pooler Seabrook and Jacksonville sheets state no area.
+  'pooler-seabrook-building-2': 499_500,
+  'jacksonville-ignition': 556_924,
+  'houston-navigation': 238_011,
+  'memphis-delp': 94_500,
+  'plano-10th-f-avenue': 328_704,
+  // User-provided on 2026-10-02. Its site plan still states 499,500 SF; the user will replace the plan later.
+  'pooler-morgan-lakes': 302_400,
 }
 
 // Warehouse-reported bulk floor space (SF) and rack capacity (pallet positions), keyed by facility id.
@@ -45,8 +64,8 @@ export const getFacilityBulkRack = (facilityId: string) => facilityBulkRack[faci
 
 export function formatBulk(bulkRack?: FacilityBulkRack) {
   if (bulkRack?.bulkSquareFeet === undefined) return 'Not provided'
-  const bulk = `${bulkRack.bulkSquareFeet.toLocaleString('en-US')} SF`
-  return bulkRack.bulkUpToSquareFeet ? `${bulk} · up to ${bulkRack.bulkUpToSquareFeet.toLocaleString('en-US')} SF` : bulk
+  const bulk = `${bulkRack.bulkSquareFeet.toLocaleString('en-US')} SQF`
+  return bulkRack.bulkUpToSquareFeet ? `${bulk} · up to ${bulkRack.bulkUpToSquareFeet.toLocaleString('en-US')} SQF` : bulk
 }
 
 export function formatRack(bulkRack?: FacilityBulkRack) {
@@ -56,12 +75,16 @@ export function formatRack(bulkRack?: FacilityBulkRack) {
 
 export type FacilitySquareFootage = { totalSquareFeet?: number; available?: FacilityAvailableSpace }
 
-// Total square footage is the first numeric SF fact on the supplied site plan (the building or facility area),
-// falling back to a user-provided total.
+/** The site plan's building or facility area: its first numeric SF fact. */
+export const getSitePlanAreaFact = (facilityId: string) =>
+  getFacilitySitePlan(facilityId)?.facts.find((fact) => fact.unit === 'SF' && typeof fact.value === 'number')
+
+// Total square footage is the user-provided total when one exists, otherwise the site plan's area,
+// so a newer figure replaces a plan awaiting correction.
 export function getFacilitySquareFootage(facilityId: string): FacilitySquareFootage {
-  const areaFact = getFacilitySitePlan(facilityId)?.facts.find((fact) => fact.unit === 'SF' && typeof fact.value === 'number')
+  const areaFact = getSitePlanAreaFact(facilityId)
   return {
-    totalSquareFeet: typeof areaFact?.value === 'number' ? areaFact.value : facilityTotalSquareFeet[facilityId],
+    totalSquareFeet: facilityTotalSquareFeet[facilityId] ?? (typeof areaFact?.value === 'number' ? areaFact.value : undefined),
     available: facilityAvailableSpace[facilityId],
   }
 }

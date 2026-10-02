@@ -26,8 +26,8 @@ import {
 import { getFacilityMedia, isOfficialFacilitySheetMedia, type FacilityMedia } from './data/facility-media'
 import { getFacilityOperatingHours } from './data/facility-hours'
 import { getFacilityOperations, type FacilityContact, type FacilityOperations } from './data/facility-operations'
-import { getFacilitySitePlan, sitePlanProvenanceLabel, type FacilitySitePlan, type FacilitySitePlanFact } from './data/facility-site-plans'
-import { formatAvailableSpace, formatAvailableSpaceMonth, formatBulk, formatRack, getFacilityBulkRack, getFacilitySquareFootage } from './data/facility-space'
+import { displayFactUnit, getFacilitySitePlan, sitePlanProvenanceLabel, type FacilitySitePlan, type FacilitySitePlanFact } from './data/facility-site-plans'
+import { formatAvailableSpace, formatAvailableSpaceMonth, formatBulk, formatRack, getFacilityBulkRack, getFacilitySquareFootage, getSitePlanAreaFact } from './data/facility-space'
 import { getUserProvidedFacilityPhotos, type UserProvidedFacilityPhotos } from './data/facility-user-photos'
 import { getRegionBoundary, type RegionBoundary } from './data/region-boundaries'
 import { getInitialQualityChoice, probeGraphics, QUALITY_TIERS, saveQualityChoice, type QualityChoice, type QualityTier } from './lib/globe-quality'
@@ -101,7 +101,7 @@ const dashboardRegions = [
   { id: 'tennessee', label: 'Tennessee', facilityNumbers: [9, 24] },
   { id: 'florida', label: 'Florida', facilityNumbers: [12] },
   { id: 'nevada', label: 'Nevada', facilityNumbers: [13, 22] },
-  { id: 'illinois', label: 'Illinois', facilityNumbers: [16] },
+  { id: 'illinois', label: 'Illinois', facilityNumbers: [16, 29] },
   { id: 'arizona', label: 'Arizona', facilityNumbers: [18] },
   { id: 'utah', label: 'Utah', facilityNumbers: [25] },
   { id: 'new-jersey', label: 'New Jersey', facilityNumbers: [26] },
@@ -177,7 +177,7 @@ function mediaCategory(media: FacilityMedia) {
 
 function formatSitePlanFact(fact: FacilitySitePlanFact) {
   const value = typeof fact.value === 'number' ? fact.value.toLocaleString('en-US') : fact.value
-  return `${value}${fact.unit ? ` ${fact.unit}` : ''}`
+  return `${value}${fact.unit ? ` ${displayFactUnit(fact.unit)}` : ''}`
 }
 
 function OperatingHoursDisplay({ facilityId, variant }: { facilityId: string; variant: 'preview' | 'overview' | 'drawer' | 'operations' }) {
@@ -238,13 +238,14 @@ function tourStopDetails(facility: Facility): TourStopDetails {
   const media = getFacilityMedia(facility.id)
   const photo = cover ? { src: cover.assetUrl, alt: cover.alt } : media ? { src: media.detail.assetUrl, alt: media.detail.alt } : undefined
   const { totalSquareFeet, available } = getFacilitySquareFootage(facility.id)
-  // The first numeric SF fact is already shown as the total, so the facts are the next two after it.
+  // The plan's area is either the total or superseded by a user-provided one, so the facts are the next two after it.
+  const areaFact = getSitePlanAreaFact(facility.id)
   const facts = (getFacilitySitePlan(facility.id)?.facts ?? [])
-    .filter((fact) => !(fact.unit === 'SF' && fact.value === totalSquareFeet))
+    .filter((fact) => fact !== areaFact && !(fact.unit === 'SF' && fact.value === totalSquareFeet))
     .slice(0, 2)
     .map((fact) => ({
       label: fact.label,
-      value: `${typeof fact.value === 'number' ? fact.value.toLocaleString('en-US') : fact.value}${fact.unit && !TOUR_FACT_COUNT_UNITS.has(fact.unit) ? ` ${fact.unit}` : ''}`,
+      value: `${typeof fact.value === 'number' ? fact.value.toLocaleString('en-US') : fact.value}${fact.unit && !TOUR_FACT_COUNT_UNITS.has(fact.unit) ? ` ${displayFactUnit(fact.unit)}` : ''}`,
     }))
   return { photo, totalSquareFeet, available: formatAvailableSpace(available), facts }
 }
@@ -1659,7 +1660,7 @@ function BulkRackSection({ facilityId }: { facilityId: string }) {
         <span data-testid="bulk-rack-bulk"><b>Bulk</b>{formatBulk(bulkRack)}</span>
         <span data-testid="bulk-rack-rack"><b>Rack</b>{formatRack(bulkRack)}</span>
       </div>
-      <p className="property-facts-note">{bulkRack ? `Warehouse-reported as of ${formatAvailableSpaceMonth(bulkRack.asOf)}.` : 'Bulk floor space (SF) and rack capacity (pallet positions) have not been reported yet.'}</p>
+      <p className="property-facts-note">{bulkRack ? `Warehouse-reported as of ${formatAvailableSpaceMonth(bulkRack.asOf)}.` : 'Bulk floor space (SQF) and rack capacity (pallet positions) have not been reported yet.'}</p>
     </section>
   )
 }
