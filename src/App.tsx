@@ -30,9 +30,10 @@ import { getFacilityOperatingHours } from './data/facility-hours'
 import { useAccess } from './auth/access-context'
 import { useFacilityOperations } from './auth/useFacilityOperations'
 import { useFacilityAvailability } from './hooks/useFacilityAvailability'
+import type { PublicBulkRack } from './types/availability'
 import type { FacilityContact, FacilityOperations } from './types/operations'
 import { displayFactUnit, getFacilitySitePlan, sitePlanProvenanceLabel, type FacilitySitePlan, type FacilitySitePlanFact } from './data/facility-site-plans'
-import { facilityAvailableSpace, formatAvailableSpaceMonth, formatBulk, formatRack, getFacilityBulkRack, getFacilitySquareFootage, getSitePlanAreaFact, type FacilityAvailableSpace } from './data/facility-space'
+import { facilityAvailableSpace, formatAvailableSpaceMonth, formatBulk, formatRack, getFacilityBulkRack, getFacilitySquareFootage, getSitePlanAreaFact, type FacilityAvailableSpace, type FacilityBulkRack } from './data/facility-space'
 import { getUserProvidedFacilityPhotos, type UserProvidedFacilityPhotos } from './data/facility-user-photos'
 import { getRegionBoundary, type RegionBoundary } from './data/region-boundaries'
 import { getInitialQualityChoice, probeGraphics, QUALITY_TIERS, saveQualityChoice, type QualityChoice, type QualityTier } from './lib/globe-quality'
@@ -227,9 +228,27 @@ function formatEffectiveAvailability(available?: EffectiveAvailability) {
   return available.status === 'unconfirmed' ? `${amount} (not confirmed)` : amount
 }
 
-function SquareFootagePreview({ facilityId, availableSquareFeet }: { facilityId: string; availableSquareFeet?: number }) {
+type BulkRackOverride = Omit<PublicBulkRack, 'facilityId'>
+type EffectiveBulkRack = FacilityBulkRack & { bulkValueSource: 'administrator' | 'source-snapshot' | 'pending'; rackValueSource: 'administrator' | 'source-snapshot' | 'pending' }
+
+function effectiveBulkRack(facilityId: string, override?: BulkRackOverride): EffectiveBulkRack {
+  const snapshot = getFacilityBulkRack(facilityId)
+  const bulkIsAdministrator = override?.bulkSquareFeet !== undefined
+  const rackIsAdministrator = override?.rackPalletPositions !== undefined
+  return {
+    ...(bulkIsAdministrator ? { bulkSquareFeet: override.bulkSquareFeet } : snapshot?.bulkSquareFeet === undefined ? {} : { bulkSquareFeet: snapshot.bulkSquareFeet }),
+    ...(!bulkIsAdministrator && snapshot?.bulkUpToSquareFeet !== undefined ? { bulkUpToSquareFeet: snapshot.bulkUpToSquareFeet } : {}),
+    ...(rackIsAdministrator ? { rackPalletPositions: override.rackPalletPositions } : snapshot?.rackPalletPositions === undefined ? {} : { rackPalletPositions: snapshot.rackPalletPositions }),
+    asOf: snapshot?.asOf ?? '',
+    bulkValueSource: bulkIsAdministrator ? 'administrator' : snapshot?.bulkSquareFeet !== undefined ? 'source-snapshot' : 'pending',
+    rackValueSource: rackIsAdministrator ? 'administrator' : snapshot?.rackPalletPositions !== undefined ? 'source-snapshot' : 'pending',
+  }
+}
+
+function SquareFootagePreview({ facilityId, availableSquareFeet, bulkRackOverride }: { facilityId: string; availableSquareFeet?: number; bulkRackOverride?: BulkRackOverride }) {
   const { totalSquareFeet } = getFacilitySquareFootage(facilityId)
   const available = effectiveAvailability(facilityId, availableSquareFeet)
+  const bulkRack = effectiveBulkRack(facilityId, bulkRackOverride)
 
   return (
     <span className="square-footage-preview" data-testid="square-footage-preview">
@@ -244,6 +263,8 @@ function SquareFootagePreview({ facilityId, availableSquareFeet }: { facilityId:
             ? <strong>{available.squareFeet.toLocaleString('en-US')} SQF</strong>
             : <em className="square-footage-pending">Pending</em>}
         </span>
+        <span data-testid="square-footage-bulk">Bulk {bulkRack.bulkSquareFeet === undefined ? <em className="square-footage-pending">Not provided</em> : <strong>{bulkRack.bulkSquareFeet.toLocaleString('en-US')} SQF</strong>}</span>
+        <span data-testid="square-footage-rack">Rack {bulkRack.rackPalletPositions === undefined ? <em className="square-footage-pending">Not provided</em> : <strong>{bulkRack.rackPalletPositions.toLocaleString('en-US')} pallet positions</strong>}</span>
       </span>
     </span>
   )
@@ -365,10 +386,17 @@ function pinIcon(facility: Facility, status: DisplayStatus, selected: boolean, o
 }
 
 function dashboardPreviewDirection(facility: MappableFacility): 'left' | 'right' | 'top' {
+  const latitude = facility.coordinates[0]
   const longitude = facility.coordinates[1]
   if (longitude <= -110) return 'right'
-  if (longitude >= -90) return 'left'
+  if (longitude >= -90 && latitude > 38) return 'left'
   return 'top'
+}
+
+function dashboardPreviewOffset(facility: MappableFacility): [number, number] {
+  const latitude = facility.coordinates[0]
+  const longitude = facility.coordinates[1]
+  return longitude >= -90 && latitude <= 38 ? [0, -72] : [0, -18]
 }
 
 function getDashboardRegionBounds(regionFacilities: readonly MappableFacility[], boundary: RegionBoundary | null) {
@@ -590,7 +618,7 @@ function EmptyState({ icon: Icon = FileText, title, body, children }: { icon?: t
 
 function App() {
   const access = useAccess()
-  const { availability, availabilityError, applyAvailability } = useFacilityAvailability()
+  const { availability, bulkRack, availabilityError, applyAvailability, applyBulkRack } = useFacilityAvailability()
   const [theme, setTheme] = useState<Theme>(getInitialTheme)
   const [appView, setAppView] = useState<AppView>('locations')
   const [selected, setSelected] = useState<Facility | null>(null)
@@ -816,7 +844,7 @@ function App() {
         <span className="dashboard-pin-preview-address">{facility.fullAddress}</span>
         <OperatingHoursDisplay facilityId={facility.id} variant="preview" />
         <OpenStateBadge state={openStates[facility.id]} variant="full" />
-        <SquareFootagePreview facilityId={facility.id} availableSquareFeet={availability[facility.id]} />
+        <SquareFootagePreview facilityId={facility.id} availableSquareFeet={availability[facility.id]} bulkRackOverride={bulkRack[facility.id]} />
       </span>
     </div>
   )
@@ -1010,7 +1038,7 @@ function App() {
       </header>
 
       <main ref={dashboardRef} className={`dashboard${appView === 'dashboard' || appView === 'operations' ? ' dashboard-map-only' : ''}${appView === 'operations' ? ' operations-view' : ''}${isResizing ? ' is-resizing' : ''}`} style={{ '--directory-width': `${directoryWidth}px` } as CSSProperties}>
-        {appView === 'operations' && access.user && <OperationsWorkbench onAvailabilityChanged={applyAvailability} />}
+        {appView === 'operations' && access.user && <OperationsWorkbench onAvailabilityChanged={applyAvailability} onBulkRackChanged={applyBulkRack} />}
         {appView === 'locations' && (
           <div className="mobile-explorer-switch" role="group" aria-label="Explorer view">
             <button aria-pressed={mobileView === 'list'} className={mobileView === 'list' ? 'active' : ''} onClick={() => setMobileView('list')}><ClipboardList size={16} />List</button>
@@ -1041,7 +1069,7 @@ function App() {
                 {tabs.map((item) => <button key={item} role="tab" aria-selected={displayedTab === item} className={displayedTab === item ? 'active' : ''} onClick={() => setTab(item)}>{item}</button>)}
               </div>
               <div className="detail-content">
-                {displayedTab === 'Overview' && <OverviewContent facility={selected} sitePlan={selectedSitePlan} status={selectedStatus} openState={openStates[selected.id]} availableSquareFeet={availability[selected.id]} availabilityUnavailable={availabilityError} onStatusChange={(value) => assignStatus(selected, value)} />}
+                {displayedTab === 'Overview' && <OverviewContent facility={selected} sitePlan={selectedSitePlan} status={selectedStatus} openState={openStates[selected.id]} availableSquareFeet={availability[selected.id]} bulkRackOverride={bulkRack[selected.id]} availabilityUnavailable={availabilityError} onStatusChange={(value) => assignStatus(selected, value)} />}
                 {displayedTab === 'Site Plan' && (selectedSitePlan
                   ? <SitePlanContent facility={selected} sitePlan={selectedSitePlan} />
                   : <EmptyState icon={MapIcon} title="Site plan not provided" body="No site plan was supplied for this facility." />)}
@@ -1198,7 +1226,7 @@ function App() {
                   title={appView === 'locations' ? facility.fullAddress : undefined}
                 >
                   {appView === 'dashboard' ? (
-                    <Tooltip direction={dashboardPreviewDirection(facility)} offset={[0, -18]} className="dashboard-pin-preview" opacity={1} interactive={false}>
+                    <Tooltip direction={dashboardPreviewDirection(facility)} offset={dashboardPreviewOffset(facility)} className="dashboard-pin-preview" opacity={1} interactive={false}>
                       {dashboardPreviewContent(facility)}
                     </Tooltip>
                   ) : (
@@ -1633,7 +1661,7 @@ function PhotosContent({ facility, media, userPhotos }: { facility: Facility; me
   )
 }
 
-function OverviewContent({ facility, sitePlan, status, openState, availableSquareFeet, availabilityUnavailable, onStatusChange }: { facility: Facility; sitePlan?: FacilitySitePlan; status: DisplayStatus; openState: FacilityOpenState; availableSquareFeet?: number; availabilityUnavailable: boolean; onStatusChange: (status: DisplayStatus) => void }) {
+function OverviewContent({ facility, sitePlan, status, openState, availableSquareFeet, bulkRackOverride, availabilityUnavailable, onStatusChange }: { facility: Facility; sitePlan?: FacilitySitePlan; status: DisplayStatus; openState: FacilityOpenState; availableSquareFeet?: number; bulkRackOverride?: BulkRackOverride; availabilityUnavailable: boolean; onStatusChange: (status: DisplayStatus) => void }) {
   const available = effectiveAvailability(facility.id, availableSquareFeet)
   return (
     <>
@@ -1687,7 +1715,7 @@ function OverviewContent({ facility, sitePlan, status, openState, availableSquar
         </section>
       )}
 
-      <BulkRackSection facilityId={facility.id} />
+      <BulkRackSection facilityId={facility.id} override={bulkRackOverride} unavailable={availabilityUnavailable} />
 
       <section className="coordinate-section info-section">
         <h2><ShieldCheck />Map placement</h2>
@@ -1698,16 +1726,26 @@ function OverviewContent({ facility, sitePlan, status, openState, availableSquar
   )
 }
 
-function BulkRackSection({ facilityId }: { facilityId: string }) {
-  const bulkRack = getFacilityBulkRack(facilityId)
+function BulkRackSection({ facilityId, override, unavailable }: { facilityId: string; override?: BulkRackOverride; unavailable: boolean }) {
+  const bulkRack = effectiveBulkRack(facilityId, override)
+  const hasValue = bulkRack.bulkSquareFeet !== undefined || bulkRack.rackPalletPositions !== undefined
+  const hasAdministratorValue = bulkRack.bulkValueSource === 'administrator' || bulkRack.rackValueSource === 'administrator'
+  const hasSnapshotValue = bulkRack.bulkValueSource === 'source-snapshot' || bulkRack.rackValueSource === 'source-snapshot'
   return (
-    <section className="bulk-rack-section info-section" data-testid="bulk-rack" data-reported={bulkRack ? 'true' : 'false'}>
+    <section className="bulk-rack-section info-section" data-testid="bulk-rack" data-reported={hasValue ? 'true' : 'false'}>
       <h2><Boxes />Bulk &amp; rack</h2>
       <div className="unavailable-grid">
         <span data-testid="bulk-rack-bulk"><b>Bulk</b>{formatBulk(bulkRack)}</span>
         <span data-testid="bulk-rack-rack"><b>Rack</b>{formatRack(bulkRack)}</span>
       </div>
-      <p className="property-facts-note">{bulkRack ? `Warehouse-reported as of ${formatAvailableSpaceMonth(bulkRack.asOf)}.` : 'Bulk floor space (SQF) and rack capacity (pallet positions) have not been reported yet.'}</p>
+      <p className="property-facts-note">{hasAdministratorValue && hasSnapshotValue
+        ? 'Administrator-maintained values override the displayed source snapshot field by field.'
+        : hasAdministratorValue
+          ? 'Administrator-maintained live portal values.'
+          : hasSnapshotValue
+            ? `Warehouse-reported as of ${formatAvailableSpaceMonth(bulkRack.asOf)}.`
+            : 'Bulk floor space (SQF) and rack capacity (pallet positions) have not been reported yet.'}</p>
+      {unavailable && <small className="bulk-rack-refresh-error">Latest bulk and rack values could not be refreshed.</small>}
     </section>
   )
 }

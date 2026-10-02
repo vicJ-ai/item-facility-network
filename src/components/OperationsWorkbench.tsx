@@ -3,67 +3,116 @@ import { AlertCircle, Building2, ChevronLeft, ChevronRight, History, LoaderCircl
 import { useAccess } from '../auth/access-context'
 import { facilities } from '../data/facilities'
 import { formatAvailableSpaceMonth } from '../data/facility-space'
-import type { AdminAvailability, AvailabilityHistoryPage, PublicAvailability } from '../types/availability'
+import type { AdminFacilitySpace, FacilitySpaceHistoryEntry, FacilitySpaceHistoryPage, PublicAvailability, PublicBulkRack } from '../types/availability'
 
-const emptyHistory: AvailabilityHistoryPage = { entries: [], page: 1, pageSize: 10, total: 0, totalPages: 0 }
+const emptyHistory: FacilitySpaceHistoryPage = { entries: [], page: 1, pageSize: 10, total: 0, totalPages: 0 }
 const numberFormat = new Intl.NumberFormat('en-US')
 
-function availabilitySourceLabel(record: AdminAvailability) {
-  if (record.valueSource === 'administrator') return 'Administrator-maintained live value'
-  if (record.valueSource === 'source-snapshot') return `User-supplied snapshot${record.snapshotAsOf ? ` · ${formatAvailableSpaceMonth(record.snapshotAsOf)}` : ''}${record.snapshotStatus === 'unconfirmed' ? ' · not confirmed' : ''}`
+function sourceLabel(source: 'administrator' | 'source-snapshot' | 'pending', snapshotAsOf: string | null, unconfirmed = false) {
+  if (source === 'administrator') return 'Administrator-maintained live value'
+  if (source === 'source-snapshot') return `User-supplied snapshot${snapshotAsOf ? ` · ${formatAvailableSpaceMonth(snapshotAsOf)}` : ''}${unconfirmed ? ' · not confirmed' : ''}`
   return 'No administrator value or source snapshot'
 }
 
-function AvailabilityEditor({ record, onSaved }: { record: AdminAvailability; onSaved: (entry: AdminAvailability) => void }) {
+function displayValue(value: number | null, unit: 'SQF' | 'pallet positions') {
+  return value === null ? 'Not provided' : `${numberFormat.format(value)} ${unit}`
+}
+
+function historyValue(entry: FacilitySpaceHistoryEntry, value: number | null) {
+  if (value === null) return entry.metric === 'available' ? 'Pending' : 'Not provided'
+  return `${numberFormat.format(value)} ${entry.metric === 'rack' ? 'pallet positions' : 'SQF'}`
+}
+
+function FacilitySpaceEditor({ record, onSaved }: { record: AdminFacilitySpace; onSaved: (entry: AdminFacilitySpace) => void }) {
   const { authorizedFetch } = useAccess()
   const facility = facilities.find((item) => item.id === record.facilityId)!
-  const [value, setValue] = useState(record.squareFeet === null ? '' : String(record.squareFeet))
+  const [availableValue, setAvailableValue] = useState(record.squareFeet === null ? '' : String(record.squareFeet))
+  const [bulkValue, setBulkValue] = useState(record.bulkSquareFeet === null ? '' : String(record.bulkSquareFeet))
+  const [rackValue, setRackValue] = useState(record.rackPalletPositions === null ? '' : String(record.rackPalletPositions))
   const [pending, setPending] = useState(false)
   const [message, setMessage] = useState<{ kind: 'error' | 'success'; text: string } | null>(null)
 
+  const parseField = (label: string, raw: string, initial: number | null) => {
+    if (raw === '') {
+      if (initial === null) return { changed: false } as const
+      throw new Error(`${label} cannot be cleared. Enter a nonnegative whole number or leave the current value unchanged.`)
+    }
+    const value = Number(raw)
+    if (!/^\d+$/.test(raw) || !Number.isSafeInteger(value) || value < 0) throw new Error(`${label} must be a nonnegative whole number.`)
+    return { changed: value !== initial, value } as const
+  }
+
   const submit = async (event: FormEvent) => {
     event.preventDefault()
-    const squareFeet = Number(value)
-    if (!/^\d+$/.test(value) || !Number.isSafeInteger(squareFeet) || squareFeet < 0) {
-      setMessage({ kind: 'error', text: 'Enter a nonnegative whole number of square feet.' })
+    let available: ReturnType<typeof parseField>
+    let bulk: ReturnType<typeof parseField>
+    let rack: ReturnType<typeof parseField>
+    try {
+      available = parseField('Available space', availableValue, record.squareFeet)
+      bulk = parseField('Bulk', bulkValue, record.bulkSquareFeet)
+      rack = parseField('Rack', rackValue, record.rackPalletPositions)
+    } catch (error) {
+      setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Enter nonnegative whole numbers.' })
       return
+    }
+    if (!available.changed && !bulk.changed && !rack.changed) {
+      setMessage({ kind: 'success', text: 'No changes to save.' })
+      return
+    }
+
+    const body = {
+      ...(available.changed ? { availableSquareFeet: available.value, availabilityVersion: record.version } : {}),
+      ...(bulk.changed ? { bulkSquareFeet: bulk.value } : {}),
+      ...(rack.changed ? { rackPalletPositions: rack.value } : {}),
+      ...(bulk.changed || rack.changed ? { bulkRackVersion: record.bulkRackVersion } : {}),
     }
     setPending(true); setMessage(null)
     try {
-      const response = await authorizedFetch(`/api/admin/availability/${encodeURIComponent(record.facilityId)}`, {
-        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ squareFeet, version: record.version }),
+      const response = await authorizedFetch(`/api/admin/facility-space/${encodeURIComponent(record.facilityId)}`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
       })
-      const body = await response.json().catch(() => ({})) as { error?: string; availability?: AdminAvailability }
-      if (!response.ok || !body.availability) {
-        if (body.error === 'stale_availability') throw new Error('This value changed elsewhere. Use Refresh, review the latest value, and try again.')
-        if (body.error === 'actor_access_revoked') throw new Error('Your administrator access is no longer active.')
-        throw new Error('Available space could not be saved.')
+      const responseBody = await response.json().catch(() => ({})) as { error?: string; space?: AdminFacilitySpace }
+      if (!response.ok || !responseBody.space) {
+        if (responseBody.error === 'stale_availability' || responseBody.error === 'stale_bulk_rack') throw new Error('These values changed elsewhere. Use Refresh, review the latest values, and try again.')
+        if (responseBody.error === 'actor_access_revoked') throw new Error('Your administrator access is no longer active.')
+        throw new Error('Facility space could not be saved.')
       }
-      setValue(String(body.availability.squareFeet))
-      setMessage({ kind: 'success', text: 'Available space saved.' })
-      onSaved(body.availability)
+      setAvailableValue(responseBody.space.squareFeet === null ? '' : String(responseBody.space.squareFeet))
+      setBulkValue(responseBody.space.bulkSquareFeet === null ? '' : String(responseBody.space.bulkSquareFeet))
+      setRackValue(responseBody.space.rackPalletPositions === null ? '' : String(responseBody.space.rackPalletPositions))
+      setMessage({ kind: 'success', text: 'Facility space saved.' })
+      onSaved(responseBody.space)
     } catch (error) {
-      setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Available space could not be saved.' })
+      setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Facility space could not be saved.' })
     } finally {
       setPending(false)
     }
   }
 
-  return <form className="availability-editor" onSubmit={submit} aria-label={`Update available space for ${facility.fullAddress}`}>
+  return <form className="availability-editor facility-space-editor" onSubmit={submit} aria-label={`Update facility space for ${facility.fullAddress}`}>
     <div className="availability-editor-heading"><span className="eyebrow">Facility {String(facility.number).padStart(2, '0')}</span><h2>{facility.city ?? facility.street}, {facility.state}</h2><p>{facility.fullAddress}</p></div>
-    <label><span>Available space</span><div className="availability-input"><input inputMode="numeric" pattern="[0-9]+" value={value} onChange={(event) => setValue(event.target.value)} aria-describedby="availability-help" disabled={pending} /><b>SQF</b></div></label>
-    <p id="availability-help">Use a whole number. Zero is valid; saving replaces any displayed source snapshot with an administrator-maintained value.</p>
-    <button className="primary-button" disabled={pending}>{pending ? <LoaderCircle className="spin" /> : <Save />}{pending ? 'Saving…' : 'Save available space'}</button>
+    <div className="facility-space-fields">
+      <label><span>Available space</span><div className="availability-input"><input inputMode="numeric" pattern="[0-9]+" value={availableValue} onChange={(event) => setAvailableValue(event.target.value)} aria-describedby="facility-space-help" disabled={pending} /><b>SQF</b></div></label>
+      <label><span>Bulk</span><div className="availability-input"><input inputMode="numeric" pattern="[0-9]+" value={bulkValue} onChange={(event) => setBulkValue(event.target.value)} aria-describedby="facility-space-help" disabled={pending} /><b>SQF</b></div></label>
+      <label><span>Rack</span><div className="availability-input"><input inputMode="numeric" pattern="[0-9]+" value={rackValue} onChange={(event) => setRackValue(event.target.value)} aria-describedby="facility-space-help" disabled={pending} /><b>pallet positions</b></div></label>
+    </div>
+    <p id="facility-space-help">Use whole numbers. Zero is valid. Blank fields with no current value stay unset; unchanged fields are preserved.</p>
+    <button className="primary-button" disabled={pending}>{pending ? <LoaderCircle className="spin" /> : <Save />}{pending ? 'Saving…' : 'Save facility space'}</button>
     {message && <div className={`availability-message ${message.kind}`} role={message.kind === 'error' ? 'alert' : 'status'}>{message.kind === 'error' && <AlertCircle />}{message.text}</div>}
-    <dl className="availability-current"><div><dt>Current effective value</dt><dd>{record.squareFeet === null ? 'Pending' : `${numberFormat.format(record.squareFeet)} SQF`}</dd><small>{availabilitySourceLabel(record)}</small></div><div><dt>Database version</dt><dd>{record.version}</dd></div></dl>
+    <dl className="availability-current">
+      <div><dt>Available space</dt><dd>{record.squareFeet === null ? 'Pending' : `${numberFormat.format(record.squareFeet)} SQF`}</dd><small>{sourceLabel(record.valueSource, record.snapshotAsOf, record.snapshotStatus === 'unconfirmed')}</small></div>
+      <div><dt>Bulk</dt><dd>{displayValue(record.bulkSquareFeet, 'SQF')}{record.bulkUpToSquareFeet !== null && ` · up to ${numberFormat.format(record.bulkUpToSquareFeet)} SQF`}</dd><small>{sourceLabel(record.bulkValueSource, record.bulkRackSnapshotAsOf)}</small></div>
+      <div><dt>Rack</dt><dd>{displayValue(record.rackPalletPositions, 'pallet positions')}</dd><small>{sourceLabel(record.rackValueSource, record.bulkRackSnapshotAsOf)}</small></div>
+      <div><dt>Database versions</dt><dd>{record.version} available · {record.bulkRackVersion} bulk/rack</dd></div>
+    </dl>
   </form>
 }
 
-export function OperationsWorkbench({ onAvailabilityChanged }: { onAvailabilityChanged: (entry: PublicAvailability) => void }) {
+export function OperationsWorkbench({ onAvailabilityChanged, onBulkRackChanged }: { onAvailabilityChanged: (entry: PublicAvailability) => void; onBulkRackChanged: (entry: PublicBulkRack) => void }) {
   const { authorizedFetch, user } = useAccess()
-  const [records, setRecords] = useState<AdminAvailability[]>([])
+  const [records, setRecords] = useState<AdminFacilitySpace[]>([])
   const [selectedId, setSelectedId] = useState(facilities[0].id)
-  const [history, setHistory] = useState<AvailabilityHistoryPage>(emptyHistory)
+  const [history, setHistory] = useState<FacilitySpaceHistoryPage>(emptyHistory)
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [historyLoading, setHistoryLoading] = useState(true)
@@ -72,22 +121,22 @@ export function OperationsWorkbench({ onAvailabilityChanged }: { onAvailabilityC
   const loadRecords = useCallback(async () => {
     setLoading(true); setError('')
     try {
-      const response = await authorizedFetch('/api/admin/availability')
+      const response = await authorizedFetch('/api/admin/facility-space')
       if (!response.ok) throw new Error()
-      setRecords(((await response.json()) as { availability: AdminAvailability[] }).availability)
+      setRecords(((await response.json()) as { facilities: AdminFacilitySpace[] }).facilities)
     } catch {
-      setError('Facility availability could not be loaded.')
+      setError('Facility space could not be loaded.')
     } finally { setLoading(false) }
   }, [authorizedFetch])
 
   const loadHistory = useCallback(async (facilityId: string, nextPage: number) => {
     setHistoryLoading(true)
     try {
-      const response = await authorizedFetch(`/api/admin/availability/history?facilityId=${encodeURIComponent(facilityId)}&page=${nextPage}`)
+      const response = await authorizedFetch(`/api/admin/facility-space/history?facilityId=${encodeURIComponent(facilityId)}&page=${nextPage}`)
       if (!response.ok) throw new Error()
-      setHistory(await response.json() as AvailabilityHistoryPage)
+      setHistory(await response.json() as FacilitySpaceHistoryPage)
     } catch {
-      setError('Availability history could not be loaded.')
+      setError('Facility space history could not be loaded.')
     } finally { setHistoryLoading(false) }
   }, [authorizedFetch])
 
@@ -98,19 +147,20 @@ export function OperationsWorkbench({ onAvailabilityChanged }: { onAvailabilityC
   useEffect(() => { void loadHistory(selectedId, page) }, [loadHistory, page, selectedId])
 
   const selected = useMemo(() => records.find((record) => record.facilityId === selectedId), [records, selectedId])
-  const saveComplete = (entry: AdminAvailability) => {
+  const saveComplete = (entry: AdminFacilitySpace) => {
     setRecords((current) => current.map((record) => record.facilityId === entry.facilityId ? entry : record))
-    if (entry.squareFeet !== null) onAvailabilityChanged({ facilityId: entry.facilityId, squareFeet: entry.squareFeet })
+    if (entry.valueSource === 'administrator' && entry.squareFeet !== null) onAvailabilityChanged({ facilityId: entry.facilityId, squareFeet: entry.squareFeet })
+    const publicBulkRack: PublicBulkRack = { facilityId: entry.facilityId }
+    if (entry.bulkValueSource === 'administrator' && entry.bulkSquareFeet !== null) publicBulkRack.bulkSquareFeet = entry.bulkSquareFeet
+    if (entry.rackValueSource === 'administrator' && entry.rackPalletPositions !== null) publicBulkRack.rackPalletPositions = entry.rackPalletPositions
+    if (publicBulkRack.bulkSquareFeet !== undefined || publicBulkRack.rackPalletPositions !== undefined) onBulkRackChanged(publicBulkRack)
     setPage(1)
     void loadHistory(entry.facilityId, 1)
   }
-  const refreshWorkbench = () => {
-    void loadRecords()
-    void loadHistory(selectedId, page)
-  }
+  const refreshWorkbench = () => { void loadRecords(); void loadHistory(selectedId, page) }
 
-  return <section className="operations-workbench" aria-label="Operations availability workbench">
-    <header className="workbench-header"><div><span className="eyebrow">Administrator workspace</span><h1>Facility availability</h1><p>Update public available-space figures without changing sourced capacity facts.</p></div><div className="workbench-header-actions"><button className="secondary-button" type="button" onClick={refreshWorkbench} disabled={loading || historyLoading}><RefreshCw />Refresh</button><span><Building2 />{facilities.length} facilities</span></div></header>
+  return <section className="operations-workbench" aria-label="Operations facility space workbench">
+    <header className="workbench-header"><div><span className="eyebrow">Administrator workspace</span><h1>Facility space</h1><p>Update public available, bulk, and rack figures without changing sourced capacity facts.</p></div><div className="workbench-header-actions"><button className="secondary-button" type="button" onClick={refreshWorkbench} disabled={loading || historyLoading}><RefreshCw />Refresh</button><span><Building2 />{facilities.length} facilities</span></div></header>
     {error && <div className="workbench-error" role="alert"><AlertCircle />{error}<button type="button" onClick={refreshWorkbench}>Retry</button></div>}
     <div className="workbench-layout">
       <aside className="workbench-facilities" aria-label="Select a facility">
@@ -120,10 +170,10 @@ export function OperationsWorkbench({ onAvailabilityChanged }: { onAvailabilityC
         })}
       </aside>
       <div className="workbench-main">
-        {loading || !selected ? <div className="workbench-loading" role="status"><LoaderCircle className="spin" />Loading facility availability…</div> : <AvailabilityEditor key={selected.facilityId} record={selected} onSaved={saveComplete} />}
-        <section className="availability-history" aria-labelledby="availability-history-title">
-          <header><div><History /><span><span className="eyebrow">Immutable audit log</span><h2 id="availability-history-title">Change history</h2></span></div><small>Signed in as {user?.username} · IAM ID {user?.iamUserId}</small></header>
-          {historyLoading ? <div className="history-state" role="status"><LoaderCircle className="spin" />Loading history…</div> : history.entries.length === 0 ? <div className="history-state"><Warehouse />No availability changes recorded for this facility.</div> : <div className="history-table-wrap"><table><thead><tr><th>Date (UTC)</th><th>Change</th><th>Administrator</th></tr></thead><tbody>{history.entries.map((entry) => <tr key={entry.id}><td><time dateTime={entry.createdAt}>{new Date(entry.createdAt).toLocaleString('en-US', { timeZone: 'UTC', dateStyle: 'medium', timeStyle: 'short' })} UTC</time></td><td>{entry.oldSquareFeet === null ? 'Pending' : numberFormat.format(entry.oldSquareFeet)}{entry.oldValueSource !== 'pending' && <small>{entry.oldValueSource === 'source-snapshot' ? 'source snapshot' : 'administrator value'}</small>} → <strong>{numberFormat.format(entry.newSquareFeet)} SQF</strong></td><td>{entry.actorUsername}<small>IAM ID {entry.actorIamUserId}</small></td></tr>)}</tbody></table></div>}
+        {loading || !selected ? <div className="workbench-loading" role="status"><LoaderCircle className="spin" />Loading facility space…</div> : <FacilitySpaceEditor key={selected.facilityId} record={selected} onSaved={saveComplete} />}
+        <section className="availability-history" aria-labelledby="facility-space-history-title">
+          <header><div><History /><span><span className="eyebrow">Immutable audit log</span><h2 id="facility-space-history-title">Change history</h2></span></div><small>Signed in as {user?.username} · IAM ID {user?.iamUserId}</small></header>
+          {historyLoading ? <div className="history-state" role="status"><LoaderCircle className="spin" />Loading history…</div> : history.entries.length === 0 ? <div className="history-state"><Warehouse />No facility-space changes recorded for this facility.</div> : <div className="history-table-wrap"><table><thead><tr><th>Date (UTC)</th><th>Metric</th><th>Change</th><th>Administrator</th></tr></thead><tbody>{history.entries.map((entry) => <tr key={entry.id}><td><time dateTime={entry.createdAt}>{new Date(entry.createdAt).toLocaleString('en-US', { timeZone: 'UTC', dateStyle: 'medium', timeStyle: 'short' })} UTC</time></td><td>{entry.metric === 'available' ? 'Available' : entry.metric === 'bulk' ? 'Bulk' : 'Rack'}</td><td>{historyValue(entry, entry.oldValue)}{entry.oldValueSource !== 'pending' && <small>{entry.oldValueSource === 'source-snapshot' ? 'source snapshot' : 'administrator value'}</small>} → <strong>{historyValue(entry, entry.newValue)}</strong></td><td>{entry.actorUsername}<small>IAM ID {entry.actorIamUserId}</small></td></tr>)}</tbody></table></div>}
           <footer><span>{history.total} {history.total === 1 ? 'change' : 'changes'}</span><div><button type="button" aria-label="Previous history page" disabled={historyLoading || page <= 1} onClick={() => setPage((current) => current - 1)}><ChevronLeft /></button><span>Page {history.totalPages ? history.page : 0} of {history.totalPages}</span><button type="button" aria-label="Next history page" disabled={historyLoading || page >= history.totalPages} onClick={() => setPage((current) => current + 1)}><ChevronRight /></button></div></footer>
         </section>
       </div>

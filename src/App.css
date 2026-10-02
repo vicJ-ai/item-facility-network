@@ -133,13 +133,13 @@ body.is-resizing-explorer, body.is-resizing-explorer * { cursor: col-resize !imp
 .map-stage[data-view='dashboard'] .location-marker-wrap:focus .location-pin { transform: translateY(-3px) rotate(-45deg) scale(1.12); filter: drop-shadow(0 0 5px color-mix(in srgb, var(--primary) 70%, transparent)); }
 
 /* Dashboard pin preview */
-.leaflet-tooltip.dashboard-pin-preview { box-sizing: border-box; width: min(348px, calc(100vw - 32px)); padding: 12px !important; overflow: hidden; border: 1px solid var(--border) !important; border-radius: 12px !important; color: var(--text) !important; background: var(--surface) !important; box-shadow: var(--shadow-lg) !important; white-space: normal; pointer-events: none; }
+.leaflet-tooltip.dashboard-pin-preview { box-sizing: border-box; width: min(328px, calc(100vw - 32px)); padding: 12px !important; overflow: hidden; border: 1px solid var(--border) !important; border-radius: 12px !important; color: var(--text) !important; background: var(--surface) !important; box-shadow: var(--shadow-lg) !important; white-space: normal; pointer-events: none; }
 .dashboard-pin-preview.leaflet-tooltip-top::before { border-top-color: var(--surface) !important; }
 .dashboard-pin-preview.leaflet-tooltip-bottom::before { border-bottom-color: var(--surface) !important; }
 .dashboard-pin-preview.leaflet-tooltip-left::before { border-left-color: var(--surface) !important; }
 .dashboard-pin-preview.leaflet-tooltip-right::before { border-right-color: var(--surface) !important; }
-.dashboard-pin-preview-content { min-width: 0; display: grid; grid-template-columns: 134px minmax(0, 1fr); gap: 14px; align-items: center; animation: dashboard-preview-in .2s ease-out; }
-.dashboard-pin-preview-content .facility-photo-thumbnail { width: 134px; height: 134px; min-width: 134px; border: 1px solid var(--border); border-radius: 8px; }
+.dashboard-pin-preview-content { min-width: 0; display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px; align-items: center; animation: dashboard-preview-in .2s ease-out; }
+.dashboard-pin-preview-content .facility-photo-thumbnail { width: 120px; height: 120px; min-width: 120px; border: 1px solid var(--border); border-radius: 8px; }
 .dashboard-pin-preview-content > span { min-width: 0; display: grid; gap: 6px; }
 .dashboard-pin-preview-content > span > small { color: var(--primary-ink); font-size: 12px; line-height: 1.2; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
 .dashboard-pin-preview-content > span > strong { color: var(--text); font-size: 18px; line-height: 1.25; font-weight: 700; letter-spacing: -.01em; overflow-wrap: anywhere; }
@@ -509,6 +509,11 @@ tbody tr:hover td:last-child, tbody tr.selected td:last-child { color: var(--pri
 .workbench-error svg { width: 16px; }
 .workbench-error button { margin-left: auto; color: var(--primary-ink); font-weight: 700; }
 .availability-editor { padding: 18px; display: grid; grid-template-columns: minmax(0, 1fr) 250px auto; align-items: end; gap: 12px 18px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); }
+.facility-space-editor { grid-template-columns: minmax(0, 1fr) auto; }
+.facility-space-editor .availability-editor-heading { grid-column: 1 / -1; }
+.facility-space-fields { min-width: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.facility-space-fields label > span { display: block; margin-bottom: 5px; color: var(--muted); font-size: 12px; font-weight: 700; }
+.facility-space-fields { grid-column: 1; grid-row: 2; }
 .availability-editor-heading { align-self: center; }
 .availability-editor-heading h2 { margin: 2px 0; font-size: 19px; }
 .availability-editor-heading p, .availability-editor > p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
@@ -519,6 +524,8 @@ tbody tr:hover td:last-child, tbody tr.selected td:last-child { color: var(--pri
 .availability-input b { padding: 0 10px; color: var(--muted); font-size: 11px; }
 .availability-editor > p { grid-column: 2; }
 .availability-editor .primary-button { grid-column: 3; grid-row: 1 / span 2; align-self: end; }
+.availability-editor.facility-space-editor > p { grid-column: 1; }
+.availability-editor.facility-space-editor .primary-button { grid-column: 2; grid-row: 2 / span 2; align-self: end; }
 .availability-message { grid-column: 1 / -1; padding: 9px 10px; display: flex; align-items: center; gap: 7px; border-radius: 7px; font-size: 12px; }
 .availability-message.success { color: var(--active-ink); background: var(--active-soft); }
 .availability-message.error { color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, var(--surface)); }
@@ -527,6 +534,7 @@ tbody tr:hover td:last-child, tbody tr.selected td:last-child { color: var(--pri
 .availability-current dt { color: var(--muted); font-size: 11px; }
 .availability-current dd { margin: 2px 0 0; font-size: 13px; font-weight: 700; }
 .availability-current small { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+.bulk-rack-refresh-error { display: block; margin-top: 6px; color: var(--danger); font-size: 11px; }
 .availability-history { min-width: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface); }
 .availability-history > header { min-height: 62px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; gap: 18px; border-bottom: 1px solid var(--border); }
 .availability-history > header > div { display: flex; align-items: center; gap: 9px; }
@@ -795,6 +803,8 @@ tbody tr:hover td:last-child, tbody tr.selected td:last-child { color: var(--pri
   .workbench-facilities { max-height: 260px; border-right: 0; border-bottom: 1px solid var(--border); }
   .availability-editor { grid-template-columns: minmax(0, 1fr); }
   .availability-editor > p, .availability-editor .primary-button { grid-column: 1; grid-row: auto; }
+  .facility-space-fields { grid-template-columns: 1fr; }
+  .availability-editor.facility-space-editor > p, .availability-editor.facility-space-editor .primary-button { grid-column: 1; grid-row: auto; }
   .availability-editor .primary-button { width: 100%; }
   .availability-history > header { align-items: flex-start; flex-direction: column; gap: 6px; }
   .explorer-resizer { display: none; }

@@ -12,7 +12,10 @@ import {
 import { clearSessionCookie, sameOrigin, setSessionCookie, sha256 } from './security.js'
 import { authenticateEmployee, revalidateEmployee, searchEmployees, UpstreamError } from './upstream.js'
 import { facilitiesNeedingOperationsContactReview, facilityOperations } from './data/facility-operations.js'
-import { adminAvailability, availabilityHistory, publicAvailability, saveAvailability, validSquareFeet } from './availability.js'
+import {
+  adminAvailability, adminFacilitySpace, availabilityHistory, facilitySpaceHistory, publicAvailability, publicBulkRack,
+  saveAvailability, saveFacilitySpace, validSquareFeet,
+} from './availability.js'
 import { isKnownFacilityId } from './data/facility-ids.js'
 
 type Dependencies = { config: AppConfig; db: Db }
@@ -109,6 +112,10 @@ export function createApp({ config, db }: Dependencies) {
     try { response.json({ availability: await publicAvailability(db) }) } catch { fail(response, 503, 'service_unavailable') }
   })
 
+  app.get('/api/bulk-rack', async (_request, response) => {
+    try { response.json({ bulkRack: await publicBulkRack(db) }) } catch { fail(response, 503, 'service_unavailable') }
+  })
+
   app.get('/api/auth/session', async (request, response) => {
     try {
       const admin = await resolveSession(db, config, request)
@@ -181,6 +188,17 @@ export function createApp({ config, db }: Dependencies) {
     try { response.json(await availabilityHistory(db, { page: Number(rawPage), ...(facilityId ? { facilityId } : {}) })) } catch { fail(response, 400, 'invalid_query') }
   })
 
+  app.get('/api/admin/facility-space', requireAuth, async (_request, response) => {
+    try { response.json({ facilities: await adminFacilitySpace(db) }) } catch { fail(response, 503, 'service_unavailable') }
+  })
+
+  app.get('/api/admin/facility-space/history', requireAuth, async (request, response) => {
+    const rawPage = typeof request.query.page === 'string' ? request.query.page : '1'
+    const facilityId = typeof request.query.facilityId === 'string' && request.query.facilityId ? request.query.facilityId : undefined
+    if (!/^\d+$/.test(rawPage) || (facilityId && !isKnownFacilityId(facilityId))) return fail(response, 400, 'invalid_query')
+    try { response.json(await facilitySpaceHistory(db, { page: Number(rawPage), ...(facilityId ? { facilityId } : {}) })) } catch { fail(response, 400, 'invalid_query') }
+  })
+
   app.post('/api/admin/availability/:facilityId', requireAuth, requireMutation, async (request: AuthorizedRequest, response) => {
     const facilityId = Array.isArray(request.params.facilityId) ? request.params.facilityId[0] : request.params.facilityId
     const squareFeet = request.body?.squareFeet
@@ -193,6 +211,38 @@ export function createApp({ config, db }: Dependencies) {
       if (code === 'actor_access_revoked') return fail(response, 403, code)
       if (code === 'stale_availability') return fail(response, 409, code)
       if (code === 'unknown_facility' || code === 'invalid_availability') return fail(response, 400, code)
+      return fail(response, 503, 'service_unavailable')
+    }
+  })
+
+  app.post('/api/admin/facility-space/:facilityId', requireAuth, requireMutation, async (request: AuthorizedRequest, response) => {
+    const facilityId = Array.isArray(request.params.facilityId) ? request.params.facilityId[0] : request.params.facilityId
+    const body = request.body && typeof request.body === 'object' ? request.body as Record<string, unknown> : {}
+    const hasAvailable = Object.prototype.hasOwnProperty.call(body, 'availableSquareFeet')
+    const hasBulk = Object.prototype.hasOwnProperty.call(body, 'bulkSquareFeet')
+    const hasRack = Object.prototype.hasOwnProperty.call(body, 'rackPalletPositions')
+    const availabilityVersion = body.availabilityVersion
+    const bulkRackVersion = body.bulkRackVersion
+    if (!isKnownFacilityId(facilityId) || (!hasAvailable && !hasBulk && !hasRack) ||
+      (hasAvailable && (!validSquareFeet(body.availableSquareFeet) || !Number.isSafeInteger(availabilityVersion) || Number(availabilityVersion) < 0)) ||
+      ((hasBulk || hasRack) && (!Number.isSafeInteger(bulkRackVersion) || Number(bulkRackVersion) < 0)) ||
+      (hasBulk && !validSquareFeet(body.bulkSquareFeet)) || (hasRack && !validSquareFeet(body.rackPalletPositions))) return fail(response, 400, 'invalid_space')
+    try {
+      const space = await saveFacilitySpace(db, config.tenantId, request.admin!, {
+        facilityId,
+        ...(hasAvailable ? { availability: { squareFeet: Number(body.availableSquareFeet), version: Number(availabilityVersion) } } : {}),
+        ...(hasBulk || hasRack ? { bulkRack: {
+          version: Number(bulkRackVersion),
+          ...(hasBulk ? { bulkSquareFeet: Number(body.bulkSquareFeet) } : {}),
+          ...(hasRack ? { rackPalletPositions: Number(body.rackPalletPositions) } : {}),
+        } } : {}),
+      })
+      response.json({ ok: true, space })
+    } catch (error) {
+      const code = error instanceof Error ? error.message : ''
+      if (code === 'actor_access_revoked') return fail(response, 403, code)
+      if (code === 'stale_availability' || code === 'stale_bulk_rack') return fail(response, 409, code)
+      if (code === 'unknown_facility' || code === 'invalid_space') return fail(response, 400, code)
       return fail(response, 503, 'service_unavailable')
     }
   })

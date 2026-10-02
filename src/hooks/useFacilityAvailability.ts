@@ -1,17 +1,23 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { PublicAvailability } from '../types/availability'
+import type { PublicAvailability, PublicBulkRack } from '../types/availability'
 
 export function useFacilityAvailability() {
   const [availability, setAvailability] = useState<Record<string, number>>({})
+  const [bulkRack, setBulkRack] = useState<Record<string, Omit<PublicBulkRack, 'facilityId'>>>({})
   const [error, setError] = useState(false)
 
   const refresh = useCallback(async (signal?: AbortSignal) => {
     try {
-      const response = await fetch('/api/availability', { credentials: 'same-origin', cache: 'no-store', signal })
-      if (!response.ok) throw new Error('availability_unavailable')
-      const body = await response.json() as { availability: PublicAvailability[] }
+      const [availabilityResponse, bulkRackResponse] = await Promise.all([
+        fetch('/api/availability', { credentials: 'same-origin', cache: 'no-store', signal }),
+        fetch('/api/bulk-rack', { credentials: 'same-origin', cache: 'no-store', signal }),
+      ])
+      if (!availabilityResponse.ok || !bulkRackResponse.ok) throw new Error('facility_space_unavailable')
+      const body = await availabilityResponse.json() as { availability: PublicAvailability[] }
+      const bulkRackBody = await bulkRackResponse.json() as { bulkRack: PublicBulkRack[] }
       if (!signal?.aborted) {
         setAvailability(Object.fromEntries(body.availability.map((entry) => [entry.facilityId, entry.squareFeet])))
+        setBulkRack(Object.fromEntries(bulkRackBody.bulkRack.map(({ facilityId, ...entry }) => [facilityId, entry])))
         setError(false)
       }
     } catch {
@@ -33,5 +39,11 @@ export function useFacilityAvailability() {
     setError(false)
   }, [])
 
-  return { availability, availabilityError: error, applyAvailability: apply, refreshAvailability: refresh }
+  const applyBulkRack = useCallback((entry: PublicBulkRack) => {
+    const { facilityId, ...values } = entry
+    setBulkRack((current) => ({ ...current, [facilityId]: { ...current[facilityId], ...values } }))
+    setError(false)
+  }, [])
+
+  return { availability, bulkRack, availabilityError: error, applyAvailability: apply, applyBulkRack, refreshAvailability: refresh }
 }

@@ -119,5 +119,36 @@ export async function migrate(db: Db) {
       CREATE TRIGGER facility_availability_audit_immutable BEFORE UPDATE OR DELETE ON facility_availability_audit
         FOR EACH ROW EXECUTE FUNCTION prevent_facility_availability_audit_mutation();
     EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+    CREATE TABLE IF NOT EXISTS facility_bulk_rack (
+      facility_id text PRIMARY KEY,
+      bulk_square_feet bigint CHECK (bulk_square_feet IS NULL OR (bulk_square_feet >= 0 AND bulk_square_feet <= 9007199254740991)),
+      rack_pallet_positions bigint CHECK (rack_pallet_positions IS NULL OR (rack_pallet_positions >= 0 AND rack_pallet_positions <= 9007199254740991)),
+      version integer NOT NULL DEFAULT 1 CHECK (version >= 1),
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      updated_by_admin_id uuid NOT NULL REFERENCES facility_admins(id),
+      CHECK (bulk_square_feet IS NOT NULL OR rack_pallet_positions IS NOT NULL)
+    );
+    CREATE TABLE IF NOT EXISTS facility_bulk_rack_audit (
+      id bigserial PRIMARY KEY,
+      facility_id text NOT NULL,
+      metric text NOT NULL CHECK (metric IN ('bulk','rack')),
+      old_value bigint CHECK (old_value IS NULL OR (old_value >= 0 AND old_value <= 9007199254740991)),
+      new_value bigint NOT NULL CHECK (new_value >= 0 AND new_value <= 9007199254740991),
+      version integer NOT NULL CHECK (version >= 1),
+      actor_admin_id uuid NOT NULL REFERENCES facility_admins(id),
+      actor_iam_user_id text NOT NULL CHECK (actor_iam_user_id ~ '^[0-9]{1,128}$'),
+      actor_username text NOT NULL,
+      old_value_source text NOT NULL CHECK (old_value_source IN ('administrator','source-snapshot','pending')),
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS facility_bulk_rack_audit_history_idx ON facility_bulk_rack_audit(created_at DESC,id DESC);
+    CREATE INDEX IF NOT EXISTS facility_bulk_rack_audit_facility_history_idx ON facility_bulk_rack_audit(facility_id,created_at DESC,id DESC);
+    CREATE OR REPLACE FUNCTION prevent_facility_bulk_rack_audit_mutation() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN RAISE EXCEPTION 'facility bulk rack audit is append-only'; END
+    $$;
+    DO $$ BEGIN
+      CREATE TRIGGER facility_bulk_rack_audit_immutable BEFORE UPDATE OR DELETE ON facility_bulk_rack_audit
+        FOR EACH ROW EXECUTE FUNCTION prevent_facility_bulk_rack_audit_mutation();
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$;
   `)
 }

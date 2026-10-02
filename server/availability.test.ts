@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { after, before, beforeEach, test } from 'node:test'
 import { config as loadEnv } from 'dotenv'
 import request from 'supertest'
-import { availabilityHistory, saveAvailability } from './availability.js'
+import { adminFacilitySpace, availabilityHistory, facilitySpaceHistory, saveAvailability, saveFacilitySpace } from './availability.js'
 import type { AdminAccess } from './access.js'
 import { createApp } from './app.js'
 import type { AppConfig } from './config.js'
@@ -28,7 +28,7 @@ const config: AppConfig = {
 }
 
 async function resetDb() {
-  await db.query('TRUNCATE facility_sessions,facility_availability_audit,facility_availability,facility_access_audit,facility_admins,facility_login_throttle RESTART IDENTITY CASCADE')
+  await db.query('TRUNCATE facility_sessions,facility_bulk_rack_audit,facility_bulk_rack,facility_availability_audit,facility_availability,facility_access_audit,facility_admins,facility_login_throttle RESTART IDENTITY CASCADE')
 }
 
 async function seedAdmin(active = true) {
@@ -67,6 +67,54 @@ test('repeat migration is idempotent and public projection contains only facilit
   const response = await request(createApp({ config, db })).get('/api/availability').expect(200)
   assert.deepEqual(response.body, { availability: [{ facilityId: 'buena-park-valley-view', squareFeet: 0 }] })
   assert.deepEqual(Object.keys(response.body.availability[0]).sort(), ['facilityId', 'squareFeet'])
+  const bulkRack = await request(createApp({ config, db })).get('/api/bulk-rack').expect(200)
+  assert.deepEqual(bulkRack.body, { bulkRack: [] })
+})
+
+test('bulk and rack save independently while availability stays pending and public data stays private', async () => {
+  const { actor, agent, csrf } = await authorizedAgent()
+  const saved = await agent.post('/api/admin/facility-space/summerville-cypress-tradeport').set('Origin', origin).set('x-csrf-token', csrf)
+    .send({ bulkSquareFeet: 25_000, rackPalletPositions: 700, bulkRackVersion: 0, actorIamUserId: 'spoofed', actorUsername: 'spoofed' }).expect(200)
+  assert.deepEqual(saved.body.space, {
+    facilityId: 'summerville-cypress-tradeport', squareFeet: null, version: 0, updatedAt: null,
+    valueSource: 'pending', snapshotAsOf: null, snapshotStatus: null,
+    bulkSquareFeet: 25_000, bulkUpToSquareFeet: null, bulkValueSource: 'administrator',
+    rackPalletPositions: 700, rackValueSource: 'administrator', bulkRackVersion: 1,
+    bulkRackUpdatedAt: saved.body.space.bulkRackUpdatedAt, bulkRackSnapshotAsOf: null,
+  })
+  const availability = await db.query('SELECT count(*)::int count FROM facility_availability')
+  assert.equal(availability.rows[0].count, 0)
+  const publicProjection = await request(createApp({ config, db })).get('/api/bulk-rack').expect(200)
+  assert.deepEqual(publicProjection.body, { bulkRack: [{ facilityId: 'summerville-cypress-tradeport', bulkSquareFeet: 25_000, rackPalletPositions: 700 }] })
+  assert.deepEqual(Object.keys(publicProjection.body.bulkRack[0]).sort(), ['bulkSquareFeet', 'facilityId', 'rackPalletPositions'])
+  const audit = await db.query('SELECT metric,actor_iam_user_id,actor_username FROM facility_bulk_rack_audit ORDER BY id')
+  assert.deepEqual(audit.rows, [
+    { metric: 'bulk', actor_iam_user_id: actor.iamUserId, actor_username: actor.username },
+    { metric: 'rack', actor_iam_user_id: actor.iamUserId, actor_username: actor.username },
+  ])
+})
+
+test('zero overrides snapshot fields, removes the bulk up-to range, and omitted fields are preserved', async () => {
+  const { agent, csrf } = await authorizedAgent()
+  const first = await agent.post('/api/admin/facility-space/joliet-brandon').set('Origin', origin).set('x-csrf-token', csrf)
+    .send({ bulkSquareFeet: 0, bulkRackVersion: 0 }).expect(200)
+  assert.equal(first.body.space.bulkSquareFeet, 0)
+  assert.equal(first.body.space.bulkUpToSquareFeet, null)
+  assert.equal(first.body.space.bulkValueSource, 'administrator')
+  assert.equal(first.body.space.rackPalletPositions, 3000)
+  assert.equal(first.body.space.rackValueSource, 'source-snapshot')
+  const second = await agent.post('/api/admin/facility-space/joliet-brandon').set('Origin', origin).set('x-csrf-token', csrf)
+    .send({ rackPalletPositions: 0, bulkRackVersion: 1 }).expect(200)
+  assert.equal(second.body.space.bulkSquareFeet, 0)
+  assert.equal(second.body.space.rackPalletPositions, 0)
+  assert.equal(second.body.space.bulkRackVersion, 2)
+  const projection = await request(createApp({ config, db })).get('/api/bulk-rack').expect(200)
+  assert.deepEqual(projection.body.bulkRack, [{ facilityId: 'joliet-brandon', bulkSquareFeet: 0, rackPalletPositions: 0 }])
+  const audit = await facilitySpaceHistory(db, { page: 1, facilityId: 'joliet-brandon' })
+  assert.deepEqual(audit.entries.map((entry) => [entry.metric, entry.oldValue, entry.newValue, entry.oldValueSource]), [
+    ['rack', 3000, 0, 'source-snapshot'],
+    ['bulk', 110000, 0, 'source-snapshot'],
+  ])
 })
 
 test('migration adds audit provenance without rewriting legacy audit rows and restores immutability', async () => {
@@ -99,6 +147,9 @@ test('anonymous users cannot read admin state or history or mutate availability'
   await request(app).get('/api/admin/availability').expect(401)
   await request(app).get('/api/admin/availability/history').expect(401)
   await request(app).post('/api/admin/availability/buena-park-valley-view').set('Origin', origin).send({ squareFeet: 1, version: 0 }).expect(401)
+  await request(app).get('/api/admin/facility-space').expect(401)
+  await request(app).get('/api/admin/facility-space/history').expect(401)
+  await request(app).post('/api/admin/facility-space/buena-park-valley-view').set('Origin', origin).send({ bulkSquareFeet: 1, bulkRackVersion: 0 }).expect(401)
 })
 
 test('active admin saves zero, reads it back, and audit identity comes only from the session', async () => {
@@ -160,8 +211,110 @@ test('inactive or tenant-mismatched actor is rejected inside the transaction', a
   const actor = await seedAdmin()
   await db.query('UPDATE facility_admins SET is_active=false WHERE id=$1', [actor.id])
   await assert.rejects(saveAvailability(db, 'LT', actor, { facilityId: 'buena-park-valley-view', squareFeet: 1, version: 0 }), /actor_access_revoked/)
+  await assert.rejects(saveFacilitySpace(db, 'LT', actor, { facilityId: 'buena-park-valley-view', bulkRack: { bulkSquareFeet: 1, version: 0 } }), /actor_access_revoked/)
   await db.query("UPDATE facility_admins SET is_active=true,tenant_id='OTHER' WHERE id=$1", [actor.id])
   await assert.rejects(saveAvailability(db, 'LT', actor, { facilityId: 'buena-park-valley-view', squareFeet: 1, version: 0 }), /actor_access_revoked/)
+  await assert.rejects(saveFacilitySpace(db, 'LT', actor, { facilityId: 'buena-park-valley-view', bulkRack: { rackPalletPositions: 1, version: 0 } }), /actor_access_revoked/)
+})
+
+test('combined endpoint enforces origin, CSRF, known facilities, and valid bulk and rack integers', async () => {
+  const { agent, csrf } = await authorizedAgent()
+  const endpoint = '/api/admin/facility-space/summerville-cypress-tradeport'
+  await agent.post(endpoint).set('Origin', 'https://wrong.example').set('x-csrf-token', csrf).send({ bulkSquareFeet: 1, bulkRackVersion: 0 }).expect(403, { ok: false, error: 'invalid_origin' })
+  await agent.post(endpoint).set('Origin', origin).set('x-csrf-token', 'wrong').send({ rackPalletPositions: 1, bulkRackVersion: 0 }).expect(403, { ok: false, error: 'invalid_csrf' })
+  for (const invalid of [-1, 1.5, Number.MAX_SAFE_INTEGER + 1, null, '1']) {
+    await agent.post(endpoint).set('Origin', origin).set('x-csrf-token', csrf).send({ bulkSquareFeet: invalid, bulkRackVersion: 0 }).expect(400)
+    await agent.post(endpoint).set('Origin', origin).set('x-csrf-token', csrf).send({ rackPalletPositions: invalid, bulkRackVersion: 0 }).expect(400)
+  }
+  await agent.post(endpoint).set('Origin', origin).set('x-csrf-token', csrf).send({ bulkRackVersion: 0 }).expect(400)
+  await agent.post('/api/admin/facility-space/not-a-facility').set('Origin', origin).set('x-csrf-token', csrf).send({ bulkSquareFeet: 1, bulkRackVersion: 0 }).expect(400)
+  const persisted = await db.query('SELECT count(*)::int count FROM facility_bulk_rack')
+  assert.equal(persisted.rows[0].count, 0)
+})
+
+test('bulk and rack optimistic version serializes first writes without extra audit', async () => {
+  const actor = await seedAdmin()
+  const writes = await Promise.allSettled([
+    saveFacilitySpace(db, 'LT', actor, { facilityId: 'summerville-cypress-tradeport', bulkRack: { bulkSquareFeet: 100, version: 0 } }),
+    saveFacilitySpace(db, 'LT', actor, { facilityId: 'summerville-cypress-tradeport', bulkRack: { rackPalletPositions: 200, version: 0 } }),
+  ])
+  assert.equal(writes.filter((result) => result.status === 'fulfilled').length, 1)
+  assert.equal(writes.filter((result) => result.status === 'rejected' && result.reason instanceof Error && result.reason.message === 'stale_bulk_rack').length, 1)
+  await assert.rejects(saveFacilitySpace(db, 'LT', actor, { facilityId: 'summerville-cypress-tradeport', bulkRack: { bulkSquareFeet: 300, version: 0 } }), /stale_bulk_rack/)
+  const [current, audit] = await Promise.all([
+    db.query('SELECT version FROM facility_bulk_rack'),
+    db.query('SELECT count(*)::int count FROM facility_bulk_rack_audit'),
+  ])
+  assert.equal(current.rows[0].version, 1)
+  assert.equal(audit.rows[0].count, 1)
+})
+
+test('legacy and combined availability writes share the same first-write lock', async () => {
+  const actor = await seedAdmin()
+  const writes = await Promise.allSettled([
+    saveAvailability(db, 'LT', actor, { facilityId: 'summerville-cypress-tradeport', squareFeet: 100, version: 0 }),
+    saveFacilitySpace(db, 'LT', actor, { facilityId: 'summerville-cypress-tradeport', availability: { squareFeet: 200, version: 0 } }),
+  ])
+  assert.equal(writes.filter((result) => result.status === 'fulfilled').length, 1)
+  assert.equal(writes.filter((result) => result.status === 'rejected' && result.reason instanceof Error && result.reason.message === 'stale_availability').length, 1)
+  const [current, audit] = await Promise.all([
+    db.query('SELECT version FROM facility_availability'),
+    db.query('SELECT count(*)::int count FROM facility_availability_audit'),
+  ])
+  assert.equal(current.rows[0].version, 1)
+  assert.equal(audit.rows[0].count, 1)
+})
+
+test('combined availability and bulk/rack save rolls back all values and audit on failure', async () => {
+  const actor = await seedAdmin()
+  await db.query(`CREATE OR REPLACE FUNCTION reject_bulk_rack_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'bulk audit rejected'; END $$`)
+  await db.query('CREATE TRIGGER reject_bulk_rack_audit BEFORE INSERT ON facility_bulk_rack_audit FOR EACH ROW EXECUTE FUNCTION reject_bulk_rack_audit()')
+  try {
+    await assert.rejects(saveFacilitySpace(db, 'LT', actor, {
+      facilityId: 'summerville-cypress-tradeport', availability: { squareFeet: 5000, version: 0 }, bulkRack: { bulkSquareFeet: 6000, rackPalletPositions: 700, version: 0 },
+    }), /bulk audit rejected/)
+    const counts = await Promise.all([
+      db.query('SELECT count(*)::int count FROM facility_availability'), db.query('SELECT count(*)::int count FROM facility_availability_audit'),
+      db.query('SELECT count(*)::int count FROM facility_bulk_rack'), db.query('SELECT count(*)::int count FROM facility_bulk_rack_audit'),
+    ])
+    assert.deepEqual(counts.map((result) => result.rows[0].count), [0, 0, 0, 0])
+  } finally {
+    await db.query('DROP TRIGGER reject_bulk_rack_audit ON facility_bulk_rack_audit')
+    await db.query('DROP FUNCTION reject_bulk_rack_audit()')
+  }
+})
+
+test('bulk/rack audit is immutable and unified history is stable, filtered, and paginated', async () => {
+  const { actor, agent, csrf } = await authorizedAgent()
+  let version = 0
+  for (let value = 0; value < 12; value += 1) {
+    const saved = await agent.post('/api/admin/facility-space/summerville-cypress-tradeport').set('Origin', origin).set('x-csrf-token', csrf)
+      .send({ rackPalletPositions: value, bulkRackVersion: version }).expect(200)
+    version = saved.body.space.bulkRackVersion
+  }
+  await agent.post('/api/admin/facility-space/riverside-alessandro').set('Origin', origin).set('x-csrf-token', csrf)
+    .send({ availableSquareFeet: 9, availabilityVersion: 0, bulkSquareFeet: 10, bulkRackVersion: 0 }).expect(200)
+  const first = await agent.get('/api/admin/facility-space/history?facilityId=summerville-cypress-tradeport&page=1').expect(200)
+  const second = await agent.get('/api/admin/facility-space/history?facilityId=summerville-cypress-tradeport&page=2').expect(200)
+  assert.deepEqual({ total: first.body.total, totalPages: first.body.totalPages, pageSize: first.body.pageSize }, { total: 12, totalPages: 2, pageSize: 10 })
+  assert.deepEqual([...first.body.entries, ...second.body.entries].map((entry: { metric: string; newValue: number }) => [entry.metric, entry.newValue]), Array.from({ length: 12 }, (_, index) => ['rack', 11 - index]))
+  assert.ok(first.body.entries.every((entry: { facilityId: string; actorIamUserId: string }) => entry.facilityId === 'summerville-cypress-tradeport' && entry.actorIamUserId === actor.iamUserId))
+  const mixed = await facilitySpaceHistory(db, { page: 1, facilityId: 'riverside-alessandro' })
+  assert.deepEqual(mixed.entries.map((entry) => entry.metric).sort(), ['available', 'bulk'])
+  await assert.rejects(db.query('UPDATE facility_bulk_rack_audit SET new_value=9999'), /append-only/)
+  await assert.rejects(db.query('DELETE FROM facility_bulk_rack_audit'), /append-only/)
+})
+
+test('admin facility-space projection covers all facilities without persisting static fallbacks', async () => {
+  const records = await adminFacilitySpace(db)
+  assert.equal(records.length, facilityIds.length)
+  assert.deepEqual(records.find((entry) => entry.facilityId === 'joliet-brandon'), {
+    facilityId: 'joliet-brandon', squareFeet: 110000, version: 0, updatedAt: null, valueSource: 'source-snapshot', snapshotAsOf: '2026-10', snapshotStatus: null,
+    bulkSquareFeet: 110000, bulkUpToSquareFeet: 150000, bulkValueSource: 'source-snapshot', rackPalletPositions: 3000, rackValueSource: 'source-snapshot',
+    bulkRackVersion: 0, bulkRackUpdatedAt: null, bulkRackSnapshotAsOf: '2026-10',
+  })
+  const persisted = await db.query('SELECT count(*)::int count FROM facility_bulk_rack')
+  assert.equal(persisted.rows[0].count, 0)
 })
 
 test('optimistic versions serialize first writes and reject stale updates without extra audit', async () => {
