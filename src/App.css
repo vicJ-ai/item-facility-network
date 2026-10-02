@@ -544,8 +544,13 @@ tbody tr:hover td:last-child, tbody tr.selected td:last-child { color: var(--pri
 .availability-history h2 { margin: 1px 0 0; font-size: 15px; }
 .availability-history > header > small { max-width: 300px; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
 .history-table-wrap { overflow-x: auto; }
-.availability-history table { width: 100%; min-width: 680px; border-collapse: collapse; }
-.availability-history th, .availability-history td { padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; font-size: 12px; }
+.availability-history table { width: 1000px; min-width: 100%; table-layout: fixed; border-collapse: collapse; }
+.availability-history th, .availability-history td { box-sizing: border-box; padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; overflow-wrap: anywhere; font-size: 12px; }
+.availability-history th:nth-child(1), .availability-history td:nth-child(1) { width: 180px; }
+.availability-history th:nth-child(2), .availability-history td:nth-child(2),
+.availability-history th:nth-child(3), .availability-history td:nth-child(3),
+.availability-history th:nth-child(4), .availability-history td:nth-child(4) { width: 190px; }
+.availability-history th:nth-child(5), .availability-history td:nth-child(5) { width: 250px; }
 .availability-history th { color: var(--muted); background: var(--surface-2); font-size: 10px; text-transform: uppercase; }
 .availability-history td small { display: block; margin-top: 2px; color: var(--muted); }
 .availability-history > footer { min-height: 48px; padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--muted); font-size: 12px; }
@@ -744,6 +749,7 @@ tbody tr:hover td:last-child, tbody tr.selected td:last-child { color: var(--pri
   table { table-layout: fixed; } th:nth-child(3), td:nth-child(3), th:last-child, td:last-child { display: none; }
   th:first-child, td:first-child { width: 42px; padding-left: 10px; } th:nth-child(4), td:nth-child(4) { width: 96px; }
   td { height: auto; padding: 12px 7px; }
+  .availability-history th, .availability-history td { display: table-cell; }
   td:nth-child(2) button { min-height: 84px; align-items: flex-start; gap: 12px; overflow: visible; }
   .roster-copy { gap: 6px; }
   .roster-title { font-size: 14px; }

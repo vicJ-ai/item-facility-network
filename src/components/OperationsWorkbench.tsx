@@ -18,9 +18,19 @@ function displayValue(value: number | null, unit: 'SQF' | 'pallet positions') {
   return value === null ? 'Not provided' : `${numberFormat.format(value)} ${unit}`
 }
 
-function historyValue(entry: FacilitySpaceHistoryEntry, value: number | null) {
-  if (value === null) return entry.metric === 'available' ? 'Pending' : 'Not provided'
-  return `${numberFormat.format(value)} ${entry.metric === 'rack' ? 'pallet positions' : 'SQF'}`
+function historyValue(value: number | null, metric: 'available' | 'bulk' | 'rack') {
+  if (value === null) return metric === 'available' ? 'Pending' : 'Not provided'
+  return `${numberFormat.format(value)} ${metric === 'rack' ? 'pallet positions' : 'SQF'}`
+}
+
+function HistoryChange({ metric, oldValue, newValue, oldValueSource }: {
+  metric: 'available' | 'bulk' | 'rack'
+  oldValue: number | null
+  newValue: number | null
+  oldValueSource: FacilitySpaceHistoryEntry['oldAvailableValueSource']
+}) {
+  if (newValue === null) return <span aria-label={`${metric} not recorded`}>—</span>
+  return <>{historyValue(oldValue, metric)}{oldValueSource !== 'pending' && oldValueSource !== null && <small>{oldValueSource === 'source-snapshot' ? 'source snapshot' : 'administrator value'}</small>} → <strong>{historyValue(newValue, metric)}</strong></>
 }
 
 function FacilitySpaceEditor({ record, onSaved }: { record: AdminFacilitySpace; onSaved: (entry: AdminFacilitySpace) => void }) {
@@ -32,39 +42,34 @@ function FacilitySpaceEditor({ record, onSaved }: { record: AdminFacilitySpace; 
   const [pending, setPending] = useState(false)
   const [message, setMessage] = useState<{ kind: 'error' | 'success'; text: string } | null>(null)
 
-  const parseField = (label: string, raw: string, initial: number | null) => {
+  const parseField = (label: string, raw: string) => {
     if (raw === '') {
-      if (initial === null) return { changed: false } as const
-      throw new Error(`${label} cannot be cleared. Enter a nonnegative whole number or leave the current value unchanged.`)
+      throw new Error(`${label} is required. Enter a nonnegative whole number.`)
     }
     const value = Number(raw)
     if (!/^\d+$/.test(raw) || !Number.isSafeInteger(value) || value < 0) throw new Error(`${label} must be a nonnegative whole number.`)
-    return { changed: value !== initial, value } as const
+    return value
   }
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
-    let available: ReturnType<typeof parseField>
-    let bulk: ReturnType<typeof parseField>
-    let rack: ReturnType<typeof parseField>
+    let available: number
+    let bulk: number
+    let rack: number
     try {
-      available = parseField('Available space', availableValue, record.squareFeet)
-      bulk = parseField('Bulk', bulkValue, record.bulkSquareFeet)
-      rack = parseField('Rack', rackValue, record.rackPalletPositions)
+      available = parseField('Available space', availableValue)
+      bulk = parseField('Bulk', bulkValue)
+      rack = parseField('Rack', rackValue)
     } catch (error) {
       setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Enter nonnegative whole numbers.' })
       return
     }
-    if (!available.changed && !bulk.changed && !rack.changed) {
-      setMessage({ kind: 'success', text: 'No changes to save.' })
-      return
-    }
-
     const body = {
-      ...(available.changed ? { availableSquareFeet: available.value, availabilityVersion: record.version } : {}),
-      ...(bulk.changed ? { bulkSquareFeet: bulk.value } : {}),
-      ...(rack.changed ? { rackPalletPositions: rack.value } : {}),
-      ...(bulk.changed || rack.changed ? { bulkRackVersion: record.bulkRackVersion } : {}),
+      availableSquareFeet: available,
+      bulkSquareFeet: bulk,
+      rackPalletPositions: rack,
+      availabilityVersion: record.version,
+      bulkRackVersion: record.bulkRackVersion,
     }
     setPending(true); setMessage(null)
     try {
@@ -96,7 +101,7 @@ function FacilitySpaceEditor({ record, onSaved }: { record: AdminFacilitySpace; 
       <label><span>Bulk</span><div className="availability-input"><input inputMode="numeric" pattern="[0-9]+" value={bulkValue} onChange={(event) => setBulkValue(event.target.value)} aria-describedby="facility-space-help" disabled={pending} /><b>SQF</b></div></label>
       <label><span>Rack</span><div className="availability-input"><input inputMode="numeric" pattern="[0-9]+" value={rackValue} onChange={(event) => setRackValue(event.target.value)} aria-describedby="facility-space-help" disabled={pending} /><b>pallet positions</b></div></label>
     </div>
-    <p id="facility-space-help">Use whole numbers. Zero is valid. Blank fields with no current value stay unset; unchanged fields are preserved.</p>
+    <p id="facility-space-help">Enter all three values as whole numbers. Zero is valid. Each save records the complete facility-space state.</p>
     <button className="primary-button" disabled={pending}>{pending ? <LoaderCircle className="spin" /> : <Save />}{pending ? 'Saving…' : 'Save facility space'}</button>
     {message && <div className={`availability-message ${message.kind}`} role={message.kind === 'error' ? 'alert' : 'status'}>{message.kind === 'error' && <AlertCircle />}{message.text}</div>}
     <dl className="availability-current">
@@ -173,8 +178,8 @@ export function OperationsWorkbench({ onAvailabilityChanged, onBulkRackChanged }
         {loading || !selected ? <div className="workbench-loading" role="status"><LoaderCircle className="spin" />Loading facility space…</div> : <FacilitySpaceEditor key={selected.facilityId} record={selected} onSaved={saveComplete} />}
         <section className="availability-history" aria-labelledby="facility-space-history-title">
           <header><div><History /><span><span className="eyebrow">Immutable audit log</span><h2 id="facility-space-history-title">Change history</h2></span></div><small>Signed in as {user?.username} · IAM ID {user?.iamUserId}</small></header>
-          {historyLoading ? <div className="history-state" role="status"><LoaderCircle className="spin" />Loading history…</div> : history.entries.length === 0 ? <div className="history-state"><Warehouse />No facility-space changes recorded for this facility.</div> : <div className="history-table-wrap"><table><thead><tr><th>Date (UTC)</th><th>Metric</th><th>Change</th><th>Administrator</th></tr></thead><tbody>{history.entries.map((entry) => <tr key={entry.id}><td><time dateTime={entry.createdAt}>{new Date(entry.createdAt).toLocaleString('en-US', { timeZone: 'UTC', dateStyle: 'medium', timeStyle: 'short' })} UTC</time></td><td>{entry.metric === 'available' ? 'Available' : entry.metric === 'bulk' ? 'Bulk' : 'Rack'}</td><td>{historyValue(entry, entry.oldValue)}{entry.oldValueSource !== 'pending' && <small>{entry.oldValueSource === 'source-snapshot' ? 'source snapshot' : 'administrator value'}</small>} → <strong>{historyValue(entry, entry.newValue)}</strong></td><td>{entry.actorUsername}<small>IAM ID {entry.actorIamUserId}</small></td></tr>)}</tbody></table></div>}
-          <footer><span>{history.total} {history.total === 1 ? 'change' : 'changes'}</span><div><button type="button" aria-label="Previous history page" disabled={historyLoading || page <= 1} onClick={() => setPage((current) => current - 1)}><ChevronLeft /></button><span>Page {history.totalPages ? history.page : 0} of {history.totalPages}</span><button type="button" aria-label="Next history page" disabled={historyLoading || page >= history.totalPages} onClick={() => setPage((current) => current + 1)}><ChevronRight /></button></div></footer>
+          {historyLoading ? <div className="history-state" role="status"><LoaderCircle className="spin" />Loading history…</div> : history.entries.length === 0 ? <div className="history-state"><Warehouse />No facility-space saves recorded for this facility.</div> : <div className="history-table-wrap"><table><thead><tr><th>Date (UTC)</th><th>Available SQF</th><th>Bulk SQF</th><th>Rack positions</th><th>Updater</th></tr></thead><tbody>{history.entries.map((entry) => <tr key={entry.id} data-record-type={entry.recordType}><td><time dateTime={entry.createdAt}>{new Date(entry.createdAt).toLocaleString('en-US', { timeZone: 'UTC', dateStyle: 'medium', timeStyle: 'short' })} UTC</time>{entry.recordType !== 'combined' && <small>Legacy record</small>}</td><td><HistoryChange metric="available" oldValue={entry.oldAvailableSquareFeet} newValue={entry.newAvailableSquareFeet} oldValueSource={entry.oldAvailableValueSource} /></td><td><HistoryChange metric="bulk" oldValue={entry.oldBulkSquareFeet} newValue={entry.newBulkSquareFeet} oldValueSource={entry.oldBulkValueSource} /></td><td><HistoryChange metric="rack" oldValue={entry.oldRackPalletPositions} newValue={entry.newRackPalletPositions} oldValueSource={entry.oldRackValueSource} /></td><td>{entry.actorUsername}<small>IAM ID {entry.actorIamUserId}</small></td></tr>)}</tbody></table></div>}
+          <footer><span>{history.total} {history.total === 1 ? 'record' : 'records'}</span><div><button type="button" aria-label="Previous history page" disabled={historyLoading || page <= 1} onClick={() => setPage((current) => current - 1)}><ChevronLeft /></button><span>Page {history.totalPages ? history.page : 0} of {history.totalPages}</span><button type="button" aria-label="Next history page" disabled={historyLoading || page >= history.totalPages} onClick={() => setPage((current) => current + 1)}><ChevronRight /></button></div></footer>
         </section>
       </div>
     </div>

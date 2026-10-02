@@ -150,5 +150,33 @@ export async function migrate(db: Db) {
       CREATE TRIGGER facility_bulk_rack_audit_immutable BEFORE UPDATE OR DELETE ON facility_bulk_rack_audit
         FOR EACH ROW EXECUTE FUNCTION prevent_facility_bulk_rack_audit_mutation();
     EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+    CREATE TABLE IF NOT EXISTS facility_space_save_audit (
+      id bigserial PRIMARY KEY,
+      facility_id text NOT NULL,
+      old_available_square_feet bigint CHECK (old_available_square_feet IS NULL OR (old_available_square_feet >= 0 AND old_available_square_feet <= 9007199254740991)),
+      new_available_square_feet bigint NOT NULL CHECK (new_available_square_feet >= 0 AND new_available_square_feet <= 9007199254740991),
+      old_available_value_source text NOT NULL CHECK (old_available_value_source IN ('administrator','source-snapshot','pending')),
+      old_bulk_square_feet bigint CHECK (old_bulk_square_feet IS NULL OR (old_bulk_square_feet >= 0 AND old_bulk_square_feet <= 9007199254740991)),
+      new_bulk_square_feet bigint NOT NULL CHECK (new_bulk_square_feet >= 0 AND new_bulk_square_feet <= 9007199254740991),
+      old_bulk_value_source text NOT NULL CHECK (old_bulk_value_source IN ('administrator','source-snapshot','pending')),
+      old_rack_pallet_positions bigint CHECK (old_rack_pallet_positions IS NULL OR (old_rack_pallet_positions >= 0 AND old_rack_pallet_positions <= 9007199254740991)),
+      new_rack_pallet_positions bigint NOT NULL CHECK (new_rack_pallet_positions >= 0 AND new_rack_pallet_positions <= 9007199254740991),
+      old_rack_value_source text NOT NULL CHECK (old_rack_value_source IN ('administrator','source-snapshot','pending')),
+      availability_version integer NOT NULL CHECK (availability_version >= 1),
+      bulk_rack_version integer NOT NULL CHECK (bulk_rack_version >= 1),
+      actor_admin_id uuid NOT NULL REFERENCES facility_admins(id),
+      actor_iam_user_id text NOT NULL CHECK (actor_iam_user_id ~ '^[0-9]{1,128}$'),
+      actor_username text NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS facility_space_save_audit_history_idx ON facility_space_save_audit(created_at DESC,id DESC);
+    CREATE INDEX IF NOT EXISTS facility_space_save_audit_facility_history_idx ON facility_space_save_audit(facility_id,created_at DESC,id DESC);
+    CREATE OR REPLACE FUNCTION prevent_facility_space_save_audit_mutation() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN RAISE EXCEPTION 'facility space save audit is append-only'; END
+    $$;
+    DO $$ BEGIN
+      CREATE TRIGGER facility_space_save_audit_immutable BEFORE UPDATE OR DELETE ON facility_space_save_audit
+        FOR EACH ROW EXECUTE FUNCTION prevent_facility_space_save_audit_mutation();
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$;
   `)
 }

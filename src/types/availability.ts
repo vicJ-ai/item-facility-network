@@ -34,13 +34,20 @@ export type AvailabilityHistoryPage = { entries: AvailabilityHistoryEntry[]; pag
 export type FacilitySpaceHistoryEntry = {
   id: string
   facilityId: string
-  metric: 'available' | 'bulk' | 'rack'
-  oldValue: number | null
-  newValue: number
-  version: number
+  recordType: 'combined' | 'legacy-available' | 'legacy-bulk' | 'legacy-rack'
+  oldAvailableSquareFeet: number | null
+  newAvailableSquareFeet: number | null
+  oldAvailableValueSource: 'administrator' | 'source-snapshot' | 'pending' | null
+  oldBulkSquareFeet: number | null
+  newBulkSquareFeet: number | null
+  oldBulkValueSource: 'administrator' | 'source-snapshot' | 'pending' | null
+  oldRackPalletPositions: number | null
+  newRackPalletPositions: number | null
+  oldRackValueSource: 'administrator' | 'source-snapshot' | 'pending' | null
+  availabilityVersion: number | null
+  bulkRackVersion: number | null
   actorIamUserId: string
   actorUsername: string
-  oldValueSource: 'administrator' | 'source-snapshot' | 'pending'
   createdAt: string
 }
 export type FacilitySpaceHistoryPage = { entries: FacilitySpaceHistoryEntry[]; page: number; pageSize: number; total: number; totalPages: number }

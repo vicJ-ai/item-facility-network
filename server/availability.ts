@@ -114,21 +114,15 @@ export async function saveAvailability(db: Db, portalTenantId: string, actor: Ad
 
 export type FacilitySpaceUpdate = {
   facilityId: string
-  availability?: { squareFeet: number; version: number }
-  bulkRack?: { version: number; bulkSquareFeet?: number; rackPalletPositions?: number }
+  availability: { squareFeet: number; version: number }
+  bulkRack: { version: number; bulkSquareFeet: number; rackPalletPositions: number }
 }
 
-const hasOwn = (value: object, key: string) => Object.prototype.hasOwnProperty.call(value, key)
-
 export async function saveFacilitySpace(db: Db, portalTenantId: string, actor: AdminAccess, input: FacilitySpaceUpdate) {
-  const changesAvailability = input.availability !== undefined
-  const changesBulk = input.bulkRack !== undefined && hasOwn(input.bulkRack, 'bulkSquareFeet')
-  const changesRack = input.bulkRack !== undefined && hasOwn(input.bulkRack, 'rackPalletPositions')
-  if (!isKnownFacilityId(input.facilityId) || (!changesAvailability && !changesBulk && !changesRack)) throw new Error('invalid_space')
-  if (input.availability && (!validSquareFeet(input.availability.squareFeet) || !Number.isSafeInteger(input.availability.version) || input.availability.version < 0)) throw new Error('invalid_space')
-  if (input.bulkRack && (!Number.isSafeInteger(input.bulkRack.version) || input.bulkRack.version < 0)) throw new Error('invalid_space')
-  if (changesBulk && !validSquareFeet(input.bulkRack?.bulkSquareFeet)) throw new Error('invalid_space')
-  if (changesRack && !validSquareFeet(input.bulkRack?.rackPalletPositions)) throw new Error('invalid_space')
+  if (!isKnownFacilityId(input.facilityId) || !validSquareFeet(input.availability?.squareFeet) ||
+    !validSquareFeet(input.bulkRack?.bulkSquareFeet) || !validSquareFeet(input.bulkRack?.rackPalletPositions) ||
+    !Number.isSafeInteger(input.availability?.version) || input.availability.version < 0 ||
+    !Number.isSafeInteger(input.bulkRack?.version) || input.bulkRack.version < 0) throw new Error('invalid_space')
 
   return db.transaction(async (client) => {
     await client.query("SELECT pg_advisory_xact_lock(hashtext('facility-availability:' || $1))", [input.facilityId])
@@ -144,43 +138,45 @@ export async function saveFacilitySpace(db: Db, portalTenantId: string, actor: A
     ])
     let availability = availabilityResult.rows[0] as Record<string, unknown> | undefined
     let bulkRack = bulkRackResult.rows[0] as Record<string, unknown> | undefined
-    if (input.availability && input.availability.version !== (availability ? Number(availability.version) : 0)) throw new Error('stale_availability')
-    if (input.bulkRack && input.bulkRack.version !== (bulkRack ? Number(bulkRack.version) : 0)) throw new Error('stale_bulk_rack')
+    if (input.availability.version !== (availability ? Number(availability.version) : 0)) throw new Error('stale_availability')
+    if (input.bulkRack.version !== (bulkRack ? Number(bulkRack.version) : 0)) throw new Error('stale_bulk_rack')
 
-    if (input.availability) {
-      const snapshot = facilityAvailabilitySnapshots[input.facilityId]
-      const oldSquareFeet = availability?.square_feet ?? snapshot?.squareFeet ?? null
-      const oldValueSource = availability ? 'administrator' : snapshot ? 'source-snapshot' : 'pending'
-      const saved = availability
-        ? await client.query(`UPDATE facility_availability SET square_feet=$1,version=version+1,updated_at=now(),updated_by_admin_id=$2
-            WHERE facility_id=$3 RETURNING *`, [input.availability.squareFeet, persistedActor.id, input.facilityId])
-        : await client.query(`INSERT INTO facility_availability (facility_id,square_feet,version,updated_by_admin_id)
-            VALUES ($1,$2,1,$3) RETURNING *`, [input.facilityId, input.availability.squareFeet, persistedActor.id])
-      availability = saved.rows[0]
-      await client.query(`INSERT INTO facility_availability_audit
-        (facility_id,old_square_feet,new_square_feet,version,actor_admin_id,actor_iam_user_id,actor_username,old_value_source)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`, [input.facilityId, oldSquareFeet, input.availability.squareFeet, availability?.version, persistedActor.id, persistedActor.iam_user_id, persistedActor.username, oldValueSource])
-    }
+    const availabilitySnapshot = facilityAvailabilitySnapshots[input.facilityId]
+    const bulkRackSnapshot = facilityBulkRackSnapshots[input.facilityId]
+    const oldAvailableSquareFeet = availability?.square_feet ?? availabilitySnapshot?.squareFeet ?? null
+    const oldAvailableValueSource = availability ? 'administrator' : availabilitySnapshot ? 'source-snapshot' : 'pending'
+    const persistedBulk = bulkRack?.bulk_square_feet !== null && bulkRack?.bulk_square_feet !== undefined
+    const persistedRack = bulkRack?.rack_pallet_positions !== null && bulkRack?.rack_pallet_positions !== undefined
+    const oldBulkSquareFeet = persistedBulk ? Number(bulkRack?.bulk_square_feet) : bulkRackSnapshot?.bulkSquareFeet ?? null
+    const oldRackPalletPositions = persistedRack ? Number(bulkRack?.rack_pallet_positions) : bulkRackSnapshot?.rackPalletPositions ?? null
+    const oldBulkValueSource = persistedBulk ? 'administrator' : bulkRackSnapshot?.bulkSquareFeet !== undefined ? 'source-snapshot' : 'pending'
+    const oldRackValueSource = persistedRack ? 'administrator' : bulkRackSnapshot?.rackPalletPositions !== undefined ? 'source-snapshot' : 'pending'
 
-    if (input.bulkRack && (changesBulk || changesRack)) {
-      const snapshot = facilityBulkRackSnapshots[input.facilityId]
-      const previousBulk = bulkRack?.bulk_square_feet
-      const previousRack = bulkRack?.rack_pallet_positions
-      const nextBulk = changesBulk ? input.bulkRack.bulkSquareFeet : previousBulk === null || previousBulk === undefined ? null : Number(previousBulk)
-      const nextRack = changesRack ? input.bulkRack.rackPalletPositions : previousRack === null || previousRack === undefined ? null : Number(previousRack)
-      const saved = bulkRack
-        ? await client.query(`UPDATE facility_bulk_rack SET bulk_square_feet=$1,rack_pallet_positions=$2,version=version+1,updated_at=now(),updated_by_admin_id=$3
-            WHERE facility_id=$4 RETURNING *`, [nextBulk, nextRack, persistedActor.id, input.facilityId])
-        : await client.query(`INSERT INTO facility_bulk_rack (facility_id,bulk_square_feet,rack_pallet_positions,version,updated_by_admin_id)
-            VALUES ($1,$2,$3,1,$4) RETURNING *`, [input.facilityId, nextBulk, nextRack, persistedActor.id])
-      bulkRack = saved.rows[0]
-      if (changesBulk) await client.query(`INSERT INTO facility_bulk_rack_audit
-        (facility_id,metric,old_value,new_value,version,actor_admin_id,actor_iam_user_id,actor_username,old_value_source)
-        VALUES ($1,'bulk',$2,$3,$4,$5,$6,$7,$8)`, [input.facilityId, previousBulk ?? snapshot?.bulkSquareFeet ?? null, input.bulkRack.bulkSquareFeet, bulkRack?.version, persistedActor.id, persistedActor.iam_user_id, persistedActor.username, previousBulk !== null && previousBulk !== undefined ? 'administrator' : snapshot?.bulkSquareFeet !== undefined ? 'source-snapshot' : 'pending'])
-      if (changesRack) await client.query(`INSERT INTO facility_bulk_rack_audit
-        (facility_id,metric,old_value,new_value,version,actor_admin_id,actor_iam_user_id,actor_username,old_value_source)
-        VALUES ($1,'rack',$2,$3,$4,$5,$6,$7,$8)`, [input.facilityId, previousRack ?? snapshot?.rackPalletPositions ?? null, input.bulkRack.rackPalletPositions, bulkRack?.version, persistedActor.id, persistedActor.iam_user_id, persistedActor.username, previousRack !== null && previousRack !== undefined ? 'administrator' : snapshot?.rackPalletPositions !== undefined ? 'source-snapshot' : 'pending'])
-    }
+    const savedAvailability = availability
+      ? await client.query(`UPDATE facility_availability SET square_feet=$1,version=version+1,updated_at=now(),updated_by_admin_id=$2
+          WHERE facility_id=$3 RETURNING *`, [input.availability.squareFeet, persistedActor.id, input.facilityId])
+      : await client.query(`INSERT INTO facility_availability (facility_id,square_feet,version,updated_by_admin_id)
+          VALUES ($1,$2,1,$3) RETURNING *`, [input.facilityId, input.availability.squareFeet, persistedActor.id])
+    availability = savedAvailability.rows[0]
+
+    const savedBulkRack = bulkRack
+      ? await client.query(`UPDATE facility_bulk_rack SET bulk_square_feet=$1,rack_pallet_positions=$2,version=version+1,updated_at=now(),updated_by_admin_id=$3
+          WHERE facility_id=$4 RETURNING *`, [input.bulkRack.bulkSquareFeet, input.bulkRack.rackPalletPositions, persistedActor.id, input.facilityId])
+      : await client.query(`INSERT INTO facility_bulk_rack (facility_id,bulk_square_feet,rack_pallet_positions,version,updated_by_admin_id)
+          VALUES ($1,$2,$3,1,$4) RETURNING *`, [input.facilityId, input.bulkRack.bulkSquareFeet, input.bulkRack.rackPalletPositions, persistedActor.id])
+    bulkRack = savedBulkRack.rows[0]
+
+    await client.query(`INSERT INTO facility_space_save_audit
+      (facility_id,old_available_square_feet,new_available_square_feet,old_available_value_source,
+       old_bulk_square_feet,new_bulk_square_feet,old_bulk_value_source,
+       old_rack_pallet_positions,new_rack_pallet_positions,old_rack_value_source,
+       availability_version,bulk_rack_version,actor_admin_id,actor_iam_user_id,actor_username)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`, [
+      input.facilityId, oldAvailableSquareFeet, input.availability.squareFeet, oldAvailableValueSource,
+      oldBulkSquareFeet, input.bulkRack.bulkSquareFeet, oldBulkValueSource,
+      oldRackPalletPositions, input.bulkRack.rackPalletPositions, oldRackValueSource,
+      savedAvailability.rows[0].version, savedBulkRack.rows[0].version, persistedActor.id, persistedActor.iam_user_id, persistedActor.username,
+    ])
 
     return { ...availabilityRecord(input.facilityId, availability), ...bulkRackRecord(input.facilityId, bulkRack) }
   })
@@ -192,15 +188,24 @@ export async function availabilityHistory(db: Db, input: { page: number; facilit
   const values: unknown[] = []
   const where = input.facilityId ? 'WHERE facility_id=$1' : ''
   if (input.facilityId) values.push(input.facilityId)
-  const countResult = await db.query(`SELECT count(*)::int count FROM facility_availability_audit ${where}`, values)
+  const countResult = await db.query(`SELECT
+    (SELECT count(*) FROM facility_availability_audit ${where})::int +
+    (SELECT count(*) FROM facility_space_save_audit ${where})::int AS count`, values)
   const total = Number(countResult.rows[0].count)
   const offsetParameter = values.length + 1
-  const pageResult = await db.query(`SELECT id,facility_id,old_square_feet,new_square_feet,version,actor_iam_user_id,actor_username,old_value_source,created_at
-    FROM facility_availability_audit ${where}
-    ORDER BY created_at DESC,id DESC LIMIT ${AVAILABILITY_HISTORY_PAGE_SIZE} OFFSET $${offsetParameter}`, [...values, (input.page - 1) * AVAILABILITY_HISTORY_PAGE_SIZE])
+  const pageResult = await db.query(`WITH events AS (
+      SELECT 'availability'::text source,1 source_rank,id audit_id,facility_id,old_square_feet,new_square_feet,version,
+        actor_iam_user_id,actor_username,old_value_source,created_at
+      FROM facility_availability_audit ${where}
+      UNION ALL
+      SELECT 'combined'::text source,2 source_rank,id audit_id,facility_id,old_available_square_feet,new_available_square_feet,availability_version,
+        actor_iam_user_id,actor_username,old_available_value_source,created_at
+      FROM facility_space_save_audit ${where}
+    ) SELECT * FROM events ORDER BY created_at DESC,source_rank DESC,audit_id DESC
+    LIMIT ${AVAILABILITY_HISTORY_PAGE_SIZE} OFFSET $${offsetParameter}`, [...values, (input.page - 1) * AVAILABILITY_HISTORY_PAGE_SIZE])
   return {
     entries: pageResult.rows.map((row) => ({
-      id: String(row.id), facilityId: String(row.facility_id),
+      id: row.source === 'availability' ? String(row.audit_id) : `combined:${row.audit_id}`, facilityId: String(row.facility_id),
       oldSquareFeet: row.old_square_feet === null ? null : Number(row.old_square_feet), newSquareFeet: Number(row.new_square_feet),
       version: Number(row.version), actorIamUserId: String(row.actor_iam_user_id), actorUsername: String(row.actor_username),
       oldValueSource: row.old_square_feet === null && row.old_value_source === 'administrator'
@@ -219,28 +224,50 @@ export async function facilitySpaceHistory(db: Db, input: { page: number; facili
   const where = input.facilityId ? 'WHERE facility_id=$1' : ''
   if (input.facilityId) values.push(input.facilityId)
   const countResult = await db.query(`SELECT
+    (SELECT count(*) FROM facility_space_save_audit ${where})::int +
     (SELECT count(*) FROM facility_availability_audit ${where})::int +
     (SELECT count(*) FROM facility_bulk_rack_audit ${where})::int AS count`, values)
   const total = Number(countResult.rows[0].count)
   const offsetParameter = values.length + 1
   const pageResult = await db.query(`WITH events AS (
-      SELECT 'availability'::text source,id audit_id,facility_id,'available'::text metric,old_square_feet old_value,new_square_feet new_value,
-        version,actor_iam_user_id,actor_username,old_value_source,created_at
+      SELECT 'combined'::text source,3 source_order,id audit_id,facility_id,
+        old_available_square_feet,new_available_square_feet,old_available_value_source,
+        old_bulk_square_feet,new_bulk_square_feet,old_bulk_value_source,
+        old_rack_pallet_positions,new_rack_pallet_positions,old_rack_value_source,
+        availability_version,bulk_rack_version,actor_iam_user_id,actor_username,created_at
+      FROM facility_space_save_audit ${where}
+      UNION ALL
+      SELECT 'legacy-available'::text source,2 source_order,id audit_id,facility_id,
+        old_square_feet,new_square_feet,CASE WHEN old_square_feet IS NULL AND old_value_source='administrator' THEN 'pending' ELSE old_value_source END,
+        NULL::bigint,NULL::bigint,NULL::text,
+        NULL::bigint,NULL::bigint,NULL::text,
+        version,NULL::integer,actor_iam_user_id,actor_username,created_at
       FROM facility_availability_audit ${where}
       UNION ALL
-      SELECT 'bulk-rack'::text source,id audit_id,facility_id,metric,old_value,new_value,
-        version,actor_iam_user_id,actor_username,old_value_source,created_at
+      SELECT CASE WHEN metric='bulk' THEN 'legacy-bulk' ELSE 'legacy-rack' END source,1 source_order,id audit_id,facility_id,
+        NULL::bigint,NULL::bigint,NULL::text,
+        CASE WHEN metric='bulk' THEN old_value ELSE NULL END,CASE WHEN metric='bulk' THEN new_value ELSE NULL END,CASE WHEN metric='bulk' THEN old_value_source ELSE NULL END,
+        CASE WHEN metric='rack' THEN old_value ELSE NULL END,CASE WHEN metric='rack' THEN new_value ELSE NULL END,CASE WHEN metric='rack' THEN old_value_source ELSE NULL END,
+        NULL::integer,version,actor_iam_user_id,actor_username,created_at
       FROM facility_bulk_rack_audit ${where}
-    ) SELECT * FROM events ORDER BY created_at DESC,source DESC,audit_id DESC
+    ) SELECT * FROM events ORDER BY created_at DESC,source_order DESC,audit_id DESC
     LIMIT ${AVAILABILITY_HISTORY_PAGE_SIZE} OFFSET $${offsetParameter}`, [...values, (input.page - 1) * AVAILABILITY_HISTORY_PAGE_SIZE])
   return {
     entries: pageResult.rows.map((row) => ({
-      id: `${row.source}:${row.audit_id}`, facilityId: String(row.facility_id), metric: String(row.metric) as 'available' | 'bulk' | 'rack',
-      oldValue: row.old_value === null ? null : Number(row.old_value), newValue: Number(row.new_value), version: Number(row.version),
+      id: `${row.source}:${row.audit_id}`, facilityId: String(row.facility_id),
+      recordType: String(row.source) as 'combined' | 'legacy-available' | 'legacy-bulk' | 'legacy-rack',
+      oldAvailableSquareFeet: row.old_available_square_feet === null ? null : Number(row.old_available_square_feet),
+      newAvailableSquareFeet: row.new_available_square_feet === null ? null : Number(row.new_available_square_feet),
+      oldAvailableValueSource: row.old_available_value_source === null ? null : String(row.old_available_value_source) as 'administrator' | 'source-snapshot' | 'pending',
+      oldBulkSquareFeet: row.old_bulk_square_feet === null ? null : Number(row.old_bulk_square_feet),
+      newBulkSquareFeet: row.new_bulk_square_feet === null ? null : Number(row.new_bulk_square_feet),
+      oldBulkValueSource: row.old_bulk_value_source === null ? null : String(row.old_bulk_value_source) as 'administrator' | 'source-snapshot' | 'pending',
+      oldRackPalletPositions: row.old_rack_pallet_positions === null ? null : Number(row.old_rack_pallet_positions),
+      newRackPalletPositions: row.new_rack_pallet_positions === null ? null : Number(row.new_rack_pallet_positions),
+      oldRackValueSource: row.old_rack_value_source === null ? null : String(row.old_rack_value_source) as 'administrator' | 'source-snapshot' | 'pending',
+      availabilityVersion: row.availability_version === null ? null : Number(row.availability_version),
+      bulkRackVersion: row.bulk_rack_version === null ? null : Number(row.bulk_rack_version),
       actorIamUserId: String(row.actor_iam_user_id), actorUsername: String(row.actor_username),
-      oldValueSource: row.old_value === null && row.old_value_source === 'administrator'
-        ? 'pending' as const
-        : String(row.old_value_source) as 'administrator' | 'source-snapshot' | 'pending',
       createdAt: isoTimestamp(row.created_at),
     })),
     page: input.page, pageSize: AVAILABILITY_HISTORY_PAGE_SIZE, total, totalPages: Math.ceil(total / AVAILABILITY_HISTORY_PAGE_SIZE),

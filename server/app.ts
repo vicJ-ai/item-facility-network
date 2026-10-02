@@ -239,24 +239,20 @@ export function createApp({ config, db }: Dependencies) {
   app.post('/api/admin/facility-space/:facilityId', requireAuth, requireMutation, async (request: AuthorizedRequest, response) => {
     const facilityId = Array.isArray(request.params.facilityId) ? request.params.facilityId[0] : request.params.facilityId
     const body = request.body && typeof request.body === 'object' ? request.body as Record<string, unknown> : {}
-    const hasAvailable = Object.prototype.hasOwnProperty.call(body, 'availableSquareFeet')
-    const hasBulk = Object.prototype.hasOwnProperty.call(body, 'bulkSquareFeet')
-    const hasRack = Object.prototype.hasOwnProperty.call(body, 'rackPalletPositions')
     const availabilityVersion = body.availabilityVersion
     const bulkRackVersion = body.bulkRackVersion
-    if (!isKnownFacilityId(facilityId) || (!hasAvailable && !hasBulk && !hasRack) ||
-      (hasAvailable && (!validSquareFeet(body.availableSquareFeet) || !Number.isSafeInteger(availabilityVersion) || Number(availabilityVersion) < 0)) ||
-      ((hasBulk || hasRack) && (!Number.isSafeInteger(bulkRackVersion) || Number(bulkRackVersion) < 0)) ||
-      (hasBulk && !validSquareFeet(body.bulkSquareFeet)) || (hasRack && !validSquareFeet(body.rackPalletPositions))) return fail(response, 400, 'invalid_space')
+    if (!isKnownFacilityId(facilityId) || !validSquareFeet(body.availableSquareFeet) || !validSquareFeet(body.bulkSquareFeet) ||
+      !validSquareFeet(body.rackPalletPositions) || !Number.isSafeInteger(availabilityVersion) || Number(availabilityVersion) < 0 ||
+      !Number.isSafeInteger(bulkRackVersion) || Number(bulkRackVersion) < 0) return fail(response, 400, 'invalid_space')
     try {
       const space = await saveFacilitySpace(db, config.tenantId, request.admin!, {
         facilityId,
-        ...(hasAvailable ? { availability: { squareFeet: Number(body.availableSquareFeet), version: Number(availabilityVersion) } } : {}),
-        ...(hasBulk || hasRack ? { bulkRack: {
+        availability: { squareFeet: Number(body.availableSquareFeet), version: Number(availabilityVersion) },
+        bulkRack: {
           version: Number(bulkRackVersion),
-          ...(hasBulk ? { bulkSquareFeet: Number(body.bulkSquareFeet) } : {}),
-          ...(hasRack ? { rackPalletPositions: Number(body.rackPalletPositions) } : {}),
-        } } : {}),
+          bulkSquareFeet: Number(body.bulkSquareFeet),
+          rackPalletPositions: Number(body.rackPalletPositions),
+        },
       })
       response.json({ ok: true, space })
     } catch (error) {
