@@ -34,7 +34,7 @@ import {
   WAYNE_BROOKS_PHOTO_URL,
 } from '../src/data/facility-operations'
 import { facilitySitePlans } from '../src/data/facility-site-plans'
-import { facilityAvailableSpace, facilityBulkRack, formatAvailableSpace, formatAvailableSpaceMonth, getFacilitySquareFootage } from '../src/data/facility-space'
+import { facilityAvailableSpace, facilityBulkRack, facilityTotalSquareFeet, formatAvailableSpace, formatAvailableSpaceMonth, getFacilitySquareFootage, getSitePlanAreaFact } from '../src/data/facility-space'
 import { userProvidedFacilityPhotos } from '../src/data/facility-user-photos'
 
 const suppliedAddresses = [
@@ -781,7 +781,7 @@ test('every Dashboard region, including Arizona, focuses the map on its pinned f
     ['Tennessee', [9, 24]],
     ['Florida', [12]],
     ['Nevada', [13, 22]],
-    ['Illinois', [16]],
+    ['Illinois', [16, 29]],
     ['Arizona', [18]],
     ['Utah', [25]],
     ['New Jersey', [26]],
@@ -1166,19 +1166,38 @@ test('desktop divider supports bounded pointer and keyboard resizing and persist
   await expect.poll(async () => (await page.getByRole('region', { name: 'Facility directory', exact: true }).boundingBox())?.width ?? 0).toBeCloseTo(persistedWidth, 0)
 })
 
-test('square footage uses each site plan building area and shows warehouse-reported available space', () => {
+test('square footage uses user-provided totals, then each site plan building area, and shows warehouse-reported available space', () => {
   const totals = Object.fromEntries(facilities.map((facility) => [facility.id, getFacilitySquareFootage(facility.id).totalSquareFeet]))
-  expect(Object.values(totals).filter((total) => total !== undefined)).toHaveLength(15)
-  // Ontario has no site plan; its total was user-provided on 2026-10-01.
-  expect(totals['ontario-airport']).toBe(140_000)
+  // Every facility has a total.
+  expect(Object.values(totals).filter((total) => total !== undefined)).toHaveLength(facilities.length)
+  // User-provided totals (2026-10-01 and 2026-10-02) cover sites with no plan, plans that state no area, and plans awaiting correction.
+  expect(Object.fromEntries(Object.keys(facilityTotalSquareFeet).map((id) => [id, totals[id]]))).toEqual({
+    'ontario-airport': 140_000,
+    'tacoma-lincoln': 416_492,
+    'tacoma-steele': 273_816,
+    'waddell-cotton': 915_160,
+    'kent-85th-avenue-range': 300_000,
+    'west-sacramento-overland': 105_493,
+    'sparks-vista': 50_000,
+    'salt-lake-city-jimmy-doolittle': 89_296,
+    'somerset-cottontail': 98_153,
+    'university-park-central': 1_552_475,
+    'pooler-seabrook-building-2': 499_500,
+    'jacksonville-ignition': 556_924,
+    'houston-navigation': 238_011,
+    'memphis-delp': 94_500,
+    'plano-10th-f-avenue': 328_704,
+    'pooler-morgan-lakes': 302_400,
+  })
+  // Pooler Morgan Lakes' plan still states 499,500 SF, but the user's newer total wins.
+  expect(getSitePlanAreaFact('pooler-morgan-lakes')?.value).toBe(499_500)
   expect(totals['garden-city-prosperity']).toBe(505_902)
   // The official Jacksonville and Pooler Seabrook plans state no square footage.
-  expect(Object.keys(facilitySitePlans).filter((facilityId) => totals[facilityId] === undefined).sort()).toEqual(['jacksonville-ignition', 'pooler-seabrook-building-2'])
+  expect(Object.keys(facilitySitePlans).filter((facilityId) => getSitePlanAreaFact(facilityId) === undefined).sort()).toEqual(['jacksonville-ignition', 'pooler-seabrook-building-2'])
   expect(totals['summerville-cypress-tradeport']).toBe(574_789)
   expect(totals['buena-park-valley-view']).toBe(1_034_026)
   expect(totals['el-paso-emerald-12102-building-5']).toBe(209_153)
   expect(totals['moreno-valley-heacock']).toBe(756_340)
-  expect(totals['waddell-cotton']).toBeUndefined()
   // Official 144 – City Park and 689 – Roanoke sheets.
   expect(totals['houston-citypark']).toBe(119_700)
   expect(totals['roanoke-highway-114']).toBe(568_632)
@@ -1237,7 +1256,7 @@ test('Overview Bulk & rack section shows reported figures or a not-provided stat
   await chooseFromDirectory(page, joliet.fullAddress)
   const section = page.getByTestId('bulk-rack')
   await expect(section).toHaveAttribute('data-reported', 'true')
-  await expect(section.getByTestId('bulk-rack-bulk')).toHaveText('Bulk110,000 SF · up to 150,000 SF')
+  await expect(section.getByTestId('bulk-rack-bulk')).toHaveText('Bulk110,000 SQF · up to 150,000 SQF')
   await expect(section.getByTestId('bulk-rack-rack')).toHaveText('Rack3,000 pallet positions')
   await expect(section).toContainText('Warehouse-reported as of Oct 2026.')
 
@@ -1248,13 +1267,13 @@ test('Overview Bulk & rack section shows reported figures or a not-provided stat
   await expect(section.getByTestId('bulk-rack-rack')).toHaveText('RackNot provided')
 })
 
-test('Dashboard preview without a site plan shows a pending total and reported available space', async ({ page }) => {
+test('Dashboard preview without a site plan shows its user-provided total and reported available space', async ({ page }) => {
   await page.getByRole('button', { name: 'Dashboard', exact: true }).click()
   const map = page.getByLabel('Facility network map')
   const waddell = facilities[17]
   await page.getByRole('button', { name: 'Open facility 18 in Facilities' }).hover()
   const preview = await expectDashboardPreviewLayout(page, map, waddell)
-  await expect(preview.getByTestId('square-footage-total')).toHaveText('Total Pending')
+  await expect(preview.getByTestId('square-footage-total')).toHaveText('Total 915,160 SQF')
   await expect(preview.getByTestId('square-footage-available')).toHaveText('Available 40,000 SQF')
 })
 
@@ -1263,10 +1282,11 @@ test('Dashboard preview shows user-provided totals and 0 SQF available where rep
   for (const [number, total, available] of [
     [19, 'Total 140,000 SQF', 'Available Pending'],
     [28, 'Total 505,902 SQF', 'Available 0 SQF'],
-    [29, 'Total Pending', 'Available 0 SQF'],
+    [6, 'Total 302,400 SQF', 'Available Pending'],
+    [29, 'Total 1,552,475 SQF', 'Available 0 SQF'],
   ] as const) {
     // Ontario's pin sits under Moreno Valley's at this zoom, so open each preview by keyboard focus instead of hover.
-    await page.getByRole('button', { name: `Open facility ${number} in Facilities` }).focus()
+    await page.getByRole('button', { name: `Open facility ${String(number).padStart(2, '0')} in Facilities` }).focus()
     const preview = page.locator(`[data-testid="dashboard-pin-preview"][data-facility-id="${facilities[number - 1].id}"]`)
     await expect(preview, `facility ${number}`).toBeVisible()
     await expect(preview.getByTestId('square-footage-total'), `facility ${number}`).toHaveText(total)
@@ -2720,7 +2740,7 @@ test('facility gallery and site-plan sidecars retain all integrated records and 
 
 test('site-plan tabs show sourced facts, redraw notes, official-sheet plans, and the missing-plan empty state', async ({ page }) => {
   for (const [address, imagePath, expectedText] of [
-    [suppliedAddresses[0], '/media/site-plans/buena-park-valley-view.png', '1,034,026 SF'],
+    [suppliedAddresses[0], '/media/site-plans/buena-park-valley-view.png', '1,034,026 SQF'],
     [suppliedAddresses[1], '/media/site-plans/riverside-alessandro-redraw.png', 'Supplied redraw; not to scale and not an original official plan.'],
     [suppliedAddresses[4], '/media/site-plans/roanoke-highway-114-official.png', 'Official UNIS facility sheet (689 – Roanoke).'],
     [suppliedAddresses[3], '/media/site-plans/houston-citypark-official.png', 'Includes 1 drive-in door'],
@@ -2749,7 +2769,7 @@ test('facility profile downloads are four-page selected-facility PDFs with hours
   const buenaPark = await downloadFacilityProfile(page, suppliedAddresses[0], 'facility-01-buena-park-valley-view-profile.pdf', { assertLoading: true })
   expect(buenaPark.title).toContain('Facility 01')
   expect(buenaPark.keywords).toContain(suppliedAddresses[0])
-  expect(buenaPark.keywords).toContain('1,034,026 SF')
+  expect(buenaPark.keywords).toContain('1,034,026 SQF')
   expect(buenaPark.keywords).toContain('Building exterior')
   expect(buenaPark.keywords).toContain('User-provided media')
   expect(buenaPark.keywords).toContain('8:00 AM–4:30 PM PST M-F')
@@ -2758,22 +2778,22 @@ test('facility profile downloads are four-page selected-facility PDFs with hours
   expect(buenaPark.visibleText).not.toContain('Contact information coming soon')
   expect(buenaPark.assetPaths.some((path) => path.startsWith('/media/operations/'))).toBe(false)
   expect(buenaPark.assetPaths).not.toContain(JOHN_DIAZ_PHOTO_URL)
-  expect(buenaPark.keywords).not.toContain('709,081 SF')
+  expect(buenaPark.keywords).not.toContain('709,081 SQF')
   expect(buenaPark.assetPaths.every((path) => path.startsWith('/media/buena-park/') || path === '/media/site-plans/buena-park-valley-view.png')).toBe(true)
 
   await returnToDirectory(page)
   const riverside = await downloadFacilityProfile(page, suppliedAddresses[1], 'facility-02-riverside-alessandro-profile.pdf')
   expect(riverside.keywords).toContain(suppliedAddresses[1])
-  expect(riverside.keywords).toContain('709,081 SF')
+  expect(riverside.keywords).toContain('709,081 SQF')
   expect(riverside.keywords).toContain('Supplied redraw; not to scale and not an original official plan.')
   expect(riverside.keywords).toContain('Official UNIS directory listing media')
-  expect(riverside.keywords).not.toContain('1,034,026 SF')
+  expect(riverside.keywords).not.toContain('1,034,026 SQF')
   expect(riverside.assetPaths.every((path) => path === '/media/riverside-alessandro.jpg' || path === '/media/site-plans/riverside-alessandro-redraw.png')).toBe(true)
 
   await returnToDirectory(page)
   const roanoke = await downloadFacilityProfile(page, suppliedAddresses[4], 'facility-05-roanoke-highway-114-profile.pdf')
   expect(roanoke.keywords).toContain(suppliedAddresses[4])
-  expect(roanoke.keywords).toContain('568,632 SF')
+  expect(roanoke.keywords).toContain('568,632 SQF')
   expect(roanoke.keywords).toContain('Official UNIS facility sheet (689 – Roanoke).')
   expect(roanoke.keywords).toContain('8:00 AM–4:30 PM CST M-F')
   expect(roanoke.keywords).not.toMatch(/airport distance|port distance|currently available/i)

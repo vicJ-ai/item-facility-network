@@ -58,7 +58,8 @@ test('Preview plays a cinematic tour that starts in Washington and hides the reg
   await expect(page.locator('.globe-credits')).toBeVisible()
   await expect(tour.locator('.preview-segment')).toHaveCount(13)
   // University Park joins the tour once it has more information; until then it is not in a Dashboard region.
-  await expect(tour.locator('.preview-tick')).toHaveCount(facilities.filter((facility) => facility.id !== 'university-park-central').length)
+  // Every facility is a tour stop; University Park joined the Illinois chapter on 2026-10-02.
+  await expect(tour.locator('.preview-tick')).toHaveCount(facilities.length)
   await expect(tour.locator('[data-chapter-label="0"]')).toContainText('Washington')
 
   const firstStop = await tour.getAttribute('data-preview-stop')
@@ -107,7 +108,7 @@ test('Next, Previous, and the progress ticks move between facilities', async ({ 
   // Each stop shows its cover photo, square footage, and the next site-plan facts.
   const tennesseeCard = tour.locator(`.preview-stop[data-stop="${index}"] [data-testid="preview-stop-card"]`)
   await expect(tennesseeCard.locator('img')).toHaveAttribute('src', userProvidedFacilityPhotos['tennessee-quality-drive']!.photos.find((photo) => photo.id === 'oblique-aerial-exterior')!.assetUrl)
-  await expect(tennesseeCard).toContainText('Total220,100 SF')
+  await expect(tennesseeCard).toContainText('Total220,100 SQF')
   await expect(tennesseeCard.getByTestId('preview-stop-available')).toHaveText('AvailablePending')
   await expect(tennesseeCard).toContainText('Auto parking122')
 
@@ -118,7 +119,7 @@ test('Next, Previous, and the progress ticks move between facilities', async ({ 
   await expect(roanokeCard).toContainText('Dock positions127')
 
   for (let step = 0; step < facilities.length; step += 1) await page.keyboard.press('ArrowRight')
-  await expect(tour.locator('[data-finale]')).toContainText('28 FACILITIES · 13 REGIONS')
+  await expect(tour.locator('[data-finale]')).toContainText('29 FACILITIES · 13 REGIONS')
 })
 
 // The tour's chapters west to east, each with its facilities in visiting order.
@@ -130,7 +131,7 @@ const TOUR_ORDER: [string, number[]][] = [
   ['utah', [25]],
   ['arizona', [18]],
   ['texas', [14, 17, 5, 27, 4, 23]],
-  ['illinois', [16]],
+  ['illinois', [16, 29]],
   ['tennessee', [9, 24]],
   ['florida', [12]],
   ['georgia', [28, 7, 6]],

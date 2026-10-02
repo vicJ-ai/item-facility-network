@@ -332,7 +332,7 @@ export default function PreviewTour({ api, chapters, interactionTarget, localTim
               <div className="preview-stop-card" data-testid="preview-stop-card">
                 {details.photo && <img className="preview-stop-photo" src={details.photo.src} alt={details.photo.alt} decoding="async" />}
                 <dl className="preview-stop-facts">
-                  {details.totalSquareFeet !== undefined && <div><dt>Total</dt><dd>{details.totalSquareFeet.toLocaleString('en-US')} SF</dd></div>}
+                  {details.totalSquareFeet !== undefined && <div><dt>Total</dt><dd>{details.totalSquareFeet.toLocaleString('en-US')} SQF</dd></div>}
                   <div data-testid="preview-stop-available"><dt>Available</dt><dd>{details.available}</dd></div>
                   {details.facts.map((fact) => <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>)}
                 </dl>

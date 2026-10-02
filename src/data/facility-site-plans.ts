@@ -20,6 +20,9 @@ export type FacilitySitePlan = {
 export const sitePlanProvenanceLabel = (plan: FacilitySitePlan) =>
   plan.provenance === 'official-facility-sheet' ? 'Official site plan' : 'User-provided site plan'
 
+// Plans record square footage as 'SF' to match their source sheets; the app always displays it as 'SQF'.
+export const displayFactUnit = (unit: string) => (unit === 'SF' ? 'SQF' : unit)
+
 export const facilitySitePlans: Partial<Record<string, FacilitySitePlan>> = {
   'buena-park-valley-view': {
     assetUrl: '/media/site-plans/buena-park-valley-view.png',
@@ -141,7 +144,7 @@ export const facilitySitePlans: Partial<Record<string, FacilitySitePlan>> = {
     facts: [
       { id: 'building-area', label: 'Building area', value: 756_340, unit: 'SF' },
       { id: 'trailer-stall-capacity', label: 'Trailer stall capacity', value: 158, unit: 'stalls', note: 'Plan capacity' },
-      { id: 'excess-trailer-yard', label: 'Excess trailer yard', value: '6.50', unit: 'acres', note: '283,140 SF' },
+      { id: 'excess-trailer-yard', label: 'Excess trailer yard', value: '6.50', unit: 'acres', note: '283,140 SQF' },
       { id: 'automobile-parking', label: 'Automobile parking', value: 'Not specified', note: 'No count stated' },
     ],
   },

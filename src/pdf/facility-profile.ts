@@ -10,7 +10,7 @@ import type { Facility } from '../data/facilities'
 import { formatOperatingHours, type FacilityOperatingHours } from '../data/facility-hours'
 import type { FacilityMedia } from '../data/facility-media'
 import type { FacilityContact, FacilityOperations } from '../data/facility-operations'
-import { sitePlanProvenanceLabel, type FacilitySitePlan, type FacilitySitePlanFact } from '../data/facility-site-plans'
+import { displayFactUnit, sitePlanProvenanceLabel, type FacilitySitePlan, type FacilitySitePlanFact } from '../data/facility-site-plans'
 import type { UserProvidedFacilityPhoto, UserProvidedFacilityPhotos } from '../data/facility-user-photos'
 
 export type FacilityProfileData = {
@@ -57,7 +57,7 @@ export function getFacilityProfileFilename(facility: Facility) {
 
 function formatFact(fact: FacilitySitePlanFact) {
   const value = typeof fact.value === 'number' ? fact.value.toLocaleString('en-US') : fact.value
-  return `${value}${fact.unit ? ` ${fact.unit}` : ''}`
+  return `${value}${fact.unit ? ` ${displayFactUnit(fact.unit)}` : ''}`
 }
 
 function splitText(text: string, font: PDFFont, size: number, maxWidth: number) {
