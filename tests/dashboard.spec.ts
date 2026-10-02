@@ -2234,6 +2234,9 @@ test('Operations sidecar maps 18 exact sheet rows, 3 official facility sheets, 8
   expect(facilityOperations['houston-citypark']?.contacts.find((contact) => contact.sourceColumn === 'I')).toMatchObject({ role: 'Operations Supervisor', name: 'Ruben Echavarria' })
   expect(facilityOperations['houston-citypark']?.contacts.find((contact) => contact.sourceColumn === 'I')?.email).toBeUndefined()
   expect(facilityOperations['sparks-vista']?.contacts.find((contact) => contact.sourceColumn === 'F')).toMatchObject({ role: 'Operations Supervisor', name: 'Onoriode Enaigbe' })
+  expect(facilityOperations['university-park-central']?.contacts.find((contact) => contact.sourceColumn === 'J')).toMatchObject({
+    role: 'Regional Director of Operations', name: 'Jimmy Esparza', email: 'jimmy.esparza@unisco.com', phones: [{ label: 'Phone', display: '626-341-7845', href: '+16263417845' }],
+  })
   expect(facilityOperations['long-beach-willow']?.contacts.find((contact) => contact.sourceColumn === 'F')).toMatchObject({ role: 'Operations Manager', name: 'Efrain Islas Alcaraz', email: 'efrain.islas@unisco.com', photoUrl: EFRAIN_ISLAS_ALCARAZ_PHOTO_URL })
   expect(facilityOperations['tacoma-lincoln']?.contacts.find((contact) => contact.sourceColumn === 'J')).toMatchObject({
     role: 'Regional Director of Field Operations', name: 'Harold Cuarezma',
