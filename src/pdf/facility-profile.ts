@@ -11,7 +11,7 @@ import { formatOperatingHours, type FacilityOperatingHours } from '../data/facil
 import type { FacilityMedia } from '../data/facility-media'
 import { formatAvailableSpaceMonth } from '../data/facility-space'
 import type { FacilityContact, FacilityOperations } from '../types/operations'
-import { sitePlanProvenanceLabel, type FacilitySitePlan, type FacilitySitePlanFact } from '../data/facility-site-plans'
+import { displayFactUnit, sitePlanProvenanceLabel, type FacilitySitePlan, type FacilitySitePlanFact } from '../data/facility-site-plans'
 import type { UserProvidedFacilityPhoto, UserProvidedFacilityPhotos } from '../data/facility-user-photos'
 
 export type FacilityProfileAvailability = {
@@ -28,6 +28,7 @@ export type FacilityProfileData = {
   media?: FacilityMedia
   operations?: FacilityOperations
   operationsAccess: 'public' | 'authorized'
+  totalSquareFeet?: number
   availableSpace?: FacilityProfileAvailability
   sitePlan?: FacilitySitePlan
   userPhotos?: UserProvidedFacilityPhotos
@@ -67,7 +68,7 @@ export function getFacilityProfileFilename(facility: Facility) {
 
 function formatFact(fact: FacilitySitePlanFact) {
   const value = typeof fact.value === 'number' ? fact.value.toLocaleString('en-US') : fact.value
-  return `${value}${fact.unit ? ` ${fact.unit}` : ''}`
+  return `${value}${fact.unit ? ` ${displayFactUnit(fact.unit)}` : ''}`
 }
 
 function splitText(text: string, font: PDFFont, size: number, maxWidth: number) {
@@ -292,7 +293,7 @@ function operatingHoursSource(hours?: FacilityOperatingHours) {
 
 function availabilityText(available?: FacilityProfileAvailability) {
   if (!available) return 'Pending'
-  const value = `${available.squareFeet.toLocaleString('en-US')} SQFT`
+  const value = `${available.squareFeet.toLocaleString('en-US')} SQF`
   return available.status === 'unconfirmed' ? `${value} (not confirmed)` : value
 }
 
@@ -303,8 +304,10 @@ function availabilitySource(available?: FacilityProfileAvailability) {
 }
 
 function pageOneFacts(data: FacilityProfileData) {
-  const facts: Array<{ label: string; value: string; note?: string }> = data.sitePlan?.facts.slice(0, 4).map((fact) => ({ label: fact.label, value: formatFact(fact) })) ?? []
-  if (facts.length === 0) {
+  const facts: Array<{ label: string; value: string; note?: string }> = []
+  if (data.totalSquareFeet !== undefined) facts.push({ label: 'Total square footage', value: `${data.totalSquareFeet.toLocaleString('en-US')} SQF` })
+  facts.push(...(data.sitePlan?.facts.slice(0, 4 - facts.length).map((fact) => ({ label: fact.label, value: formatFact(fact) })) ?? []))
+  if (!data.sitePlan) {
     facts.push(
       { label: 'Facility', value: `Facility ${facilityNumber(data.facility)}` },
       { label: 'Map precision', value: data.facility.coordinatePrecision },
@@ -567,6 +570,7 @@ function metadataKeywords(data: FacilityProfileData) {
     data.sitePlan?.facts.length ? 'Sourced facility advantages' : 'Specific advantages not supplied',
     data.sitePlan ? sitePlanProvenanceLabel(data.sitePlan) : 'Site plan not provided',
     photoSource(data),
+    data.totalSquareFeet === undefined ? '' : `${data.totalSquareFeet.toLocaleString('en-US')} SQF`,
     operatingHoursText(data.operatingHours),
     availabilityText(data.availableSpace),
     availabilitySource(data.availableSpace),

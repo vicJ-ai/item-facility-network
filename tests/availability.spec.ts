@@ -51,10 +51,10 @@ test('admin availability workflow updates both public surfaces while privileged 
   await editor.getByLabel('Available space').fill('123456')
   await editor.getByRole('button', { name: 'Save available space' }).click()
   await expect(editor.getByRole('status')).toHaveText('Available space saved.')
-  await expect(editor).toContainText('123,456 SQFT')
+  await expect(editor).toContainText('123,456 SQF')
 
   const history = workbench.getByRole('region', { name: 'Change history' })
-  await expect(history).toContainText('Pending → 123,456 SQFT')
+  await expect(history).toContainText('Pending → 123,456 SQF')
   await expect(history).toContainText('lmadala')
   await expect(history).toContainText('IAM ID 2084344241143070722')
   await expect(history.getByRole('time')).toContainText('UTC')
@@ -76,13 +76,13 @@ test('admin availability workflow updates both public surfaces while privileged 
   await page.setViewportSize({ width: 1536, height: 1024 })
   await openValleyView(page)
   const overviewAvailability = page.getByTestId('overview-available-space')
-  await expect(overviewAvailability).toContainText('123,456 SQFT')
+  await expect(overviewAvailability).toContainText('123,456 SQF')
   await expect(overviewAvailability).toContainText('Live portal value, separate from immutable building-capacity and site-plan facts.')
 
   await publicNavigation.getByRole('button', { name: 'Dashboard', exact: true }).click()
   await page.getByRole('button', { name: 'Open facility 01 in Facilities' }).dispatchEvent('mouseover')
   const preview = page.locator('[data-testid="dashboard-pin-preview"][data-facility-id="buena-park-valley-view"]')
-  await expect(preview.getByTestId('square-footage-available')).toHaveText('Available 123,456 SQFT')
+  await expect(preview.getByTestId('square-footage-available')).toHaveText('Available 123,456 SQF')
 
   const publicPage = await browser.newPage({ viewport: { width: 1280, height: 900 } })
   try {
@@ -91,10 +91,10 @@ test('admin availability workflow updates both public surfaces while privileged 
     const refreshedPublicNavigation = publicPage.getByRole('navigation', { name: 'Primary navigation' })
     await expect(refreshedPublicNavigation.getByRole('button')).toHaveText(['Dashboard', 'Facilities'])
     await openValleyView(publicPage)
-    await expect(publicPage.getByTestId('overview-available-space')).toContainText('123,456 SQFT')
+    await expect(publicPage.getByTestId('overview-available-space')).toContainText('123,456 SQF')
     await refreshedPublicNavigation.getByRole('button', { name: 'Dashboard', exact: true }).click()
     await publicPage.getByRole('button', { name: 'Open facility 01 in Facilities' }).dispatchEvent('mouseover')
-    await expect(publicPage.locator('[data-testid="dashboard-pin-preview"][data-facility-id="buena-park-valley-view"]').getByTestId('square-footage-available')).toHaveText('Available 123,456 SQFT')
+    await expect(publicPage.locator('[data-testid="dashboard-pin-preview"][data-facility-id="buena-park-valley-view"]').getByTestId('square-footage-available')).toHaveText('Available 123,456 SQF')
   } finally {
     await publicPage.close()
   }
@@ -112,7 +112,7 @@ test('administrator zero replaces a source snapshot in Overview and the generate
   const workbench = page.getByRole('region', { name: 'Operations availability workbench' })
   await workbench.getByRole('button', { name: /Facility 05[\s\S]*Roanoke, TX/ }).click()
   const editor = workbench.getByRole('form', { name: `Update available space for ${roanokeAddress}` })
-  await expect(editor).toContainText('4,000 SQFT')
+  await expect(editor).toContainText('4,000 SQF')
   await expect(editor).toContainText('User-supplied snapshot')
   await editor.getByLabel('Available space').fill('0')
   await editor.getByRole('button', { name: 'Save available space' }).click()
@@ -120,7 +120,7 @@ test('administrator zero replaces a source snapshot in Overview and the generate
 
   await navigation.getByRole('button', { name: 'Facilities', exact: true }).click()
   await page.getByRole('button', { name: `Select ${roanokeAddress}` }).click()
-  await expect(page.getByTestId('overview-available-space')).toContainText('0 SQFT')
+  await expect(page.getByTestId('overview-available-space')).toContainText('0 SQF')
   await expect(page.getByTestId('overview-available-space')).toContainText('Administrator-maintained')
   await page.getByRole('tab', { name: 'Documents' }).click()
   const downloadPromise = page.waitForEvent('download')
@@ -131,6 +131,6 @@ test('administrator zero replaces a source snapshot in Overview and the generate
     for await (const chunk of stream) chunks.push(Buffer.from(chunk))
     return Buffer.concat(chunks)
   }))
-  expect(pdf.getKeywords()).toContain('0 SQFT')
+  expect(pdf.getKeywords()).toContain('0 SQF')
   expect(pdf.getKeywords()).toContain('Administrator-maintained')
 })

@@ -31,8 +31,8 @@ import { useAccess } from './auth/access-context'
 import { useFacilityOperations } from './auth/useFacilityOperations'
 import { useFacilityAvailability } from './hooks/useFacilityAvailability'
 import type { FacilityContact, FacilityOperations } from './types/operations'
-import { getFacilitySitePlan, sitePlanProvenanceLabel, type FacilitySitePlan, type FacilitySitePlanFact } from './data/facility-site-plans'
-import { facilityAvailableSpace, formatAvailableSpaceMonth, formatBulk, formatRack, getFacilityBulkRack, getFacilitySquareFootage, type FacilityAvailableSpace } from './data/facility-space'
+import { displayFactUnit, getFacilitySitePlan, sitePlanProvenanceLabel, type FacilitySitePlan, type FacilitySitePlanFact } from './data/facility-site-plans'
+import { facilityAvailableSpace, formatAvailableSpaceMonth, formatBulk, formatRack, getFacilityBulkRack, getFacilitySquareFootage, getSitePlanAreaFact, type FacilityAvailableSpace } from './data/facility-space'
 import { getUserProvidedFacilityPhotos, type UserProvidedFacilityPhotos } from './data/facility-user-photos'
 import { getRegionBoundary, type RegionBoundary } from './data/region-boundaries'
 import { getInitialQualityChoice, probeGraphics, QUALITY_TIERS, saveQualityChoice, type QualityChoice, type QualityTier } from './lib/globe-quality'
@@ -106,7 +106,7 @@ const dashboardRegions = [
   { id: 'tennessee', label: 'Tennessee', facilityNumbers: [9, 24] },
   { id: 'florida', label: 'Florida', facilityNumbers: [12] },
   { id: 'nevada', label: 'Nevada', facilityNumbers: [13, 22] },
-  { id: 'illinois', label: 'Illinois', facilityNumbers: [16] },
+  { id: 'illinois', label: 'Illinois', facilityNumbers: [16, 29] },
   { id: 'arizona', label: 'Arizona', facilityNumbers: [18] },
   { id: 'utah', label: 'Utah', facilityNumbers: [25] },
   { id: 'new-jersey', label: 'New Jersey', facilityNumbers: [26] },
@@ -182,7 +182,7 @@ function mediaCategory(media: FacilityMedia) {
 
 function formatSitePlanFact(fact: FacilitySitePlanFact) {
   const value = typeof fact.value === 'number' ? fact.value.toLocaleString('en-US') : fact.value
-  return `${value}${fact.unit ? ` ${fact.unit}` : ''}`
+  return `${value}${fact.unit ? ` ${displayFactUnit(fact.unit)}` : ''}`
 }
 
 function OperatingHoursDisplay({ facilityId, variant }: { facilityId: string; variant: 'preview' | 'overview' | 'drawer' | 'operations' }) {
@@ -223,7 +223,7 @@ function effectiveAvailability(facilityId: string, administratorValue?: number):
 
 function formatEffectiveAvailability(available?: EffectiveAvailability) {
   if (!available) return 'Pending'
-  const amount = `${available.squareFeet.toLocaleString('en-US')} SQFT`
+  const amount = `${available.squareFeet.toLocaleString('en-US')} SQF`
   return available.status === 'unconfirmed' ? `${amount} (not confirmed)` : amount
 }
 
@@ -241,7 +241,7 @@ function SquareFootagePreview({ facilityId, availableSquareFeet }: { facilityId:
         </span>
         <span data-testid="square-footage-available" data-available-status={available ? available.valueSource === 'administrator' ? 'administrator' : available.status ?? 'source-snapshot' : 'pending'}>
           Available {available && available.status !== 'unconfirmed'
-            ? <strong>{available.squareFeet.toLocaleString('en-US')} SQFT</strong>
+            ? <strong>{available.squareFeet.toLocaleString('en-US')} SQF</strong>
             : <em className="square-footage-pending">Pending</em>}
         </span>
       </span>
@@ -259,13 +259,14 @@ function tourStopDetails(facility: Facility, administratorValue?: number): TourS
   const photo = cover ? { src: cover.assetUrl, alt: cover.alt } : media ? { src: media.detail.assetUrl, alt: media.detail.alt } : undefined
   const { totalSquareFeet } = getFacilitySquareFootage(facility.id)
   const available = effectiveAvailability(facility.id, administratorValue)
-  // The first numeric SF fact is already shown as the total, so the facts are the next two after it.
+  // The plan's area is either the total or superseded by a user-provided one, so the facts are the next two after it.
+  const areaFact = getSitePlanAreaFact(facility.id)
   const facts = (getFacilitySitePlan(facility.id)?.facts ?? [])
-    .filter((fact) => !(fact.unit === 'SF' && fact.value === totalSquareFeet))
+    .filter((fact) => fact !== areaFact && !(fact.unit === 'SF' && fact.value === totalSquareFeet))
     .slice(0, 2)
     .map((fact) => ({
       label: fact.label,
-      value: `${typeof fact.value === 'number' ? fact.value.toLocaleString('en-US') : fact.value}${fact.unit && !TOUR_FACT_COUNT_UNITS.has(fact.unit) ? ` ${fact.unit}` : ''}`,
+      value: `${typeof fact.value === 'number' ? fact.value.toLocaleString('en-US') : fact.value}${fact.unit && !TOUR_FACT_COUNT_UNITS.has(fact.unit) ? ` ${displayFactUnit(fact.unit)}` : ''}`,
     }))
   return { photo, totalSquareFeet, available: formatEffectiveAvailability(available), facts }
 }
@@ -1045,7 +1046,7 @@ function App() {
                   ? <SitePlanContent facility={selected} sitePlan={selectedSitePlan} />
                   : <EmptyState icon={MapIcon} title="Site plan not provided" body="No site plan was supplied for this facility." />)}
                 {displayedTab === 'Photos' && <PhotosContent facility={selected} media={selectedMedia} userPhotos={selectedUserPhotos} />}
-                {displayedTab === 'Documents' && <FacilityDocuments key={selected.id} facility={selected} facilityTitle={getFacilityTitle(selected)} operatingHours={getFacilityOperatingHours(selected.id)} media={selectedMedia} operations={selectedOperations} operationsAccess={access.user ? 'authorized' : 'public'} operationsLoading={operationsState.loading} availableSpace={effectiveAvailability(selected.id, availability[selected.id])} sitePlan={selectedSitePlan} userPhotos={selectedUserPhotos} />}
+                {displayedTab === 'Documents' && <FacilityDocuments key={selected.id} facility={selected} facilityTitle={getFacilityTitle(selected)} operatingHours={getFacilityOperatingHours(selected.id)} media={selectedMedia} operations={selectedOperations} operationsAccess={access.user ? 'authorized' : 'public'} operationsLoading={operationsState.loading} totalSquareFeet={getFacilitySquareFootage(selected.id).totalSquareFeet} availableSpace={effectiveAvailability(selected.id, availability[selected.id])} sitePlan={selectedSitePlan} userPhotos={selectedUserPhotos} />}
                 {displayedTab === 'Operations' && (operationsState.loading
                   ? <EmptyState icon={ShieldCheck} title="Loading Operations" body="Loading this facility's contacts." />
                   : operationsState.error
@@ -1706,7 +1707,7 @@ function BulkRackSection({ facilityId }: { facilityId: string }) {
         <span data-testid="bulk-rack-bulk"><b>Bulk</b>{formatBulk(bulkRack)}</span>
         <span data-testid="bulk-rack-rack"><b>Rack</b>{formatRack(bulkRack)}</span>
       </div>
-      <p className="property-facts-note">{bulkRack ? `Warehouse-reported as of ${formatAvailableSpaceMonth(bulkRack.asOf)}.` : 'Bulk floor space (SF) and rack capacity (pallet positions) have not been reported yet.'}</p>
+      <p className="property-facts-note">{bulkRack ? `Warehouse-reported as of ${formatAvailableSpaceMonth(bulkRack.asOf)}.` : 'Bulk floor space (SQF) and rack capacity (pallet positions) have not been reported yet.'}</p>
     </section>
   )
 }

@@ -16,6 +16,7 @@ type FacilityDocumentsProps = {
   operations?: FacilityOperations
   operationsAccess: 'public' | 'authorized'
   operationsLoading?: boolean
+  totalSquareFeet?: number
   availableSpace?: FacilityProfileAvailability
   sitePlan?: FacilitySitePlan
   userPhotos?: UserProvidedFacilityPhotos
@@ -28,7 +29,7 @@ function existingMediaLabel(media: FacilityMedia) {
   return media.verification.startsWith('user-provided') ? 'Existing user-provided photo' : 'Official listing photo'
 }
 
-export function FacilityDocuments({ facility, facilityTitle, operatingHours, media, operations, operationsAccess, operationsLoading = false, availableSpace, sitePlan, userPhotos }: FacilityDocumentsProps) {
+export function FacilityDocuments({ facility, facilityTitle, operatingHours, media, operations, operationsAccess, operationsLoading = false, totalSquareFeet, availableSpace, sitePlan, userPhotos }: FacilityDocumentsProps) {
   const [state, setState] = useState<DownloadState>('idle')
   const [errorMessage, setErrorMessage] = useState('')
 
@@ -39,7 +40,7 @@ export function FacilityDocuments({ facility, facilityTitle, operatingHours, med
     await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
     try {
       const { generateFacilityProfilePdf, getFacilityProfileFilename } = await import('../pdf/facility-profile')
-      const bytes = await generateFacilityProfilePdf({ facility, facilityTitle, operatingHours, media, operations, operationsAccess, availableSpace, sitePlan, userPhotos })
+      const bytes = await generateFacilityProfilePdf({ facility, facilityTitle, operatingHours, media, operations, operationsAccess, totalSquareFeet, availableSpace, sitePlan, userPhotos })
       const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' })
       const objectUrl = URL.createObjectURL(blob)
       const anchor = document.createElement('a')
