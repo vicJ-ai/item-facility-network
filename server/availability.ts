@@ -83,7 +83,7 @@ export async function saveAvailability(db: Db, portalTenantId: string, actor: Ad
   if (!validSquareFeet(input.squareFeet) || !Number.isSafeInteger(input.version) || input.version < 0) throw new Error('invalid_availability')
 
   return db.transaction(async (client) => {
-    await client.query("SELECT pg_advisory_xact_lock(hashtext('facility-space:' || $1))", [input.facilityId])
+    await client.query("SELECT pg_advisory_xact_lock(hashtext('facility-availability:' || $1))", [input.facilityId])
     const actorResult = await client.query('SELECT * FROM facility_admins WHERE id=$1 FOR UPDATE', [actor.id])
     const persistedActor = actorResult.rows[0]
     if (!persistedActor || !persistedActor.is_active || persistedActor.iam_user_id !== actor.iamUserId || persistedActor.tenant_id !== actor.tenantId || persistedActor.tenant_id !== portalTenantId) {
@@ -131,7 +131,7 @@ export async function saveFacilitySpace(db: Db, portalTenantId: string, actor: A
   if (changesRack && !validSquareFeet(input.bulkRack?.rackPalletPositions)) throw new Error('invalid_space')
 
   return db.transaction(async (client) => {
-    await client.query("SELECT pg_advisory_xact_lock(hashtext('facility-space:' || $1))", [input.facilityId])
+    await client.query("SELECT pg_advisory_xact_lock(hashtext('facility-availability:' || $1))", [input.facilityId])
     const actorResult = await client.query('SELECT * FROM facility_admins WHERE id=$1 FOR UPDATE', [actor.id])
     const persistedActor = actorResult.rows[0]
     if (!persistedActor || !persistedActor.is_active || persistedActor.iam_user_id !== actor.iamUserId || persistedActor.tenant_id !== actor.tenantId || persistedActor.tenant_id !== portalTenantId) {

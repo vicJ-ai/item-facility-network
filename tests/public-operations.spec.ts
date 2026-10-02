@@ -58,6 +58,12 @@ test('anonymous visitors can read facility contacts and portraits while admin su
     await expect.poll(() => portrait.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0 && image.naturalHeight > 0)).toBe(true)
   }
 
+  const customers = panel.getByTestId('top-customers')
+  await expect(customers.locator('li')).toHaveCount(20)
+  await expect(customers.locator('li').first()).toHaveText('1GURUNANDA, LLC')
+  await expect(customers.locator('li').last()).toHaveText('20DUPRAY USA LLC')
+  await expect(customers).toContainText('Ranked as listed for location 889 · SNA.')
+
   expect((await page.request.get('/api/operations/not-a-facility')).status()).toBe(404)
   expect((await page.request.get('/api/operations/portraits/not-allowlisted.png')).status()).toBe(404)
   expect((await page.request.get('/api/admin/availability')).status()).toBe(401)

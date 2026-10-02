@@ -78,7 +78,7 @@ test('admin availability workflow updates both public surfaces while privileged 
   await openValleyView(page)
   const overviewAvailability = page.getByTestId('overview-available-space')
   await expect(overviewAvailability).toContainText('123,456 SQF')
-  await expect(overviewAvailability).toContainText('Live portal value, separate from immutable building-capacity and site-plan facts.')
+  await expect(page.getByTestId('overview-square-footage')).toContainText('Administrator-maintained live portal value, separate from immutable building-capacity and site-plan facts.')
 
   await publicNavigation.getByRole('button', { name: 'Dashboard', exact: true }).click()
   await page.getByRole('button', { name: 'Open facility 01 in Facilities' }).dispatchEvent('mouseover')
@@ -122,7 +122,7 @@ test('administrator zero replaces a source snapshot in Overview and the generate
   await navigation.getByRole('button', { name: 'Facilities', exact: true }).click()
   await page.getByRole('button', { name: `Select ${roanokeAddress}` }).click()
   await expect(page.getByTestId('overview-available-space')).toContainText('0 SQF')
-  await expect(page.getByTestId('overview-available-space')).toContainText('Administrator-maintained')
+  await expect(page.getByTestId('overview-square-footage')).toContainText('Administrator-maintained live portal value')
   await page.getByRole('tab', { name: 'Documents' }).click()
   const downloadPromise = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Download facility profile PDF' }).click()
@@ -209,12 +209,24 @@ test('admin saves Bulk and Rack independently while public Overview and map prev
     await page.screenshot({ path: overviewDesktop })
     await testInfo.attach('bulk-rack-overview-desktop', { path: overviewDesktop, contentType: 'image/png' })
 
+    await page.getByRole('tab', { name: 'Documents' }).click()
+    const profileDownload = page.waitForEvent('download')
+    await page.getByRole('button', { name: 'Download facility profile PDF' }).click()
+    const profile = await profileDownload
+    const profilePdf = await PDFDocument.load(await profile.createReadStream().then(async (stream) => {
+      const chunks: Buffer[] = []
+      for await (const chunk of stream) chunks.push(Buffer.from(chunk))
+      return Buffer.concat(chunks)
+    }))
+    expect(profilePdf.getKeywords()).toContain('0 SQF')
+    expect(profilePdf.getKeywords()).toContain('700 pallet positions')
+
     await navigation.getByRole('button', { name: 'Dashboard', exact: true }).click()
     await page.getByRole('button', { name: 'Open facility 08 in Facilities' }).focus()
     const preview = page.locator('[data-testid="dashboard-pin-preview"][data-facility-id="summerville-cypress-tradeport"]')
-    await expect(preview.getByTestId('square-footage-available')).toHaveText('Available Pending')
-    await expect(preview.getByTestId('square-footage-bulk')).toHaveText('Bulk 0 SQF')
-    await expect(preview.getByTestId('square-footage-rack')).toHaveText('Rack 700 pallet positions')
+    await expect(preview.getByTestId('square-footage-available')).toHaveText('Available')
+    await expect(preview.getByTestId('square-footage-bulk')).toHaveText('Bulk: 0 SQF')
+    await expect(preview.getByTestId('square-footage-rack')).toHaveText('Rack: 700 pallet positions')
     const previewDesktop = testInfo.outputPath('bulk-rack-map-preview-desktop.png')
     await page.screenshot({ path: previewDesktop })
     await testInfo.attach('bulk-rack-map-preview-desktop', { path: previewDesktop, contentType: 'image/png' })

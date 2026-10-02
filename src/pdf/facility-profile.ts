@@ -7,11 +7,12 @@ import {
   type PDFPage,
 } from 'pdf-lib'
 import type { Facility } from '../data/facilities'
+import { formatCeilingHeight, formatLoadingDocks, getFacilityBuildingDetails } from '../data/facility-building'
 import { formatOperatingHours, type FacilityOperatingHours } from '../data/facility-hours'
 import type { FacilityMedia } from '../data/facility-media'
-import { formatAvailableSpaceMonth } from '../data/facility-space'
 import type { FacilityContact, FacilityOperations } from '../types/operations'
 import { displayFactUnit, sitePlanProvenanceLabel, type FacilitySitePlan, type FacilitySitePlanFact } from '../data/facility-site-plans'
+import { formatAvailableSpace, formatAvailableSpaceMonth, formatBulkSquareFeet, formatRack, formatTotalSquareFeet, getFacilityBulkRack, getFacilitySquareFootage, hasReportedAvailableSpace, type FacilityBulkRack } from '../data/facility-space'
 import type { UserProvidedFacilityPhoto, UserProvidedFacilityPhotos } from '../data/facility-user-photos'
 
 export type FacilityProfileAvailability = {
@@ -30,6 +31,7 @@ export type FacilityProfileData = {
   operationsAccess: 'public' | 'authorized'
   totalSquareFeet?: number
   availableSpace?: FacilityProfileAvailability
+  bulkRack?: FacilityBulkRack
   sitePlan?: FacilitySitePlan
   userPhotos?: UserProvidedFacilityPhotos
 }
@@ -303,17 +305,23 @@ function availabilitySource(available?: FacilityProfileAvailability) {
   return `User-supplied source snapshot · ${formatAvailableSpaceMonth(available.asOf)}`
 }
 
+// Page 1 shows the same key facts, values, and wording as the Overview, Dashboard preview, and Preview tour. Available
+// appears only once a site reports it. Live administrator values supplied by the caller win over source snapshots.
 function pageOneFacts(data: FacilityProfileData) {
-  const facts: Array<{ label: string; value: string; note?: string }> = []
-  if (data.totalSquareFeet !== undefined) facts.push({ label: 'Total square footage', value: `${data.totalSquareFeet.toLocaleString('en-US')} SQF` })
-  facts.push(...(data.sitePlan?.facts.slice(0, 4 - facts.length).map((fact) => ({ label: fact.label, value: formatFact(fact) })) ?? []))
-  if (!data.sitePlan) {
-    facts.push(
-      { label: 'Facility', value: `Facility ${facilityNumber(data.facility)}` },
-      { label: 'Map precision', value: data.facility.coordinatePrecision },
-    )
-  }
-  return facts
+  const sourceSquareFootage = getFacilitySquareFootage(data.facility.id)
+  const totalSquareFeet = data.totalSquareFeet ?? sourceSquareFootage.totalSquareFeet
+  const available = data.availableSpace
+  const bulkRack = data.bulkRack ?? getFacilityBulkRack(data.facility.id)
+  const building = getFacilityBuildingDetails(data.facility.id)
+  const facts: Array<{ label: string; value: string; note?: string }> = [
+    { label: 'Total', value: formatTotalSquareFeet(totalSquareFeet) },
+    ...(hasReportedAvailableSpace(available) ? [{ label: 'Available', value: formatAvailableSpace(available) }] : []),
+    { label: 'Bulk', value: formatBulkSquareFeet(bulkRack) },
+    { label: 'Rack', value: formatRack(bulkRack) },
+    { label: 'Ceiling height', value: formatCeilingHeight(building, 'Pending') },
+    { label: 'Loading docks', value: formatLoadingDocks(building, 'Pending') },
+  ]
+  return facts.slice(0, 6)
 }
 
 function contactPhoneText(contact: FacilityContact) {
@@ -342,16 +350,7 @@ function drawContactDirectory(page: PDFPage, fonts: Fonts, data: FacilityProfile
     return
   }
 
-  drawWrappedText(page, operations.source, {
-    x: box.x + 15,
-    y: box.y + box.height - 36,
-    width: box.width - 30,
-    font: fonts.regular,
-    size: 6.2,
-    color: rgb(0.76, 0.82, 0.88),
-    maxLines: 1,
-  })
-
+  // The contact source note stays in the PDF's metadata keywords but is not printed on the page.
   const contacts = operations.contacts.slice(0, 6)
   const rows = Math.ceil(contacts.length / 2)
   const columnGap = 18
@@ -396,10 +395,11 @@ async function drawOverviewPage(pdf: PDFDocument, fonts: Fonts, data: FacilityPr
 
   const facts = pageOneFacts(data)
   const gap = 8
-  const cardWidth = (PAGE_WIDTH - MARGIN * 2 - gap) / 2
-  facts.slice(0, 4).forEach((fact, index) => {
-    const row = Math.floor(index / 2)
-    const col = index % 2
+  const columns = 3
+  const cardWidth = (PAGE_WIDTH - MARGIN * 2 - gap * (columns - 1)) / columns
+  facts.forEach((fact, index) => {
+    const row = Math.floor(index / columns)
+    const col = index % columns
     drawFactCard(page, fonts, fact, { x: MARGIN + col * (cardWidth + gap), y: 382 - row * 56, width: cardWidth, height: 52 })
   })
 
@@ -574,6 +574,8 @@ function metadataKeywords(data: FacilityProfileData) {
     operatingHoursText(data.operatingHours),
     availabilityText(data.availableSpace),
     availabilitySource(data.availableSpace),
+    formatBulkSquareFeet(data.bulkRack ?? getFacilityBulkRack(data.facility.id)),
+    formatRack(data.bulkRack ?? getFacilityBulkRack(data.facility.id)),
     operatingHoursSource(data.operatingHours),
     data.sitePlan?.sourceNote ?? '',
     ...facts,

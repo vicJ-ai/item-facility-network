@@ -6,11 +6,12 @@ export type TourRegion = { id: string; label: string; facilityNumbers: readonly 
 
 /** `hop` stops are close to the previous stop, so the camera slides over instead of flying. */
 export type TourStop = { facility: TourFacility; kind: 'flight' | 'hop'; index: number }
-/** What a tour stop shows beside its title: the cover photo, square footage, and a couple of site-plan facts. */
+/** What a tour stop shows beside its title: the cover photo, total and available square footage, then bulk, rack, ceiling height, and loading docks. */
 export type TourStopDetails = {
   photo?: { src: string; alt: string }
   totalSquareFeet?: number
-  available: string
+  /** Only set when the site has reported a figure; the card leaves the Available box out otherwise. */
+  available?: string
   facts: { label: string; value: string }[]
 }
 export type TourChapter = { regionId: string; label: string; number: number; boundary: RegionBoundary | null; stops: TourStop[] }

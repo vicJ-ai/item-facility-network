@@ -121,7 +121,7 @@ test('public browsing exposes approved facility contacts and allowlisted portrai
   assert.equal(matched.body.reviewRequired, false)
   const review = await request(app).get('/api/operations/pooler-morgan-lakes').expect(200)
   assert.equal(review.body.reviewRequired, true)
-  assert.deepEqual(review.body.operations.contacts.map((contact: { name: string }) => contact.name), ['John Gleason'])
+  assert.deepEqual(review.body.operations.contacts.map((contact: { name: string }) => contact.name), ['Michelle Topete', 'Mary Smothers', 'Wayne Brooks', 'John Gleason'])
   await request(app).get('/api/operations/not-a-facility').expect(404, { ok: false, error: 'facility_not_found' })
   const portraits = {
     'ruben-jauregui.png': 'image/png', 'mark-tuttle.png': 'image/png',
@@ -139,6 +139,16 @@ test('public browsing exposes approved facility contacts and allowlisted portrai
   for (const [filename, contentType] of Object.entries(portraits)) {
     const portrait = await request(app).get(`/api/operations/portraits/${filename}`).expect('cache-control', 'no-store').expect('content-type', new RegExp(contentType.replace('/', '\\/'))).expect(200)
     assert.ok(portrait.body.length > 0, filename)
+  }
+  const compactPortraits = [
+    'adam-lubin', 'efrain-islas-alcaraz', 'fabian-quiroz', 'frank-feliciano', 'harold-cuarezma', 'javier-montane',
+    'jessica-barajas', 'jimmy-esparza', 'john-diaz', 'john-gleason', 'juan-barragan', 'lenivy-jackson', 'mark-tuttle',
+    'mary-smothers', 'michelle-topete', 'onoriode-enaigbe', 'rick-griswold', 'ruben-echavarria', 'ruben-jauregui',
+    'stephen-schumaker', 'wayne-brooks',
+  ]
+  for (const name of compactPortraits) {
+    const portrait = await request(app).get(`/api/operations/portraits/compact-${name}.jpg`).expect('cache-control', 'no-store').expect('content-type', /image\/jpeg/).expect(200)
+    assert.ok(portrait.body.length > 0, name)
   }
   await request(app).get('/api/operations/portraits/not-allowlisted.png').expect(404, { ok: false, error: 'not_found' })
   await request(app).get('/media/operations/people/john-diaz.png').expect(404)

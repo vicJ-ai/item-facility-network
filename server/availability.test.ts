@@ -175,6 +175,14 @@ test('admin projection covers the UI roster and exposes source snapshots without
     facilityId: 'roanoke-highway-114', squareFeet: 4000, version: 0, updatedAt: null,
     valueSource: 'source-snapshot', snapshotAsOf: '2026-10', snapshotStatus: null,
   })
+  assert.deepEqual(response.body.availability.find((entry: { facilityId: string }) => entry.facilityId === 'riverside-alessandro'), {
+    facilityId: 'riverside-alessandro', squareFeet: 120000, version: 0, updatedAt: null,
+    valueSource: 'source-snapshot', snapshotAsOf: '2026-10', snapshotStatus: null,
+  })
+  assert.deepEqual(response.body.availability.find((entry: { facilityId: string }) => entry.facilityId === 'ontario-airport'), {
+    facilityId: 'ontario-airport', squareFeet: 140000, version: 0, updatedAt: null,
+    valueSource: 'source-snapshot', snapshotAsOf: '2026-10', snapshotStatus: null,
+  })
   const persisted = await db.query('SELECT count(*)::int count FROM facility_availability')
   assert.equal(persisted.rows[0].count, 0)
 })

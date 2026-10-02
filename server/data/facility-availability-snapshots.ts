@@ -16,11 +16,12 @@ export const facilityAvailabilitySnapshots: Partial<Record<string, FacilityAvail
   'waddell-cotton': { squareFeet: 40_000, asOf: '2026-10' },
   'west-sacramento-overland': { squareFeet: 0, asOf: '2026-10' },
   'salt-lake-city-jimmy-doolittle': { squareFeet: 0, asOf: '2026-10' },
-  'riverside-alessandro': { squareFeet: 120_000, asOf: '2026-10', status: 'unconfirmed' },
+  'riverside-alessandro': { squareFeet: 120_000, asOf: '2026-10' },
   'somerset-cottontail': { squareFeet: 0, asOf: '2026-10' },
   'las-vegas-marion-building-5': { squareFeet: 0, asOf: '2026-10' },
   'long-beach-willow': { squareFeet: 10_000, asOf: '2026-10' },
   'joliet-brandon': { squareFeet: 110_000, asOf: '2026-10' },
   'garden-city-prosperity': { squareFeet: 0, asOf: '2026-10' },
   'university-park-central': { squareFeet: 0, asOf: '2026-10' },
+  'ontario-airport': { squareFeet: 140_000, asOf: '2026-10' },
 }

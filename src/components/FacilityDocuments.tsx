@@ -7,6 +7,7 @@ import type { FacilityOperations } from '../types/operations'
 import type { FacilitySitePlan } from '../data/facility-site-plans'
 import type { UserProvidedFacilityPhotos } from '../data/facility-user-photos'
 import type { FacilityProfileAvailability } from '../pdf/facility-profile'
+import type { FacilityBulkRack } from '../data/facility-space'
 
 type FacilityDocumentsProps = {
   facility: Facility
@@ -18,6 +19,7 @@ type FacilityDocumentsProps = {
   operationsLoading?: boolean
   totalSquareFeet?: number
   availableSpace?: FacilityProfileAvailability
+  bulkRack?: FacilityBulkRack
   sitePlan?: FacilitySitePlan
   userPhotos?: UserProvidedFacilityPhotos
 }
@@ -29,7 +31,7 @@ function existingMediaLabel(media: FacilityMedia) {
   return media.verification.startsWith('user-provided') ? 'Existing user-provided photo' : 'Official listing photo'
 }
 
-export function FacilityDocuments({ facility, facilityTitle, operatingHours, media, operations, operationsAccess, operationsLoading = false, totalSquareFeet, availableSpace, sitePlan, userPhotos }: FacilityDocumentsProps) {
+export function FacilityDocuments({ facility, facilityTitle, operatingHours, media, operations, operationsAccess, operationsLoading = false, totalSquareFeet, availableSpace, bulkRack, sitePlan, userPhotos }: FacilityDocumentsProps) {
   const [state, setState] = useState<DownloadState>('idle')
   const [errorMessage, setErrorMessage] = useState('')
 
@@ -40,7 +42,7 @@ export function FacilityDocuments({ facility, facilityTitle, operatingHours, med
     await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
     try {
       const { generateFacilityProfilePdf, getFacilityProfileFilename } = await import('../pdf/facility-profile')
-      const bytes = await generateFacilityProfilePdf({ facility, facilityTitle, operatingHours, media, operations, operationsAccess, totalSquareFeet, availableSpace, sitePlan, userPhotos })
+      const bytes = await generateFacilityProfilePdf({ facility, facilityTitle, operatingHours, media, operations, operationsAccess, totalSquareFeet, availableSpace, bulkRack, sitePlan, userPhotos })
       const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' })
       const objectUrl = URL.createObjectURL(blob)
       const anchor = document.createElement('a')
