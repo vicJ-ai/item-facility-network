@@ -88,7 +88,7 @@ const MAX_DIRECTORY_WIDTH = 760
 const MIN_MAP_WIDTH = 360
 const ESRI_STREET_ATTRIBUTION = 'Tiles &copy; Esri &mdash; Source: Esri, TomTom, Garmin, FAO, NOAA, USGS, OpenStreetMap contributors, and the GIS User Community'
 const ESRI_STREET_TILE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}'
-const publicTabs: Tab[] = ['Overview', 'Site Plan', 'Photos', 'Documents']
+const facilityTabs: Tab[] = ['Overview', 'Site Plan', 'Photos', 'Documents', 'Operations']
 const assignableStatuses: DisplayStatus[] = ['Unassigned', 'Active', 'Coming Soon', 'Planned']
 const statusColor: Record<DisplayStatus, string> = {
   Active: '#13a663',
@@ -690,8 +690,8 @@ function App() {
   const selectedStreetViewUrl = selected ? streetViewUrl(selected) : null
   const selectedSitePlan = selected ? getFacilitySitePlan(selected.id) : undefined
   const selectedUserPhotos = selected ? getUserProvidedFacilityPhotos(selected.id) : undefined
-  const tabs = access.user ? [...publicTabs, 'Operations' as const] : publicTabs
-  const displayedTab: Tab = !access.user && tab === 'Operations' ? 'Overview' : tab
+  const tabs = facilityTabs
+  const displayedTab: Tab = tab
   const dashboardHighlightRenderer = useMemo(() => L.svg({ pane: 'overlayPane' }), [])
   const previewing = previewActive && appView === 'dashboard'
   // The Preview tour shows the globe without changing the saved projection preference.
@@ -986,8 +986,8 @@ function App() {
                   : <EmptyState icon={MapIcon} title="Site plan not provided" body="No site plan was supplied for this facility." />)}
                 {displayedTab === 'Photos' && <PhotosContent facility={selected} media={selectedMedia} userPhotos={selectedUserPhotos} />}
                 {displayedTab === 'Documents' && <FacilityDocuments key={selected.id} facility={selected} facilityTitle={getFacilityTitle(selected)} operatingHours={getFacilityOperatingHours(selected.id)} media={selectedMedia} operations={selectedOperations} operationsAccess={access.user ? 'authorized' : 'public'} operationsLoading={operationsState.loading} sitePlan={selectedSitePlan} userPhotos={selectedUserPhotos} />}
-                {displayedTab === 'Operations' && access.user && (operationsState.loading
-                  ? <EmptyState icon={ShieldCheck} title="Loading Operations" body="Verifying access and loading this facility's contacts." />
+                {displayedTab === 'Operations' && (operationsState.loading
+                  ? <EmptyState icon={ShieldCheck} title="Loading Operations" body="Loading this facility's contacts." />
                   : operationsState.error
                     ? <EmptyState icon={FileQuestion} title="Operations unavailable" body={operationsState.error} />
                     : <OperationsContent facility={selected} operations={selectedOperations} />)}

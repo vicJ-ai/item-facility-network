@@ -126,7 +126,7 @@ export function createApp({ config, db }: Dependencies) {
     response.json({ ok: true })
   })
 
-  app.get('/api/operations/portraits/:filename', requireAuth, (request, response) => {
+  app.get('/api/operations/portraits/:filename', (request, response) => {
     const filename = Array.isArray(request.params.filename) ? request.params.filename[0] : request.params.filename
     const relative = privatePortraits[filename]
     if (!relative) return fail(response, 404, 'not_found')
@@ -137,7 +137,7 @@ export function createApp({ config, db }: Dependencies) {
     return response.sendFile(file)
   })
 
-  app.get('/api/operations/:facilityId', requireAuth, (request, response) => {
+  app.get('/api/operations/:facilityId', (request, response) => {
     const facilityId = Array.isArray(request.params.facilityId) ? request.params.facilityId[0] : request.params.facilityId
     const operations = facilityOperations[facilityId]
     const reviewRequired = (facilitiesNeedingOperationsContactReview as readonly string[]).includes(facilityId)

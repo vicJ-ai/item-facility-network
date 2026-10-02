@@ -111,13 +111,25 @@ before(async () => {
 beforeEach(resetDb)
 after(async () => { await resetDb(); await db.close(); await new Promise<void>((resolve) => upstream.close(() => resolve())) })
 
-test('public browsing exposes neither operations records nor private portraits', async () => {
+test('public browsing exposes approved facility contacts and allowlisted portraits only', async () => {
   const app = createApp({ config: testConfig(), db })
   await request(app).get('/').expect(200)
   await request(app).get('/api/auth/session').expect(200, { authenticated: false })
-  await request(app).get('/api/operations/buena-park-valley-view').expect(401)
-  await request(app).get('/api/operations/portraits/john-diaz.png').expect(401)
+  const matched = await request(app).get('/api/operations/buena-park-valley-view').expect('cache-control', 'no-store').expect(200)
+  assert.equal(matched.body.operations.contacts.length, 5)
+  assert.equal(matched.body.operations.contacts[0].email, 'michelle.topete@unisco.com')
+  assert.equal(matched.body.reviewRequired, false)
+  await request(app).get('/api/operations/pooler-morgan-lakes').expect(200, { operations: null, reviewRequired: true })
+  await request(app).get('/api/operations/not-a-facility').expect(404, { ok: false, error: 'facility_not_found' })
+  for (const filename of ['ruben-jauregui.png', 'mark-tuttle.png', 'fabian-quiroz.png', 'harold-cuarezma.png', 'javier-montane.png', 'john-diaz.png']) {
+    const portrait = await request(app).get(`/api/operations/portraits/${filename}`).expect('cache-control', 'no-store').expect('content-type', /image\/png/).expect(200)
+    assert.ok(portrait.body.length > 0, filename)
+  }
+  await request(app).get('/api/operations/portraits/not-allowlisted.png').expect(404, { ok: false, error: 'not_found' })
   await request(app).get('/media/operations/people/john-diaz.png').expect(404)
+  await request(app).get('/api/admin/availability').expect(401)
+  await request(app).get('/api/admin/availability/history').expect(401)
+  await request(app).get('/api/admin/access').expect(401)
 })
 
 test('missing IAM configuration leaves public browsing available and sign-in fails closed', async () => {
@@ -197,10 +209,11 @@ test('login enforces canonical origin and stores HMAC session verifiers in a hos
 
 test('malformed percent encoding in a session cookie fails as unauthenticated', async () => {
   const app = createApp({ config: testConfig(), db })
-  await request(app).get('/api/operations/buena-park-valley-view').set('Cookie', 'facility_session=%ZZ').expect(401, { ok: false, error: 'session_expired' })
+  await request(app).get('/api/operations/buena-park-valley-view').set('Cookie', 'facility_session=%ZZ').expect(200)
+  await request(app).get('/api/admin/availability').set('Cookie', 'facility_session=%ZZ').expect(401, { ok: false, error: 'session_expired' })
 })
 
-test('ordinary active admins can read selected operations but cannot call configuration APIs', async () => {
+test('ordinary active admins retain selected operations access but cannot call configuration APIs', async () => {
   await seedAdmin(identities.operations)
   const app = createApp({ config: testConfig(), db })
   const agent = request.agent(app)
@@ -219,15 +232,15 @@ test('CSRF, logout, and database status revalidation revoke access immediately',
   const agent = request.agent(app)
   const session = await login(agent, 'operations')
   await agent.post('/api/auth/logout').set('Origin', testConfig().publicOrigin).set('x-csrf-token', 'wrong').expect(403)
-  await agent.get('/api/operations/riverside-alessandro').expect(200)
+  await agent.get('/api/admin/availability').expect(200)
   await db.query('UPDATE facility_admins SET is_active=false WHERE id=$1', [admin.id])
-  await agent.get('/api/operations/riverside-alessandro').expect(401)
+  await agent.get('/api/admin/availability').expect(401)
 
   await db.query('UPDATE facility_admins SET is_active=true WHERE id=$1', [admin.id])
   const second = request.agent(app)
   const secondSession = await login(second, 'operations')
   await second.post('/api/auth/logout').set('Origin', testConfig().publicOrigin).set('x-csrf-token', secondSession.body.csrfToken).expect(200)
-  await second.get('/api/operations/riverside-alessandro').expect(401)
+  await second.get('/api/admin/availability').expect(401)
   assert.ok(session.body.csrfToken)
 })
 

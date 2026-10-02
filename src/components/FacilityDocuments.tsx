@@ -69,7 +69,7 @@ export function FacilityDocuments({ facility, facilityTitle, operatingHours, med
       </div>
       <button className="primary-button documents-download" type="button" disabled={state === 'loading' || operationsLoading} onClick={downloadProfile}>
         {state === 'loading' ? <LoaderCircle className="spin" size={17} /> : <Download size={17} />}
-        {operationsLoading ? 'Loading authorized details…' : state === 'loading' ? 'Generating PDF…' : 'Download facility profile PDF'}
+        {operationsLoading ? 'Loading contact details…' : state === 'loading' ? 'Generating PDF…' : 'Download facility profile PDF'}
       </button>
       <div className={`documents-status ${state}`} aria-live="polite" role="status">
         {state === 'success' && <><CheckCircle2 size={15} />PDF download ready.</>}

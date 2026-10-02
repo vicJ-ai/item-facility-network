@@ -1,24 +1,29 @@
 import { useEffect, useState } from 'react'
 import type { OperationsResponse } from '../types/operations'
-import { useAccess } from './access-context'
 
 export function useFacilityOperations(facilityId: string | undefined) {
-  const { user, authorizedFetch } = useAccess()
-  const [result, setResult] = useState<{ userId?: string; facilityId?: string; data?: OperationsResponse; error?: string }>({})
+  const [result, setResult] = useState<{ facilityId?: string; data?: OperationsResponse; error?: string }>({})
 
   useEffect(() => {
-    if (!user || !facilityId) return
-    let active = true
-    authorizedFetch(`/api/operations/${encodeURIComponent(facilityId)}`)
+    if (!facilityId) return
+    const controller = new AbortController()
+    fetch(`/api/operations/${encodeURIComponent(facilityId)}`, {
+      credentials: 'same-origin',
+      cache: 'no-store',
+      signal: controller.signal,
+    })
       .then(async (response) => {
-        if (!response.ok) throw new Error(response.status === 401 ? 'Session expired.' : 'Operations contacts could not be loaded.')
+        if (!response.ok) throw new Error('Operations contacts could not be loaded.')
         const data = await response.json() as OperationsResponse
-        if (active) setResult({ userId: user.id, facilityId, data })
+        if (!controller.signal.aborted) setResult({ facilityId, data })
       })
-      .catch((error) => { if (active) setResult({ userId: user.id, facilityId, error: error instanceof Error ? error.message : 'Operations contacts could not be loaded.' }) })
-    return () => { active = false }
-  }, [authorizedFetch, facilityId, user])
+      .catch((error: unknown) => {
+        if (controller.signal.aborted || (error instanceof DOMException && error.name === 'AbortError')) return
+        setResult({ facilityId, error: error instanceof Error ? error.message : 'Operations contacts could not be loaded.' })
+      })
+    return () => controller.abort()
+  }, [facilityId])
 
-  if (!user || !facilityId || result.userId !== user.id || result.facilityId !== facilityId) return { loading: Boolean(user && facilityId), operations: undefined, reviewRequired: false, error: undefined }
+  if (!facilityId || result.facilityId !== facilityId) return { loading: Boolean(facilityId), operations: undefined, reviewRequired: false, error: undefined }
   return { loading: false, operations: result.data?.operations ?? undefined, reviewRequired: result.data?.reviewRequired ?? false, error: result.error }
 }

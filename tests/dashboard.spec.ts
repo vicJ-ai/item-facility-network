@@ -541,16 +541,21 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByTestId('selected-showcase')).toHaveCount(0)
 })
 
-test('public browsing hides Operations and protected contact assets fail closed', async ({ page }) => {
+test('public browsing keeps privileged navigation hidden while facility Operations contacts are public', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'WISE sign in' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Operations', exact: true })).toHaveCount(0)
   await chooseFromDirectory(page, suppliedAddresses[0])
-  await expect(page.getByRole('tab', { name: 'Operations' })).toHaveCount(0)
-  await expect(page.locator('body')).not.toContainText('Michelle Topete')
-  await expect(page.locator('body')).not.toContainText('michelle.topete@unisco.com')
-  expect((await page.request.get('/api/operations/buena-park-valley-view')).status()).toBe(401)
-  expect((await page.request.get('/api/operations/portraits/john-diaz.png')).status()).toBe(401)
+  await page.getByRole('tab', { name: 'Operations' }).click()
+  const panel = page.getByRole('region', { name: `Operations contacts for ${suppliedAddresses[0]}` })
+  await expect(panel).toContainText('Michelle Topete')
+  await expect(panel).toContainText('michelle.topete@unisco.com')
+  expect((await page.request.get('/api/operations/buena-park-valley-view')).status()).toBe(200)
+  expect((await page.request.get('/api/operations/portraits/john-diaz.png')).status()).toBe(200)
+  expect((await page.request.get('/api/operations/portraits/not-allowlisted.png')).status()).toBe(404)
   expect((await page.request.get('/media/operations/people/john-diaz.png')).status()).toBe(404)
+  expect((await page.request.get('/api/admin/availability')).status()).toBe(401)
+  expect((await page.request.get('/api/admin/availability/history')).status()).toBe(401)
+  expect((await page.request.get('/api/admin/access')).status()).toBe(401)
 })
 
 test('opens with the exact 27-address directory beside the 27-pin map and no selected profile', async ({ page }) => {
@@ -2024,9 +2029,8 @@ test('property tabs show honest unavailable states and coordinate limitations', 
   await expect(page.locator('.facility-documents')).toContainText('Explicit site-plan unavailable state')
   await expect(page.locator('.facility-documents')).toContainText('Existing user-provided photo')
   await expect(page.locator('.facility-documents')).not.toContainText('Documents not provided')
-  await expect(page.getByRole('tab', { name: 'Operations' })).toHaveCount(0)
+  await expect(page.getByRole('tab', { name: 'Operations' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'WISE sign in' })).toBeVisible()
-  await signInAsConfigurationAdmin(page)
   await page.getByRole('tab', { name: 'Operations' }).click()
   await expect(page.getByText('Contacts pending review')).toBeVisible()
   await expect(page.locator('.facility-operations')).toContainText('8:00 AM–4:30 PM EST M-F')
