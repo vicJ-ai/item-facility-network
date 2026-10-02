@@ -126,7 +126,7 @@ test('pins, roster, and the time control show which facilities are open at the m
 
   const expectedOpen = facilities.filter((facility) => getFacilityOpenState(facility, facilityOperatingHours[facility.id], WEDNESDAY_4PM_PACIFIC).isOpen)
   expect(expectedOpen).toHaveLength(12)
-  await expect(page.getByTestId('daynight-open-count')).toHaveText('12/27 open')
+  await expect(page.getByTestId('daynight-open-count')).toHaveText('12/29 open')
 
   const waddell = facilities.find((facility) => facility.id === 'waddell-cotton')!
   const saltLake = facilities.find((facility) => facility.id === 'salt-lake-city-jimmy-doolittle')!
@@ -174,7 +174,7 @@ test('night shading is painted where the sun is down and clear where it is up', 
   await expect(page.getByTestId('daynight-control')).toHaveAttribute('data-live', 'false')
   await expect(page.getByTestId('daynight-control')).toContainText('9:00 AM PDT')
   await expect.poll(() => shadeAlphaAtPin(page, jacksonville)).toBe(0)
-  await expect(page.getByTestId('daynight-open-count')).toHaveText('27/27 open')
+  await expect(page.getByTestId('daynight-open-count')).toHaveText('29/29 open')
 
   await page.getByRole('button', { name: 'Back to now' }).click()
   await expect(page.getByTestId('daynight-control')).toHaveAttribute('data-live', 'true')
@@ -261,7 +261,7 @@ test('shading toggle and panel state persist, and pins stay interactive under th
   await expect(page.locator('.daynight-sun')).toHaveCount(0)
   await page.getByRole('button', { name: 'Hide time controls' }).click()
   await expect(page.getByLabel('Time of day')).toHaveCount(0)
-  await expect(page.getByTestId('daynight-open-count')).toHaveText('0/27 open')
+  await expect(page.getByTestId('daynight-open-count')).toHaveText('0/29 open')
 
   await page.reload()
   await expect(page.getByRole('button', { name: 'Day and night shading' })).toHaveAttribute('aria-pressed', 'false')

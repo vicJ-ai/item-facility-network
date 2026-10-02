@@ -109,13 +109,13 @@ test('Next, Previous, and the progress ticks move between facilities', async ({ 
   // ceiling height, and loading docks, with Pending for anything not yet reported.
   const tennesseeCard = tour.locator(`.preview-stop[data-stop="${index}"] [data-testid="preview-stop-card"]`)
   await expect(tennesseeCard.locator('img')).toHaveAttribute('src', userProvidedFacilityPhotos['tennessee-quality-drive']!.photos.find((photo) => photo.id === 'oblique-aerial-exterior')!.assetUrl)
-  await expect(tennesseeCard.locator('.preview-stop-facts')).toHaveText('Total100,050 SQFBulkPendingRackPendingCeiling height28 ftLoading docks28')
+  await expect(tennesseeCard.locator('.preview-stop-facts')).toHaveText('Total100,050 SQFBulk0 SQFRack0 pallet positionsCeiling height28 ftLoading docks28')
   await expect(tennesseeCard.getByTestId('preview-stop-available')).toHaveCount(0)
 
   const roanokeTick = tour.getByRole('button', { name: 'Jump to facility 05, Roanoke' })
   await roanokeTick.click()
   const roanokeCard = tour.locator(`.preview-stop[data-stop="${await roanokeTick.getAttribute('data-tick')}"] [data-testid="preview-stop-card"]`)
-  await expect(roanokeCard.locator('.preview-stop-facts')).toHaveText('Total568,632 SQFAvailable4,000 SQFBulkPendingRackPendingCeiling height36 ftLoading docks34')
+  await expect(roanokeCard.locator('.preview-stop-facts')).toHaveText('Total568,632 SQFAvailable4,000 SQFBulk0 SQFRack0 pallet positionsCeiling height36 ftLoading docks34')
 
   // Joliet has every figure, so all six facts show values.
   const jolietTick = tour.getByRole('button', { name: 'Jump to facility 16, Joliet' })
