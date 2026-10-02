@@ -9,7 +9,7 @@ export type FacilityContact = {
   group: 'account-management' | 'operations'
   role: string
   name: string
-  email: string
+  email?: string
   sourceColumn?: string
   phone?: string
   phoneHref?: string

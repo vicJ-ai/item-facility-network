@@ -26,6 +26,8 @@ export const facilityIds = [
   'salt-lake-city-jimmy-doolittle',
   'somerset-cottontail',
   'plano-10th-f-avenue',
+  'garden-city-prosperity',
+  'university-park-central',
 ] as const
 
 const knownFacilityIds = new Set<string>(facilityIds)

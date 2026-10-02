@@ -52,14 +52,10 @@ test('anonymous visitors can read facility contacts and portraits while admin su
     await expectCardFits(card)
   }
 
-  for (const name of ['Ruben Jauregui', 'Mark Tuttle', 'John Diaz']) {
+  for (const name of ['Michelle Topete', 'Mary Smothers', 'Ruben Jauregui', 'Mark Tuttle', 'John Diaz']) {
     const portrait = panel.getByRole('img', { name: `Portrait of ${name}` })
     await portrait.scrollIntoViewIfNeeded()
-    await expect.poll(() => portrait.evaluate((image: HTMLImageElement) => ({
-      complete: image.complete,
-      width: image.naturalWidth,
-      height: image.naturalHeight,
-    }))).toEqual({ complete: true, width: 1254, height: 1254 })
+    await expect.poll(() => portrait.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0 && image.naturalHeight > 0)).toBe(true)
   }
 
   expect((await page.request.get('/api/operations/not-a-facility')).status()).toBe(404)

@@ -1,15 +1,21 @@
 import type { AdminAccess } from './access.js'
+import { facilityAvailabilitySnapshots } from './data/facility-availability-snapshots.js'
 import { facilityIds, isKnownFacilityId } from './data/facility-ids.js'
 import type { Db } from './db.js'
 
 export const MAX_AVAILABLE_SQUARE_FEET = 9_007_199_254_740_991
 export const AVAILABILITY_HISTORY_PAGE_SIZE = 10
 
+const isoTimestamp = (value: unknown) => value instanceof Date ? value.toISOString() : new Date(String(value)).toISOString()
+
 const availabilityRow = (row: Record<string, unknown>) => ({
   facilityId: String(row.facility_id),
   squareFeet: Number(row.square_feet),
   version: Number(row.version),
-  updatedAt: new Date(String(row.updated_at)).toISOString(),
+  updatedAt: isoTimestamp(row.updated_at),
+  valueSource: 'administrator' as const,
+  snapshotAsOf: null,
+  snapshotStatus: null,
 })
 
 export function validSquareFeet(value: unknown): value is number {
@@ -24,7 +30,16 @@ export async function publicAvailability(db: Db) {
 export async function adminAvailability(db: Db) {
   const result = await db.query('SELECT facility_id,square_feet,version,updated_at FROM facility_availability')
   const current = new Map(result.rows.map((row) => [String(row.facility_id), availabilityRow(row)]))
-  return facilityIds.map((facilityId) => current.get(facilityId) ?? { facilityId, squareFeet: null, version: 0, updatedAt: null })
+  return facilityIds.map((facilityId) => {
+    const persisted = current.get(facilityId)
+    if (persisted) return persisted
+    const snapshot = facilityAvailabilitySnapshots[facilityId]
+    if (snapshot) return {
+      facilityId, squareFeet: snapshot.squareFeet, version: 0, updatedAt: null,
+      valueSource: 'source-snapshot' as const, snapshotAsOf: snapshot.asOf, snapshotStatus: snapshot.status ?? null,
+    }
+    return { facilityId, squareFeet: null, version: 0, updatedAt: null, valueSource: 'pending' as const, snapshotAsOf: null, snapshotStatus: null }
+  })
 }
 
 export async function saveAvailability(db: Db, portalTenantId: string, actor: AdminAccess, input: { facilityId: string; squareFeet: number; version: number }) {
@@ -43,6 +58,9 @@ export async function saveAvailability(db: Db, portalTenantId: string, actor: Ad
     const existing = existingResult.rows[0]
     const currentVersion = existing ? Number(existing.version) : 0
     if (input.version !== currentVersion) throw new Error('stale_availability')
+    const snapshot = facilityAvailabilitySnapshots[input.facilityId]
+    const oldSquareFeet = existing?.square_feet ?? snapshot?.squareFeet ?? null
+    const oldValueSource = existing ? 'administrator' : snapshot ? 'source-snapshot' : 'pending'
 
     const savedResult = existing
       ? await client.query(`UPDATE facility_availability
@@ -52,8 +70,8 @@ export async function saveAvailability(db: Db, portalTenantId: string, actor: Ad
           VALUES ($1,$2,1,$3) RETURNING *`, [input.facilityId, input.squareFeet, persistedActor.id])
     const saved = savedResult.rows[0]
     await client.query(`INSERT INTO facility_availability_audit
-      (facility_id,old_square_feet,new_square_feet,version,actor_admin_id,actor_iam_user_id,actor_username)
-      VALUES ($1,$2,$3,$4,$5,$6,$7)`, [input.facilityId, existing?.square_feet ?? null, input.squareFeet, saved.version, persistedActor.id, persistedActor.iam_user_id, persistedActor.username])
+      (facility_id,old_square_feet,new_square_feet,version,actor_admin_id,actor_iam_user_id,actor_username,old_value_source)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`, [input.facilityId, oldSquareFeet, input.squareFeet, saved.version, persistedActor.id, persistedActor.iam_user_id, persistedActor.username, oldValueSource])
     return availabilityRow(saved)
   })
 }
@@ -67,7 +85,7 @@ export async function availabilityHistory(db: Db, input: { page: number; facilit
   const countResult = await db.query(`SELECT count(*)::int count FROM facility_availability_audit ${where}`, values)
   const total = Number(countResult.rows[0].count)
   const offsetParameter = values.length + 1
-  const pageResult = await db.query(`SELECT id,facility_id,old_square_feet,new_square_feet,version,actor_iam_user_id,actor_username,created_at
+  const pageResult = await db.query(`SELECT id,facility_id,old_square_feet,new_square_feet,version,actor_iam_user_id,actor_username,old_value_source,created_at
     FROM facility_availability_audit ${where}
     ORDER BY created_at DESC,id DESC LIMIT ${AVAILABILITY_HISTORY_PAGE_SIZE} OFFSET $${offsetParameter}`, [...values, (input.page - 1) * AVAILABILITY_HISTORY_PAGE_SIZE])
   return {
@@ -75,7 +93,10 @@ export async function availabilityHistory(db: Db, input: { page: number; facilit
       id: String(row.id), facilityId: String(row.facility_id),
       oldSquareFeet: row.old_square_feet === null ? null : Number(row.old_square_feet), newSquareFeet: Number(row.new_square_feet),
       version: Number(row.version), actorIamUserId: String(row.actor_iam_user_id), actorUsername: String(row.actor_username),
-      createdAt: new Date(String(row.created_at)).toISOString(),
+      oldValueSource: row.old_square_feet === null && row.old_value_source === 'administrator'
+        ? 'pending' as const
+        : String(row.old_value_source) as 'administrator' | 'source-snapshot' | 'pending',
+      createdAt: isoTimestamp(row.created_at),
     })),
     page: input.page, pageSize: AVAILABILITY_HISTORY_PAGE_SIZE, total, totalPages: Math.ceil(total / AVAILABILITY_HISTORY_PAGE_SIZE),
   }

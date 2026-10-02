@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test'
+import { PDFDocument } from 'pdf-lib'
 
 const valleyViewAddress = '6800 Valley View St., Buena Park, CA 90620'
+const roanokeAddress = '1230 W Highway 114, Roanoke, TX 76262'
 
 async function useFlatMap(page: import('@playwright/test').Page) {
   await page.addInitScript(() => {
@@ -42,7 +44,7 @@ test('admin availability workflow updates both public surfaces while privileged 
   await publicNavigation.getByRole('button', { name: 'Operations', exact: true }).click()
   const workbench = page.getByRole('region', { name: 'Operations availability workbench' })
   await expect(workbench.getByRole('heading', { name: 'Facility availability' })).toBeVisible()
-  await expect(workbench.locator('.workbench-facilities > button')).toHaveCount(27)
+  await expect(workbench.locator('.workbench-facilities > button')).toHaveCount(29)
   await expect(workbench.getByText('Pending', { exact: true }).first()).toBeVisible()
 
   const editor = workbench.getByRole('form', { name: `Update available space for ${valleyViewAddress}` })
@@ -75,7 +77,7 @@ test('admin availability workflow updates both public surfaces while privileged 
   await openValleyView(page)
   const overviewAvailability = page.getByTestId('overview-available-space')
   await expect(overviewAvailability).toContainText('123,456 SQFT')
-  await expect(overviewAvailability).toContainText('Separate from supplied building-capacity and site-plan facts.')
+  await expect(overviewAvailability).toContainText('Live portal value, separate from immutable building-capacity and site-plan facts.')
 
   await publicNavigation.getByRole('button', { name: 'Dashboard', exact: true }).click()
   await page.getByRole('button', { name: 'Open facility 01 in Facilities' }).dispatchEvent('mouseover')
@@ -98,4 +100,37 @@ test('admin availability workflow updates both public surfaces while privileged 
   }
 
   expect(consoleErrors).toEqual([])
+})
+
+test('administrator zero replaces a source snapshot in Overview and the generated PDF', async ({ page }) => {
+  test.setTimeout(60_000)
+  await useFlatMap(page)
+  await page.goto('/')
+  await signIn(page)
+  const navigation = page.getByRole('navigation', { name: 'Primary navigation' })
+  await navigation.getByRole('button', { name: 'Operations', exact: true }).click()
+  const workbench = page.getByRole('region', { name: 'Operations availability workbench' })
+  await workbench.getByRole('button', { name: /Facility 05[\s\S]*Roanoke, TX/ }).click()
+  const editor = workbench.getByRole('form', { name: `Update available space for ${roanokeAddress}` })
+  await expect(editor).toContainText('4,000 SQFT')
+  await expect(editor).toContainText('User-supplied snapshot')
+  await editor.getByLabel('Available space').fill('0')
+  await editor.getByRole('button', { name: 'Save available space' }).click()
+  await expect(editor.getByRole('status')).toHaveText('Available space saved.')
+
+  await navigation.getByRole('button', { name: 'Facilities', exact: true }).click()
+  await page.getByRole('button', { name: `Select ${roanokeAddress}` }).click()
+  await expect(page.getByTestId('overview-available-space')).toContainText('0 SQFT')
+  await expect(page.getByTestId('overview-available-space')).toContainText('Administrator-maintained')
+  await page.getByRole('tab', { name: 'Documents' }).click()
+  const downloadPromise = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Download facility profile PDF' }).click()
+  const download = await downloadPromise
+  const pdf = await PDFDocument.load(await download.createReadStream().then(async (stream) => {
+    const chunks: Buffer[] = []
+    for await (const chunk of stream) chunks.push(Buffer.from(chunk))
+    return Buffer.concat(chunks)
+  }))
+  expect(pdf.getKeywords()).toContain('0 SQFT')
+  expect(pdf.getKeywords()).toContain('Administrator-maintained')
 })

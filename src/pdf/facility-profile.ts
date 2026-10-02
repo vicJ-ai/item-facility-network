@@ -9,17 +9,26 @@ import {
 import type { Facility } from '../data/facilities'
 import { formatOperatingHours, type FacilityOperatingHours } from '../data/facility-hours'
 import type { FacilityMedia } from '../data/facility-media'
+import { formatAvailableSpaceMonth } from '../data/facility-space'
 import type { FacilityContact, FacilityOperations } from '../types/operations'
-import type { FacilitySitePlan, FacilitySitePlanFact } from '../data/facility-site-plans'
+import { sitePlanProvenanceLabel, type FacilitySitePlan, type FacilitySitePlanFact } from '../data/facility-site-plans'
 import type { UserProvidedFacilityPhoto, UserProvidedFacilityPhotos } from '../data/facility-user-photos'
+
+export type FacilityProfileAvailability = {
+  squareFeet: number
+  valueSource: 'administrator' | 'source-snapshot'
+  asOf: string
+  status?: 'unconfirmed'
+}
 
 export type FacilityProfileData = {
   facility: Facility
   facilityTitle: string
-  operatingHours: FacilityOperatingHours
+  operatingHours?: FacilityOperatingHours
   media?: FacilityMedia
   operations?: FacilityOperations
   operationsAccess: 'public' | 'authorized'
+  availableSpace?: FacilityProfileAvailability
   sitePlan?: FacilitySitePlan
   userPhotos?: UserProvidedFacilityPhotos
 }
@@ -264,15 +273,33 @@ function createAssetLoader(pdf: PDFDocument) {
 
 function photoSource(data: FacilityProfileData) {
   if (data.userPhotos) return 'User-provided media'
+  if (data.media?.verification === 'official-facility-sheet') return 'Official UNIS facility sheet media'
   if (data.media?.verification.startsWith('user-provided')) return 'User-provided screenshot media'
   if (data.media) return 'Official UNIS directory listing media'
   return 'No facility photo provided'
 }
 
-function operatingHoursSource(hours: FacilityOperatingHours) {
+function operatingHoursText(hours?: FacilityOperatingHours) {
+  return hours ? formatOperatingHours(hours) : 'Hours not provided'
+}
+
+function operatingHoursSource(hours?: FacilityOperatingHours) {
+  if (!hours) return 'No operating hours supplied'
   return hours.status === 'confirmed'
     ? `User-confirmed · ${hours.sourceRowLabel}`
     : `User-provided · As supplied · ${hours.sourceRowLabel}`
+}
+
+function availabilityText(available?: FacilityProfileAvailability) {
+  if (!available) return 'Pending'
+  const value = `${available.squareFeet.toLocaleString('en-US')} SQFT`
+  return available.status === 'unconfirmed' ? `${value} (not confirmed)` : value
+}
+
+function availabilitySource(available?: FacilityProfileAvailability) {
+  if (!available) return 'No administrator value or source snapshot'
+  if (available.valueSource === 'administrator') return 'Administrator-maintained live portal value'
+  return `User-supplied source snapshot · ${formatAvailableSpaceMonth(available.asOf)}`
 }
 
 function pageOneFacts(data: FacilityProfileData) {
@@ -296,10 +323,11 @@ function drawContactDirectory(page: PDFPage, fonts: Fonts, data: FacilityProfile
   page.drawRectangle({ ...box, color: NAVY_SOFT })
   page.drawText('CONTACT DIRECTORY', { x: box.x + 15, y: box.y + box.height - 22, size: 7, font: fonts.bold, color: rgb(0.76, 0.82, 0.88) })
 
-  if (!data.operations) {
+  const operations = data.operationsAccess === 'authorized' ? data.operations : undefined
+  if (!operations) {
     const publicProfile = data.operationsAccess === 'public'
-    page.drawText(publicProfile ? 'Administrator access required' : 'Contacts pending review', { x: box.x + 15, y: box.y + box.height - 57, size: 15, font: fonts.bold, color: WHITE })
-    drawWrappedText(page, publicProfile ? 'Operations contact details are available to approved administrators in the portal.' : 'No staff contacts were confidently matched to this facility.', {
+    page.drawText(publicProfile ? 'Contact details omitted' : 'Contacts pending review', { x: box.x + 15, y: box.y + box.height - 57, size: 15, font: fonts.bold, color: WHITE })
+    drawWrappedText(page, publicProfile ? 'Public facility profiles omit staff contact details. View the facility Operations tab for the current directory.' : 'No staff contacts were confidently matched to this facility.', {
       x: box.x + 15,
       y: box.y + box.height - 80,
       width: box.width - 30,
@@ -311,7 +339,7 @@ function drawContactDirectory(page: PDFPage, fonts: Fonts, data: FacilityProfile
     return
   }
 
-  drawWrappedText(page, data.operations.source, {
+  drawWrappedText(page, operations.source, {
     x: box.x + 15,
     y: box.y + box.height - 36,
     width: box.width - 30,
@@ -321,7 +349,7 @@ function drawContactDirectory(page: PDFPage, fonts: Fonts, data: FacilityProfile
     maxLines: 1,
   })
 
-  const contacts = data.operations.contacts.slice(0, 6)
+  const contacts = operations.contacts.slice(0, 6)
   const rows = Math.ceil(contacts.length / 2)
   const columnGap = 18
   const columnWidth = (box.width - 30 - columnGap) / 2
@@ -337,8 +365,8 @@ function drawContactDirectory(page: PDFPage, fonts: Fonts, data: FacilityProfile
     const phone = contactPhoneText(contact)
     drawWrappedText(page, contact.role, { x, y: top - 8, width: columnWidth, font: fonts.bold, size: 5.8, color: rgb(0.76, 0.82, 0.88), lineHeight: 6.6, maxLines: 1 })
     drawWrappedText(page, contact.name, { x, y: top - 22, width: columnWidth, font: fonts.bold, size: 8.8, color: WHITE, maxLines: 1 })
-    drawWrappedText(page, contact.email, { x, y: top - 35, width: columnWidth, font: fonts.regular, size: 6.3, color: rgb(0.88, 0.91, 0.94), maxLines: 1 })
-    if (phone) drawWrappedText(page, phone, { x, y: top - 47, width: columnWidth, font: fonts.regular, size: 6.2, color: rgb(0.88, 0.91, 0.94), maxLines: 1 })
+    if (contact.email) drawWrappedText(page, contact.email, { x, y: top - 35, width: columnWidth, font: fonts.regular, size: 6.3, color: rgb(0.88, 0.91, 0.94), maxLines: 1 })
+    if (phone) drawWrappedText(page, phone, { x, y: contact.email ? top - 47 : top - 35, width: columnWidth, font: fonts.regular, size: 6.2, color: rgb(0.88, 0.91, 0.94), maxLines: 1 })
     if (row < rows - 1) page.drawLine({ start: { x, y: top - rowHeight + 5 }, end: { x: x + columnWidth, y: top - rowHeight + 5 }, thickness: 0.45, color: rgb(0.27, 0.37, 0.47) })
   })
 
@@ -405,7 +433,7 @@ async function drawSitePlanPage(pdf: PDFDocument, fonts: Fonts, data: FacilityPr
   }
 
   const source = data.sitePlan
-    ? `User-provided site plan${data.sitePlan.sourceNote ? ` · ${data.sitePlan.sourceNote}` : ''}`
+    ? `${sitePlanProvenanceLabel(data.sitePlan)}${data.sitePlan.sourceNote ? ` · ${data.sitePlan.sourceNote}` : ''}`
     : 'Site plan not provided'
   drawFooter(page, fonts, 2, source)
 }
@@ -419,14 +447,20 @@ function drawHighlightsPage(pdf: PDFDocument, fonts: Fonts, data: FacilityProfil
   const location = data.facility.city ? `${data.facility.city}, ${data.facility.stateName}` : data.facility.stateName
   const gap = 8
   const halfWidth = (PAGE_WIDTH - MARGIN * 2 - gap) / 2
+  const thirdWidth = (PAGE_WIDTH - MARGIN * 2 - gap * 2) / 3
   page.drawText('LOCATION CONTEXT', { x: MARGIN, y: 610, size: 7, font: fonts.bold, color: RED })
   drawFactCard(page, fonts, { label: 'Provided address', value: data.facility.fullAddress }, { x: MARGIN, y: 535, width: PAGE_WIDTH - MARGIN * 2, height: 58 })
-  drawFactCard(page, fonts, { label: 'Location', value: location }, { x: MARGIN, y: 469, width: halfWidth, height: 58 })
+  drawFactCard(page, fonts, { label: 'Location', value: location }, { x: MARGIN, y: 469, width: thirdWidth, height: 58 })
   drawFactCard(page, fonts, {
     label: 'Operating hours',
-    value: formatOperatingHours(data.operatingHours),
+    value: operatingHoursText(data.operatingHours),
     note: operatingHoursSource(data.operatingHours),
-  }, { x: MARGIN + halfWidth + gap, y: 469, width: halfWidth, height: 58 })
+  }, { x: MARGIN + thirdWidth + gap, y: 469, width: thirdWidth, height: 58 })
+  drawFactCard(page, fonts, {
+    label: 'Available space',
+    value: availabilityText(data.availableSpace),
+    note: availabilitySource(data.availableSpace),
+  }, { x: MARGIN + (thirdWidth + gap) * 2, y: 469, width: thirdWidth, height: 58 })
 
   page.drawText('KEY ADVANTAGES', { x: MARGIN, y: 445, size: 7, font: fonts.bold, color: RED })
   const facts = data.sitePlan?.facts.slice(0, 6) ?? []
@@ -453,7 +487,7 @@ function drawHighlightsPage(pdf: PDFDocument, fonts: Fonts, data: FacilityProfil
   const mediaSummary = data.userPhotos
     ? `${data.userPhotos.photos.length} user-provided photo${data.userPhotos.photos.length === 1 ? '' : 's'}`
     : photoSource(data)
-  const planSummary = data.sitePlan ? 'User-provided site plan' : 'Site plan not provided'
+  const planSummary = data.sitePlan ? sitePlanProvenanceLabel(data.sitePlan) : 'Site plan not provided'
   page.drawRectangle({ x: MARGIN, y: 66, width: PAGE_WIDTH - MARGIN * 2, height: 52, color: NAVY })
   page.drawText('PROFILE SOURCES', { x: MARGIN + 14, y: 96, size: 6.5, font: fonts.bold, color: rgb(0.73, 0.8, 0.87) })
   drawWrappedText(page, `${mediaSummary} · ${planSummary}`, { x: MARGIN + 14, y: 80, width: PAGE_WIDTH - MARGIN * 2 - 28, font: fonts.bold, size: 8.5, color: WHITE, maxLines: 1 })
@@ -496,8 +530,8 @@ async function drawPhotosPage(pdf: PDFDocument, fonts: Fonts, data: FacilityProf
     ? data.userPhotos.photos.slice(0, 5).map((photo: UserProvidedFacilityPhoto) => ({ ...photo, source: 'User-provided' }))
     : data.media ? [{
       assetUrl: data.media.detail.assetUrl,
-      label: data.media.verification.startsWith('user-provided') ? 'Existing facility photo' : 'Official listing photo',
-      source: data.media.verification.startsWith('user-provided') ? 'User-provided screenshot' : 'Official UNIS listing',
+      label: data.media.verification === 'official-facility-sheet' ? 'Official facility sheet photo' : data.media.verification.startsWith('user-provided') ? 'Existing facility photo' : 'Official listing photo',
+      source: data.media.verification === 'official-facility-sheet' ? 'Official UNIS facility sheet' : data.media.verification.startsWith('user-provided') ? 'User-provided screenshot' : 'Official UNIS listing',
     }] : []
 
   if (photos.length === 0) {
@@ -521,18 +555,21 @@ async function drawPhotosPage(pdf: PDFDocument, fonts: Fonts, data: FacilityProf
 function metadataKeywords(data: FacilityProfileData) {
   const facts = data.sitePlan?.facts.flatMap((fact) => [fact.label, formatFact(fact), fact.note ?? '']) ?? []
   const photoLabels = data.userPhotos?.photos.map((photo) => photo.label) ?? []
-  const contacts = data.operations
-    ? [data.operations.source, ...data.operations.contacts.flatMap((contact) => [contact.role, contact.name, contact.email, contactPhoneText(contact)])]
-    : [data.operationsAccess === 'public' ? 'Administrator access required' : 'Contacts pending review']
+  const includedOperations = data.operationsAccess === 'authorized' ? data.operations : undefined
+  const contacts = includedOperations
+    ? [includedOperations.source, ...includedOperations.contacts.flatMap((contact) => [contact.role, contact.name, contact.email ?? '', contactPhoneText(contact)])]
+    : [data.operationsAccess === 'public' ? 'Public profile contact details omitted' : 'Contacts pending review']
   return [
     `Facility ${facilityNumber(data.facility)}`,
     data.facility.id,
     data.facility.fullAddress,
     'Key advantages & location',
     data.sitePlan?.facts.length ? 'Sourced facility advantages' : 'Specific advantages not supplied',
-    data.sitePlan ? 'User-provided site plan' : 'Site plan not provided',
+    data.sitePlan ? sitePlanProvenanceLabel(data.sitePlan) : 'Site plan not provided',
     photoSource(data),
-    formatOperatingHours(data.operatingHours),
+    operatingHoursText(data.operatingHours),
+    availabilityText(data.availableSpace),
+    availabilitySource(data.availableSpace),
     operatingHoursSource(data.operatingHours),
     data.sitePlan?.sourceNote ?? '',
     ...facts,

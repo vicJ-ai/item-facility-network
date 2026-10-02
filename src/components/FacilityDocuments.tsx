@@ -6,15 +6,17 @@ import type { FacilityMedia } from '../data/facility-media'
 import type { FacilityOperations } from '../types/operations'
 import type { FacilitySitePlan } from '../data/facility-site-plans'
 import type { UserProvidedFacilityPhotos } from '../data/facility-user-photos'
+import type { FacilityProfileAvailability } from '../pdf/facility-profile'
 
 type FacilityDocumentsProps = {
   facility: Facility
   facilityTitle: string
-  operatingHours: FacilityOperatingHours
+  operatingHours?: FacilityOperatingHours
   media?: FacilityMedia
   operations?: FacilityOperations
   operationsAccess: 'public' | 'authorized'
   operationsLoading?: boolean
+  availableSpace?: FacilityProfileAvailability
   sitePlan?: FacilitySitePlan
   userPhotos?: UserProvidedFacilityPhotos
 }
@@ -22,10 +24,11 @@ type FacilityDocumentsProps = {
 type DownloadState = 'idle' | 'loading' | 'success' | 'error'
 
 function existingMediaLabel(media: FacilityMedia) {
+  if (media.verification === 'official-facility-sheet') return 'Official facility sheet photo'
   return media.verification.startsWith('user-provided') ? 'Existing user-provided photo' : 'Official listing photo'
 }
 
-export function FacilityDocuments({ facility, facilityTitle, operatingHours, media, operations, operationsAccess, operationsLoading = false, sitePlan, userPhotos }: FacilityDocumentsProps) {
+export function FacilityDocuments({ facility, facilityTitle, operatingHours, media, operations, operationsAccess, operationsLoading = false, availableSpace, sitePlan, userPhotos }: FacilityDocumentsProps) {
   const [state, setState] = useState<DownloadState>('idle')
   const [errorMessage, setErrorMessage] = useState('')
 
@@ -36,7 +39,7 @@ export function FacilityDocuments({ facility, facilityTitle, operatingHours, med
     await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
     try {
       const { generateFacilityProfilePdf, getFacilityProfileFilename } = await import('../pdf/facility-profile')
-      const bytes = await generateFacilityProfilePdf({ facility, facilityTitle, operatingHours, media, operations, operationsAccess, sitePlan, userPhotos })
+      const bytes = await generateFacilityProfilePdf({ facility, facilityTitle, operatingHours, media, operations, operationsAccess, availableSpace, sitePlan, userPhotos })
       const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' })
       const objectUrl = URL.createObjectURL(blob)
       const anchor = document.createElement('a')

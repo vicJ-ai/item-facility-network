@@ -170,6 +170,7 @@ body.is-resizing-explorer, body.is-resizing-explorer * { cursor: col-resize !imp
 .open-state-compact { width: fit-content; align-items: center; gap: 5px; padding: 2px 9px 2px 7px; border-radius: var(--radius-full); background: var(--closed-soft); font-size: 12px; line-height: 1.3; }
 .open-state-compact > svg { margin-top: 0; }
 .open-state-compact.is-open { background: var(--open-soft); }
+.open-state.is-unknown { color: var(--muted); }
 .known-details .open-state, .detail-list-hours .open-state { margin-top: 8px; }
 
 /* Dashboard regions */
@@ -525,6 +526,7 @@ tbody tr:hover td:last-child, tbody tr.selected td:last-child { color: var(--pri
 .availability-current { grid-column: 1 / -1; margin: 0; padding-top: 12px; display: flex; gap: 28px; border-top: 1px solid var(--border); }
 .availability-current dt { color: var(--muted); font-size: 11px; }
 .availability-current dd { margin: 2px 0 0; font-size: 13px; font-weight: 700; }
+.availability-current small { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
 .availability-history { min-width: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface); }
 .availability-history > header { min-height: 62px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; gap: 18px; border-bottom: 1px solid var(--border); }
 .availability-history > header > div { display: flex; align-items: center; gap: 9px; }
@@ -637,6 +639,10 @@ tbody tr:hover td:last-child, tbody tr.selected td:last-child { color: var(--pri
 .operations-contact-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 8px; }
 .operations-contact-card { min-width: 0; padding: 12px; display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 12px; align-items: start; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); }
 .operations-contact-photo { width: 70px; height: 70px; display: block; object-fit: contain; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.operations-contact-photo[src$='-v2.png'] { object-fit: cover; object-position: center top; }
+.operations-contact-photo[src$='efrain-islas-alcaraz.png'] { object-fit: cover; object-position: center top; }
+.operations-contact-photo[src$='mary-smothers.jpg'] { object-fit: cover; object-position: center 18%; }
+.operations-contact-photo[src$='jimmy-esparza.png'] { object-fit: cover; object-position: center 20%; }
 .operations-contact-photo.is-blank { background: transparent; }
 .operations-contact-copy { min-width: 0; }
 .operations-contact-role { display: block; color: var(--primary-ink); font-size: 12px; font-weight: 700; line-height: 1.35; }

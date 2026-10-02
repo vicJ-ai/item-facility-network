@@ -102,15 +102,22 @@ export async function migrate(db: Db) {
       actor_admin_id uuid NOT NULL REFERENCES facility_admins(id),
       actor_iam_user_id text NOT NULL CHECK (actor_iam_user_id ~ '^[0-9]{1,128}$'),
       actor_username text NOT NULL,
+      old_value_source text NOT NULL DEFAULT 'administrator' CHECK (old_value_source IN ('administrator','source-snapshot','pending')),
       created_at timestamptz NOT NULL DEFAULT now()
     );
+    ALTER TABLE facility_availability_audit ADD COLUMN IF NOT EXISTS old_value_source text NOT NULL DEFAULT 'administrator';
+    DO $$ BEGIN
+      ALTER TABLE facility_availability_audit ADD CONSTRAINT facility_availability_audit_old_value_source_check
+        CHECK (old_value_source IN ('administrator','source-snapshot','pending'));
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$;
     CREATE INDEX IF NOT EXISTS facility_availability_audit_history_idx ON facility_availability_audit(created_at DESC,id DESC);
     CREATE INDEX IF NOT EXISTS facility_availability_audit_facility_history_idx ON facility_availability_audit(facility_id,created_at DESC,id DESC);
     CREATE OR REPLACE FUNCTION prevent_facility_availability_audit_mutation() RETURNS trigger LANGUAGE plpgsql AS $$
       BEGIN RAISE EXCEPTION 'facility availability audit is append-only'; END
     $$;
-    DROP TRIGGER IF EXISTS facility_availability_audit_immutable ON facility_availability_audit;
-    CREATE TRIGGER facility_availability_audit_immutable BEFORE UPDATE OR DELETE ON facility_availability_audit
-      FOR EACH ROW EXECUTE FUNCTION prevent_facility_availability_audit_mutation();
+    DO $$ BEGIN
+      CREATE TRIGGER facility_availability_audit_immutable BEFORE UPDATE OR DELETE ON facility_availability_audit
+        FOR EACH ROW EXECUTE FUNCTION prevent_facility_availability_audit_mutation();
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$;
   `)
 }

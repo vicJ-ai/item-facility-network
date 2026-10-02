@@ -2,10 +2,17 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import { AlertCircle, Building2, ChevronLeft, ChevronRight, History, LoaderCircle, RefreshCw, Save, Warehouse } from 'lucide-react'
 import { useAccess } from '../auth/access-context'
 import { facilities } from '../data/facilities'
+import { formatAvailableSpaceMonth } from '../data/facility-space'
 import type { AdminAvailability, AvailabilityHistoryPage, PublicAvailability } from '../types/availability'
 
 const emptyHistory: AvailabilityHistoryPage = { entries: [], page: 1, pageSize: 10, total: 0, totalPages: 0 }
 const numberFormat = new Intl.NumberFormat('en-US')
+
+function availabilitySourceLabel(record: AdminAvailability) {
+  if (record.valueSource === 'administrator') return 'Administrator-maintained live value'
+  if (record.valueSource === 'source-snapshot') return `User-supplied snapshot${record.snapshotAsOf ? ` · ${formatAvailableSpaceMonth(record.snapshotAsOf)}` : ''}${record.snapshotStatus === 'unconfirmed' ? ' · not confirmed' : ''}`
+  return 'No administrator value or source snapshot'
+}
 
 function AvailabilityEditor({ record, onSaved }: { record: AdminAvailability; onSaved: (entry: AdminAvailability) => void }) {
   const { authorizedFetch } = useAccess()
@@ -45,10 +52,10 @@ function AvailabilityEditor({ record, onSaved }: { record: AdminAvailability; on
   return <form className="availability-editor" onSubmit={submit} aria-label={`Update available space for ${facility.fullAddress}`}>
     <div className="availability-editor-heading"><span className="eyebrow">Facility {String(facility.number).padStart(2, '0')}</span><h2>{facility.city ?? facility.street}, {facility.state}</h2><p>{facility.fullAddress}</p></div>
     <label><span>Available space</span><div className="availability-input"><input inputMode="numeric" pattern="[0-9]+" value={value} onChange={(event) => setValue(event.target.value)} aria-describedby="availability-help" disabled={pending} /><b>SQFT</b></div></label>
-    <p id="availability-help">Use a whole number. Zero is valid; an unset facility remains Pending.</p>
+    <p id="availability-help">Use a whole number. Zero is valid; saving replaces any displayed source snapshot with an administrator-maintained value.</p>
     <button className="primary-button" disabled={pending}>{pending ? <LoaderCircle className="spin" /> : <Save />}{pending ? 'Saving…' : 'Save available space'}</button>
     {message && <div className={`availability-message ${message.kind}`} role={message.kind === 'error' ? 'alert' : 'status'}>{message.kind === 'error' && <AlertCircle />}{message.text}</div>}
-    <dl className="availability-current"><div><dt>Current public value</dt><dd>{record.squareFeet === null ? 'Pending' : `${numberFormat.format(record.squareFeet)} SQFT`}</dd></div><div><dt>Record version</dt><dd>{record.version}</dd></div></dl>
+    <dl className="availability-current"><div><dt>Current effective value</dt><dd>{record.squareFeet === null ? 'Pending' : `${numberFormat.format(record.squareFeet)} SQFT`}</dd><small>{availabilitySourceLabel(record)}</small></div><div><dt>Database version</dt><dd>{record.version}</dd></div></dl>
   </form>
 }
 
@@ -116,7 +123,7 @@ export function OperationsWorkbench({ onAvailabilityChanged }: { onAvailabilityC
         {loading || !selected ? <div className="workbench-loading" role="status"><LoaderCircle className="spin" />Loading facility availability…</div> : <AvailabilityEditor key={selected.facilityId} record={selected} onSaved={saveComplete} />}
         <section className="availability-history" aria-labelledby="availability-history-title">
           <header><div><History /><span><span className="eyebrow">Immutable audit log</span><h2 id="availability-history-title">Change history</h2></span></div><small>Signed in as {user?.username} · IAM ID {user?.iamUserId}</small></header>
-          {historyLoading ? <div className="history-state" role="status"><LoaderCircle className="spin" />Loading history…</div> : history.entries.length === 0 ? <div className="history-state"><Warehouse />No availability changes recorded for this facility.</div> : <div className="history-table-wrap"><table><thead><tr><th>Date (UTC)</th><th>Change</th><th>Administrator</th></tr></thead><tbody>{history.entries.map((entry) => <tr key={entry.id}><td><time dateTime={entry.createdAt}>{new Date(entry.createdAt).toLocaleString('en-US', { timeZone: 'UTC', dateStyle: 'medium', timeStyle: 'short' })} UTC</time></td><td>{entry.oldSquareFeet === null ? 'Pending' : numberFormat.format(entry.oldSquareFeet)} → <strong>{numberFormat.format(entry.newSquareFeet)} SQFT</strong></td><td>{entry.actorUsername}<small>IAM ID {entry.actorIamUserId}</small></td></tr>)}</tbody></table></div>}
+          {historyLoading ? <div className="history-state" role="status"><LoaderCircle className="spin" />Loading history…</div> : history.entries.length === 0 ? <div className="history-state"><Warehouse />No availability changes recorded for this facility.</div> : <div className="history-table-wrap"><table><thead><tr><th>Date (UTC)</th><th>Change</th><th>Administrator</th></tr></thead><tbody>{history.entries.map((entry) => <tr key={entry.id}><td><time dateTime={entry.createdAt}>{new Date(entry.createdAt).toLocaleString('en-US', { timeZone: 'UTC', dateStyle: 'medium', timeStyle: 'short' })} UTC</time></td><td>{entry.oldSquareFeet === null ? 'Pending' : numberFormat.format(entry.oldSquareFeet)}{entry.oldValueSource !== 'pending' && <small>{entry.oldValueSource === 'source-snapshot' ? 'source snapshot' : 'administrator value'}</small>} → <strong>{numberFormat.format(entry.newSquareFeet)} SQFT</strong></td><td>{entry.actorUsername}<small>IAM ID {entry.actorIamUserId}</small></td></tr>)}</tbody></table></div>}
           <footer><span>{history.total} {history.total === 1 ? 'change' : 'changes'}</span><div><button type="button" aria-label="Previous history page" disabled={historyLoading || page <= 1} onClick={() => setPage((current) => current - 1)}><ChevronLeft /></button><span>Page {history.totalPages ? history.page : 0} of {history.totalPages}</span><button type="button" aria-label="Next history page" disabled={historyLoading || page >= history.totalPages} onClick={() => setPage((current) => current + 1)}><ChevronRight /></button></div></footer>
         </section>
       </div>

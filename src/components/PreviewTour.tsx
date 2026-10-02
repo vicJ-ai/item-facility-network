@@ -5,7 +5,7 @@ import { SplitText } from 'gsap/SplitText'
 import type { RegionBoundary } from '../data/region-boundaries'
 import type { TourCameraApi } from '../lib/preview-tour/camera-api'
 import { choreograph, highlightOpacity, outlineProgress } from '../lib/preview-tour/choreography'
-import type { TourChapter, TourFacility } from '../lib/preview-tour/script'
+import type { TourChapter, TourFacility, TourStopDetails } from '../lib/preview-tour/script'
 import './PreviewTour.css'
 
 gsap.registerPlugin(SplitText)
@@ -26,6 +26,8 @@ type PreviewTourProps = {
   interactionTarget: HTMLElement | null
   localTime: (facility: TourFacility) => string
   renderOpenState: (facility: TourFacility) => ReactNode
+  /** Photo, square footage, and plan facts shown at each stop. */
+  stopDetails: (facility: TourFacility) => TourStopDetails
   /** The regions to highlight (`null` for none); the finale lights all of them. */
   onFocusChange: (regionIds: readonly string[] | null) => void
   onExit: () => void
@@ -61,7 +63,7 @@ function mergeBoundaries(boundaries: (RegionBoundary | null)[]): RegionBoundary 
 }
 
 /** The Dashboard's cinematic, looping tour of every region and facility. */
-export default function PreviewTour({ api, chapters, interactionTarget, localTime, renderOpenState, onFocusChange, onExit, speed = 1, maxFps }: PreviewTourProps) {
+export default function PreviewTour({ api, chapters, interactionTarget, localTime, renderOpenState, stopDetails, onFocusChange, onExit, speed = 1, maxFps }: PreviewTourProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const announcerRef = useRef<HTMLDivElement>(null)
   const controls = useRef<Controls | null>(null)
@@ -122,6 +124,8 @@ export default function PreviewTour({ api, chapters, interactionTarget, localTim
         const start = cue.jumpTo + (reducedMotion ? 0 : 0.35)
         reveal(block, block ? split(selector).chars : [], start, cue.end)
         if (block && !reducedMotion) timeline.from(block.querySelector('.preview-stop-number'), { yPercent: 60, opacity: 0, duration: 0.7, ease: 'power3.out' }, start)
+        const card = block?.querySelector('.preview-stop-card')
+        if (card && !reducedMotion) timeline.from(card, { y: 24, opacity: 0, duration: 0.8, ease: 'power3.out' }, start + 0.45)
         reveal(root.querySelector(`[data-stop-time="${cue.stopIndex}"]`), [], start, cue.end)
         timeline.call(() => {
           api.pulsePin(stops[cue.stopIndex].facility.id)
@@ -317,14 +321,25 @@ export default function PreviewTour({ api, chapters, interactionTarget, localTim
             <p>{facilityCount(chapter.stops.length)}</p>
           </div>
         ))}
-        {stops.map((stop) => (
-          <div key={stop.facility.id} className="preview-title preview-stop" data-stop={stop.index}>
-            <span className="preview-stop-number" aria-hidden="true">{pad(stop.facility.number)}</span>
-            <h2 data-split style={titleFit(stopTitle(stop.facility))}>{stopTitle(stop.facility)}</h2>
-            {stop.facility.city && <p className="preview-stop-state">{stop.facility.stateName.toUpperCase()}</p>}
-            <p className="preview-stop-detail"><span>{stop.facility.fullAddress}</span>{renderOpenState(stop.facility)}</p>
-          </div>
-        ))}
+        {stops.map((stop) => {
+          const details = stopDetails(stop.facility)
+          return (
+            <div key={stop.facility.id} className="preview-title preview-stop" data-stop={stop.index}>
+              <span className="preview-stop-number" aria-hidden="true">{pad(stop.facility.number)}</span>
+              <h2 data-split style={titleFit(stopTitle(stop.facility))}>{stopTitle(stop.facility)}</h2>
+              {stop.facility.city && <p className="preview-stop-state">{stop.facility.stateName.toUpperCase()}</p>}
+              <p className="preview-stop-detail"><span>{stop.facility.fullAddress}</span>{renderOpenState(stop.facility)}</p>
+              <div className="preview-stop-card" data-testid="preview-stop-card">
+                {details.photo && <img className="preview-stop-photo" src={details.photo.src} alt={details.photo.alt} decoding="async" />}
+                <dl className="preview-stop-facts">
+                  {details.totalSquareFeet !== undefined && <div><dt>Total</dt><dd>{details.totalSquareFeet.toLocaleString('en-US')} SF</dd></div>}
+                  <div data-testid="preview-stop-available"><dt>Available</dt><dd>{details.available}</dd></div>
+                  {details.facts.map((fact) => <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>)}
+                </dl>
+              </div>
+            </div>
+          )
+        })}
         <div className="preview-title preview-finale" data-finale>
           <h2 data-split style={titleFit(finaleTitle)}>{finaleTitle}</h2>
           <p>One network</p>

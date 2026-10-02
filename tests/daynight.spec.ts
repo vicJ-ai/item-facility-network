@@ -106,8 +106,12 @@ test('open state uses facility-local time zones, daylight saving time, and weekd
   expect(getFacilityOpenState({ state: 'CA' }, hours('PST'), new Date('2026-01-14T16:00:00Z'))).toMatchObject({ isOpen: true, localTime: '8:00 AM PST' })
   expect(getFacilityOpenState({ state: 'NJ' }, hours('EST'), new Date('2026-06-20T15:00:00Z'))).toMatchObject({ isOpen: false, summary: 'Closed · opens Mon 8:00 AM' })
 
+  // Garden City has no supplied hours, so it has no hours-derived time zone and is never shown as open.
+  expect(getFacilityOpenState({ state: 'GA' }, undefined, WEDNESDAY_4PM_PACIFIC)).toEqual({ isOpen: false, hoursKnown: false, localTime: '', summary: 'Hours not provided' })
   for (const facility of facilities) {
-    const zone = getFacilityTimeZone(facility, facilityOperatingHours[facility.id])
+    const hours = facilityOperatingHours[facility.id]
+    if (!hours) continue
+    const zone = getFacilityTimeZone(facility, hours)
     expect(zone).toMatch(/^America\//)
     if (facility.state === 'AZ') expect(zone).toBe('America/Phoenix')
   }

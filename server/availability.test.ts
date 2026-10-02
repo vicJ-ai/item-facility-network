@@ -3,11 +3,13 @@ import { randomUUID } from 'node:crypto'
 import { after, before, beforeEach, test } from 'node:test'
 import { config as loadEnv } from 'dotenv'
 import request from 'supertest'
-import { saveAvailability } from './availability.js'
+import { availabilityHistory, saveAvailability } from './availability.js'
 import type { AdminAccess } from './access.js'
 import { createApp } from './app.js'
 import type { AppConfig } from './config.js'
 import { createDb, ensureDatabaseSchema, migrate } from './db.js'
+import { facilityIds } from './data/facility-ids.js'
+import { facilities } from '../src/data/facilities.js'
 import { hmacSha256 } from './security.js'
 
 loadEnv({ path: '.env.local', override: false, quiet: true })
@@ -67,6 +69,31 @@ test('repeat migration is idempotent and public projection contains only facilit
   assert.deepEqual(Object.keys(response.body.availability[0]).sort(), ['facilityId', 'squareFeet'])
 })
 
+test('migration adds audit provenance without rewriting legacy audit rows and restores immutability', async () => {
+  const actor = await seedAdmin()
+  await db.query('DROP TRIGGER IF EXISTS facility_availability_audit_immutable ON facility_availability_audit')
+  await db.query('ALTER TABLE facility_availability_audit DROP COLUMN IF EXISTS old_value_source')
+  const inserted = await db.query(`INSERT INTO facility_availability_audit
+    (facility_id,old_square_feet,new_square_feet,version,actor_admin_id,actor_iam_user_id,actor_username,created_at)
+    VALUES ('buena-park-valley-view',NULL,4321,1,$1,$2,$3,'2025-04-05T06:07:08.901Z') RETURNING id`,
+  [actor.id, actor.iamUserId, actor.username])
+  const legacyFields = 'id,facility_id,old_square_feet,new_square_feet,version,actor_admin_id,actor_iam_user_id,actor_username,created_at::text AS created_at'
+  const before = await db.query(`SELECT ${legacyFields} FROM facility_availability_audit WHERE id=$1`, [inserted.rows[0].id])
+
+  await migrate(db)
+  await migrate(db)
+
+  const after = await db.query(`SELECT ${legacyFields} FROM facility_availability_audit WHERE id=$1`, [inserted.rows[0].id])
+  assert.deepEqual(after.rows, before.rows)
+  const stored = await db.query('SELECT old_value_source FROM facility_availability_audit WHERE id=$1', [inserted.rows[0].id])
+  assert.deepEqual(stored.rows, [{ old_value_source: 'administrator' }])
+  const history = await availabilityHistory(db, { page: 1, facilityId: 'buena-park-valley-view' })
+  assert.equal(history.entries[0].oldValueSource, 'pending')
+  assert.equal(history.entries[0].createdAt, '2025-04-05T06:07:08.901Z')
+  await assert.rejects(db.query('UPDATE facility_availability_audit SET new_square_feet=9999 WHERE id=$1', [inserted.rows[0].id]), /append-only/)
+  await assert.rejects(db.query('DELETE FROM facility_availability_audit WHERE id=$1', [inserted.rows[0].id]), /append-only/)
+})
+
 test('anonymous users cannot read admin state or history or mutate availability', async () => {
   const app = createApp({ config, db })
   await request(app).get('/api/admin/availability').expect(401)
@@ -78,11 +105,42 @@ test('active admin saves zero, reads it back, and audit identity comes only from
   const { actor, agent, csrf } = await authorizedAgent()
   const saved = await agent.post('/api/admin/availability/buena-park-valley-view').set('Origin', origin).set('x-csrf-token', csrf)
     .send({ squareFeet: 0, version: 0, actorIamUserId: '999999', actorUsername: 'spoofed' }).expect(200)
-  assert.deepEqual(saved.body.availability, { facilityId: 'buena-park-valley-view', squareFeet: 0, version: 1, updatedAt: saved.body.availability.updatedAt })
+  assert.deepEqual(saved.body.availability, {
+    facilityId: 'buena-park-valley-view', squareFeet: 0, version: 1, updatedAt: saved.body.availability.updatedAt,
+    valueSource: 'administrator', snapshotAsOf: null, snapshotStatus: null,
+  })
   const admin = await agent.get('/api/admin/availability').expect(200)
   assert.deepEqual(admin.body.availability.find((entry: { facilityId: string }) => entry.facilityId === 'buena-park-valley-view'), saved.body.availability)
   const audit = await db.query('SELECT actor_iam_user_id,actor_username,old_square_feet,new_square_feet FROM facility_availability_audit')
   assert.deepEqual(audit.rows[0], { actor_iam_user_id: actor.iamUserId, actor_username: actor.username, old_square_feet: null, new_square_feet: '0' })
+})
+
+test('admin projection covers the UI roster and exposes source snapshots without persisting them', async () => {
+  const { agent } = await authorizedAgent()
+  const response = await agent.get('/api/admin/availability').expect(200)
+  assert.deepEqual([...facilityIds], facilities.map((facility) => facility.id))
+  assert.equal(response.body.availability.length, facilities.length)
+  assert.deepEqual(response.body.availability.find((entry: { facilityId: string }) => entry.facilityId === 'roanoke-highway-114'), {
+    facilityId: 'roanoke-highway-114', squareFeet: 4000, version: 0, updatedAt: null,
+    valueSource: 'source-snapshot', snapshotAsOf: '2026-10', snapshotStatus: null,
+  })
+  const persisted = await db.query('SELECT count(*)::int count FROM facility_availability')
+  assert.equal(persisted.rows[0].count, 0)
+})
+
+test('first administrator save replaces a snapshot, preserves its audit provenance, and zero wins', async () => {
+  const { agent, csrf } = await authorizedAgent()
+  const saved = await agent.post('/api/admin/availability/roanoke-highway-114').set('Origin', origin).set('x-csrf-token', csrf)
+    .send({ squareFeet: 0, version: 0 }).expect(200)
+  assert.equal(saved.body.availability.squareFeet, 0)
+  assert.equal(saved.body.availability.valueSource, 'administrator')
+  assert.equal(saved.body.availability.version, 1)
+  const audit = await agent.get('/api/admin/availability/history?facilityId=roanoke-highway-114&page=1').expect(200)
+  assert.deepEqual(audit.body.entries[0], {
+    ...audit.body.entries[0], oldSquareFeet: 4000, newSquareFeet: 0, version: 1, oldValueSource: 'source-snapshot',
+  })
+  const publicProjection = await request(createApp({ config, db })).get('/api/availability').expect(200)
+  assert.deepEqual(publicProjection.body, { availability: [{ facilityId: 'roanoke-highway-114', squareFeet: 0 }] })
 })
 
 test('mutation enforces origin, CSRF, known facility, and whole nonnegative safe square feet', async () => {

@@ -18,13 +18,36 @@ import { isKnownFacilityId } from './data/facility-ids.js'
 type Dependencies = { config: AppConfig; db: Db }
 type AuthorizedRequest = Request & { admin?: AdminAccess }
 
-const privatePortraits: Record<string, string> = {
-  'ruben-jauregui.png': 'buena-park-valley-view/ruben-jauregui.png',
-  'mark-tuttle.png': 'buena-park-valley-view/mark-tuttle.png',
-  'fabian-quiroz.png': 'joliet-brandon/fabian-quiroz.png',
-  'harold-cuarezma.png': 'people/harold-cuarezma.png',
-  'javier-montane.png': 'people/javier-montane.png',
-  'john-diaz.png': 'people/john-diaz.png',
+const privatePortraits: Record<string, { relativePath: string; contentType: 'image/png' | 'image/jpeg' }> = {
+  'ruben-jauregui.png': { relativePath: 'buena-park-valley-view/ruben-jauregui.png', contentType: 'image/png' },
+  'mark-tuttle.png': { relativePath: 'buena-park-valley-view/mark-tuttle.png', contentType: 'image/png' },
+  'frank-feliciano-v2.png': { relativePath: 'garden-city-prosperity/frank-feliciano-v2.png', contentType: 'image/png' },
+  'frank-feliciano.png': { relativePath: 'garden-city-prosperity/frank-feliciano.png', contentType: 'image/png' },
+  'ruben-echavarria.png': { relativePath: 'houston-citypark/ruben-echavarria.png', contentType: 'image/png' },
+  'adam-lubin-v2.png': { relativePath: 'jacksonville-ignition/adam-lubin-v2.png', contentType: 'image/png' },
+  'adam-lubin.png': { relativePath: 'jacksonville-ignition/adam-lubin.png', contentType: 'image/png' },
+  'fabian-quiroz.png': { relativePath: 'joliet-brandon/fabian-quiroz.png', contentType: 'image/png' },
+  'efrain-islas-alcaraz.png': { relativePath: 'people/efrain-islas-alcaraz.png', contentType: 'image/png' },
+  'harold-cuarezma.png': { relativePath: 'people/harold-cuarezma.png', contentType: 'image/png' },
+  'javier-montane-v2.png': { relativePath: 'people/javier-montane-v2.png', contentType: 'image/png' },
+  'javier-montane.png': { relativePath: 'people/javier-montane.png', contentType: 'image/png' },
+  'jessica-barajas-v2.png': { relativePath: 'people/jessica-barajas-v2.png', contentType: 'image/png' },
+  'jessica-barajas.jpg': { relativePath: 'people/jessica-barajas.jpg', contentType: 'image/jpeg' },
+  'john-diaz.png': { relativePath: 'people/john-diaz.png', contentType: 'image/png' },
+  'john-gleason-v2.png': { relativePath: 'people/john-gleason-v2.png', contentType: 'image/png' },
+  'john-gleason.png': { relativePath: 'people/john-gleason.png', contentType: 'image/png' },
+  'juan-barragan.png': { relativePath: 'people/juan-barragan.png', contentType: 'image/png' },
+  'mary-smothers.jpg': { relativePath: 'people/mary-smothers.jpg', contentType: 'image/jpeg' },
+  'michelle-topete.jpg': { relativePath: 'people/michelle-topete.jpg', contentType: 'image/jpeg' },
+  'oscar-rodriguez.png': { relativePath: 'people/oscar-rodriguez.png', contentType: 'image/png' },
+  'rick-griswold.png': { relativePath: 'people/rick-griswold.png', contentType: 'image/png' },
+  'wayne-brooks.png': { relativePath: 'people/wayne-brooks.png', contentType: 'image/png' },
+  'lenivy-jackson-v2.png': { relativePath: 'pooler-seabrook-building-2/lenivy-jackson-v2.png', contentType: 'image/png' },
+  'lenivy-jackson.png': { relativePath: 'pooler-seabrook-building-2/lenivy-jackson.png', contentType: 'image/png' },
+  'onoriode-enaigbe.png': { relativePath: 'sparks-vista/onoriode-enaigbe.png', contentType: 'image/png' },
+  'stephen-schumaker-v2.png': { relativePath: 'summerville-cypress-tradeport/stephen-schumaker-v2.png', contentType: 'image/png' },
+  'stephen-schumaker.png': { relativePath: 'summerville-cypress-tradeport/stephen-schumaker.png', contentType: 'image/png' },
+  'jimmy-esparza.png': { relativePath: 'university-park-central/jimmy-esparza.png', contentType: 'image/png' },
 }
 
 function noStore(response: Response) {
@@ -128,11 +151,11 @@ export function createApp({ config, db }: Dependencies) {
 
   app.get('/api/operations/portraits/:filename', (request, response) => {
     const filename = Array.isArray(request.params.filename) ? request.params.filename[0] : request.params.filename
-    const relative = privatePortraits[filename]
-    if (!relative) return fail(response, 404, 'not_found')
-    const file = path.resolve('private-media/operations', relative)
+    const portrait = privatePortraits[filename]
+    if (!portrait) return fail(response, 404, 'not_found')
+    const file = path.resolve('private-media/operations', portrait.relativePath)
     noStore(response)
-    response.set('content-type', 'image/png')
+    response.set('content-type', portrait.contentType)
     response.set('content-disposition', 'inline')
     return response.sendFile(file)
   })

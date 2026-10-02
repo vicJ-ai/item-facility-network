@@ -135,8 +135,24 @@ export const userProvidedFacilityPhotos: Partial<Record<string, UserProvidedFaci
   'houston-citypark': {
     facilityId: 'houston-citypark',
     provenance: 'user-provided',
-    coverPhotoId: 'aerial-site-context',
+    coverPhotoId: 'brochure-exterior',
     photos: [
+      {
+        id: 'brochure-exterior',
+        label: 'Brochure exterior',
+        assetUrl: '/media/houston/brochure-exterior.jpg',
+        alt: 'User-provided brochure photo of the single-story building marked 8833 with blue trim, flowering trees, a lawn, and a front parking lot',
+        width: 882,
+        height: 588,
+      },
+      {
+        id: 'brochure-aerial',
+        label: 'Brochure aerial',
+        assetUrl: '/media/houston/brochure-aerial.jpg',
+        alt: 'User-provided brochure aerial view of a long white-roofed warehouse with trailers lined up at its loading docks beside neighboring warehouses and a rail line',
+        width: 946,
+        height: 521,
+      },
       {
         id: 'aerial-site-context',
         label: 'Aerial site context',
@@ -150,8 +166,16 @@ export const userProvidedFacilityPhotos: Partial<Record<string, UserProvidedFaci
   'jacksonville-ignition': {
     facilityId: 'jacksonville-ignition',
     provenance: 'user-provided',
-    coverPhotoId: 'building-exterior',
+    coverPhotoId: 'official-exterior',
     photos: [
+      {
+        id: 'official-exterior',
+        label: 'Official exterior',
+        assetUrl: '/media/jacksonville/official-exterior.jpg',
+        alt: 'Official facility sheet photo of the Suite 1 entrance and warehouse marked 2619 at 2619 Ignition Drive',
+        width: 609,
+        height: 408,
+      },
       {
         id: 'building-exterior',
         label: 'Building exterior',
@@ -383,8 +407,16 @@ export const userProvidedFacilityPhotos: Partial<Record<string, UserProvidedFaci
   'summerville-cypress-tradeport': {
     facilityId: 'summerville-cypress-tradeport',
     provenance: 'user-provided',
-    coverPhotoId: 'building-exterior',
+    coverPhotoId: 'official-exterior',
     photos: [
+      {
+        id: 'official-exterior',
+        label: 'Official exterior',
+        assetUrl: '/media/summerville/official-exterior.jpg',
+        alt: 'Official facility sheet photo of the warehouse marked 369 and its front parking lot at 369 North Cypress Drive',
+        width: 649,
+        height: 558,
+      },
       {
         id: 'building-exterior',
         label: 'Building exterior',

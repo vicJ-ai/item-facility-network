@@ -175,7 +175,9 @@ export default function DashboardGlobe({ active, facilities, targets, regionBoun
     const onRight = point.x < stage.width * 0.55
     const x = onRight ? point.x + PREVIEW_GAP : point.x - PREVIEW_GAP - width
     const y = Math.min(Math.max(point.y - 18 - height / 2, 8), stage.height - height - 8)
-    preview.style.transform = `translate3d(${Math.round(Math.max(8, x))}px, ${Math.round(y)}px, 0)`
+    const rightInset = stage.width <= 720 ? 52 : 8
+    const clampedX = Math.min(Math.max(8, x), Math.max(8, stage.width - width - rightInset))
+    preview.style.transform = `translate3d(${Math.round(clampedX)}px, ${Math.round(y)}px, 0)`
   }, [])
 
   const updatePins = useCallback(() => {

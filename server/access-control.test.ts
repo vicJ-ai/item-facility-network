@@ -119,10 +119,25 @@ test('public browsing exposes approved facility contacts and allowlisted portrai
   assert.equal(matched.body.operations.contacts.length, 5)
   assert.equal(matched.body.operations.contacts[0].email, 'michelle.topete@unisco.com')
   assert.equal(matched.body.reviewRequired, false)
-  await request(app).get('/api/operations/pooler-morgan-lakes').expect(200, { operations: null, reviewRequired: true })
+  const review = await request(app).get('/api/operations/pooler-morgan-lakes').expect(200)
+  assert.equal(review.body.reviewRequired, true)
+  assert.deepEqual(review.body.operations.contacts.map((contact: { name: string }) => contact.name), ['John Gleason'])
   await request(app).get('/api/operations/not-a-facility').expect(404, { ok: false, error: 'facility_not_found' })
-  for (const filename of ['ruben-jauregui.png', 'mark-tuttle.png', 'fabian-quiroz.png', 'harold-cuarezma.png', 'javier-montane.png', 'john-diaz.png']) {
-    const portrait = await request(app).get(`/api/operations/portraits/${filename}`).expect('cache-control', 'no-store').expect('content-type', /image\/png/).expect(200)
+  const portraits = {
+    'ruben-jauregui.png': 'image/png', 'mark-tuttle.png': 'image/png',
+    'frank-feliciano-v2.png': 'image/png', 'frank-feliciano.png': 'image/png',
+    'ruben-echavarria.png': 'image/png', 'adam-lubin-v2.png': 'image/png', 'adam-lubin.png': 'image/png',
+    'fabian-quiroz.png': 'image/png', 'efrain-islas-alcaraz.png': 'image/png', 'harold-cuarezma.png': 'image/png',
+    'javier-montane-v2.png': 'image/png', 'javier-montane.png': 'image/png',
+    'jessica-barajas-v2.png': 'image/png', 'jessica-barajas.jpg': 'image/jpeg',
+    'john-diaz.png': 'image/png', 'john-gleason-v2.png': 'image/png', 'john-gleason.png': 'image/png',
+    'juan-barragan.png': 'image/png', 'mary-smothers.jpg': 'image/jpeg', 'michelle-topete.jpg': 'image/jpeg',
+    'oscar-rodriguez.png': 'image/png', 'rick-griswold.png': 'image/png', 'wayne-brooks.png': 'image/png',
+    'lenivy-jackson-v2.png': 'image/png', 'lenivy-jackson.png': 'image/png', 'onoriode-enaigbe.png': 'image/png',
+    'stephen-schumaker-v2.png': 'image/png', 'stephen-schumaker.png': 'image/png', 'jimmy-esparza.png': 'image/png',
+  } as const
+  for (const [filename, contentType] of Object.entries(portraits)) {
+    const portrait = await request(app).get(`/api/operations/portraits/${filename}`).expect('cache-control', 'no-store').expect('content-type', new RegExp(contentType.replace('/', '\\/'))).expect(200)
     assert.ok(portrait.body.length > 0, filename)
   }
   await request(app).get('/api/operations/portraits/not-allowlisted.png').expect(404, { ok: false, error: 'not_found' })
