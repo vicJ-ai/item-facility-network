@@ -17,21 +17,23 @@ export const facilityAvailableSpace: Partial<Record<string, FacilityAvailableSpa
   'waddell-cotton': { squareFeet: 40_000, asOf: '2026-10' },
   'west-sacramento-overland': { squareFeet: 0, asOf: '2026-10', note: 'Cubework facility (1 UF customer)' },
   'salt-lake-city-jimmy-doolittle': { squareFeet: 0, asOf: '2026-10', note: 'Cubework facility (1 UF customer)' },
-  'riverside-alessandro': { squareFeet: 120_000, asOf: '2026-10', status: 'unconfirmed' },
+  // Reported on 2026-10-01 as unconfirmed; the user confirmed it on 2026-10-02.
+  'riverside-alessandro': { squareFeet: 120_000, asOf: '2026-10' },
   'somerset-cottontail': { squareFeet: 0, asOf: '2026-10' },
   'las-vegas-marion-building-5': { squareFeet: 0, asOf: '2026-10' },
   'long-beach-willow': { squareFeet: 10_000, asOf: '2026-10' },
   'joliet-brandon': { squareFeet: 110_000, asOf: '2026-10', note: 'Bulk; up to 150,000 SF with increased utilization · Rack: 3,000 pallet positions' },
   'garden-city-prosperity': { squareFeet: 0, asOf: '2026-10' },
   'university-park-central': { squareFeet: 0, asOf: '2026-10' },
+  // User-provided on 2026-10-02 (first given on 2026-10-01 and mistakenly recorded as Ontario's total).
+  'ontario-airport': { squareFeet: 140_000, asOf: '2026-10' },
 }
 
 // User-provided total square footage. It wins over a site plan's area, so it also covers plans that are missing,
 // state no area, or are awaiting correction.
 export const facilityTotalSquareFeet: Partial<Record<string, number>> = {
-  // User-provided on 2026-10-01.
-  'ontario-airport': 140_000,
   // User-provided on 2026-10-02.
+  'ontario-airport': 414_962,
   'tacoma-lincoln': 416_492,
   'tacoma-steele': 273_816,
   'waddell-cotton': 915_160,
@@ -41,14 +43,21 @@ export const facilityTotalSquareFeet: Partial<Record<string, number>> = {
   'salt-lake-city-jimmy-doolittle': 89_296,
   'somerset-cottontail': 98_153,
   'university-park-central': 1_552_475,
-  // User-provided on 2026-10-02; the official Pooler Seabrook and Jacksonville sheets state no area.
-  'pooler-seabrook-building-2': 499_500,
-  'jacksonville-ignition': 556_924,
   'houston-navigation': 238_011,
   'memphis-delp': 94_500,
   'plano-10th-f-avenue': 328_704,
-  // User-provided on 2026-10-02. Its site plan still states 499,500 SF; the user will replace the plan later.
-  'pooler-morgan-lakes': 302_400,
+  // "Total Building Area" sheet (sqf.pdf) supplied by the user on 2026-10-02; the user chose it over earlier figures for
+  // these eight sites. It replaces the site-plan area for Buena Park, Quality Drive, Las Vegas, and El Paso 12100, the
+  // official City Park sheet's 119,700, and the user's earlier totals for both Pooler sites and Jacksonville.
+  'buena-park-valley-view': 1_075_347,
+  'houston-citypark': 115_514,
+  'pooler-morgan-lakes': 499_500,
+  'pooler-seabrook-building-2': 1_193_920,
+  'tennessee-quality-drive': 100_050,
+  'jacksonville-ignition': 174_157,
+  'las-vegas-marion-building-5': 169_760,
+  // The sheet lists 209,153 for both El Paso sites; #14's own site plan states 93,760.
+  'el-paso-emerald-12100': 209_153,
 }
 
 // Warehouse-reported bulk floor space (SF) and rack capacity (pallet positions), keyed by facility id.
@@ -62,15 +71,27 @@ export const facilityBulkRack: Partial<Record<string, FacilityBulkRack>> = {
 
 export const getFacilityBulkRack = (facilityId: string) => facilityBulkRack[facilityId]
 
+// Shared display wording, so the Overview, Dashboard previews, Preview tour, and PDF all read the same values the same way.
+// A value nobody has reported yet reads "Pending" everywhere.
+
+/** Bulk floor space alone ("110,000 SQF"), for compact cards. */
+export function formatBulkSquareFeet(bulkRack?: FacilityBulkRack) {
+  return bulkRack?.bulkSquareFeet === undefined ? 'Pending' : `${bulkRack.bulkSquareFeet.toLocaleString('en-US')} SQF`
+}
+
+/** Bulk floor space with any "up to" stretch ("110,000 SQF · up to 150,000 SQF"), for the Overview. */
 export function formatBulk(bulkRack?: FacilityBulkRack) {
-  if (bulkRack?.bulkSquareFeet === undefined) return 'Not provided'
-  const bulk = `${bulkRack.bulkSquareFeet.toLocaleString('en-US')} SQF`
-  return bulkRack.bulkUpToSquareFeet ? `${bulk} · up to ${bulkRack.bulkUpToSquareFeet.toLocaleString('en-US')} SQF` : bulk
+  const bulk = formatBulkSquareFeet(bulkRack)
+  return bulkRack?.bulkSquareFeet !== undefined && bulkRack.bulkUpToSquareFeet ? `${bulk} · up to ${bulkRack.bulkUpToSquareFeet.toLocaleString('en-US')} SQF` : bulk
 }
 
 export function formatRack(bulkRack?: FacilityBulkRack) {
-  if (bulkRack?.rackPalletPositions === undefined) return 'Not provided'
+  if (bulkRack?.rackPalletPositions === undefined) return 'Pending'
   return `${bulkRack.rackPalletPositions.toLocaleString('en-US')} pallet positions`
+}
+
+export function formatTotalSquareFeet(totalSquareFeet?: number) {
+  return totalSquareFeet === undefined ? 'Pending' : `${totalSquareFeet.toLocaleString('en-US')} SQF`
 }
 
 export type FacilitySquareFootage = { totalSquareFeet?: number; available?: FacilityAvailableSpace }
@@ -89,12 +110,16 @@ export function getFacilitySquareFootage(facilityId: string): FacilitySquareFoot
   }
 }
 
-/** Short available-space wording shared by the map preview and the Preview tour: "80,000 SQF", "None", or "Pending". */
+/** Reported available space: "80,000 SQF" or "0 SQF". Surfaces leave Available out entirely while it is unreported. */
 export function formatAvailableSpace(available?: FacilityAvailableSpace) {
   if (!available) return 'Pending'
-  const amount = available.squareFeet === 0 ? 'None' : `${available.squareFeet.toLocaleString('en-US')} SQF`
+  const amount = `${available.squareFeet.toLocaleString('en-US')} SQF`
   return available.status === 'unconfirmed' ? `${amount} (not confirmed)` : amount
 }
+
+/** True when a site has reported an available figure that can be shown (not missing and not awaiting confirmation). */
+export const hasReportedAvailableSpace = (available?: FacilityAvailableSpace): available is FacilityAvailableSpace =>
+  available !== undefined && available.status !== 'unconfirmed'
 
 export function formatAvailableSpaceMonth(asOf: string) {
   const [year, month] = asOf.split('-').map(Number)

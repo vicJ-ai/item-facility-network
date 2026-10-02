@@ -105,18 +105,23 @@ test('Next, Previous, and the progress ticks move between facilities', async ({ 
   await expect(tour).toHaveAttribute('data-preview-stop', facilityId(9))
   const index = await tennesseeTick.getAttribute('data-tick')
   await expect(tour.locator(`.preview-stop[data-stop="${index}"] h2`)).toHaveText('TENNESSEE')
-  // Each stop shows its cover photo, square footage, and the next site-plan facts.
+  // Each stop shows its cover photo, total square footage, available space only once reported, then bulk, rack,
+  // ceiling height, and loading docks, with Pending for anything not yet reported.
   const tennesseeCard = tour.locator(`.preview-stop[data-stop="${index}"] [data-testid="preview-stop-card"]`)
   await expect(tennesseeCard.locator('img')).toHaveAttribute('src', userProvidedFacilityPhotos['tennessee-quality-drive']!.photos.find((photo) => photo.id === 'oblique-aerial-exterior')!.assetUrl)
-  await expect(tennesseeCard).toContainText('Total220,100 SQF')
-  await expect(tennesseeCard.getByTestId('preview-stop-available')).toHaveText('AvailablePending')
-  await expect(tennesseeCard).toContainText('Auto parking122')
+  await expect(tennesseeCard.locator('.preview-stop-facts')).toHaveText('Total100,050 SQFBulkPendingRackPendingCeiling height28 ftLoading docks28')
+  await expect(tennesseeCard.getByTestId('preview-stop-available')).toHaveCount(0)
 
   const roanokeTick = tour.getByRole('button', { name: 'Jump to facility 05, Roanoke' })
   await roanokeTick.click()
   const roanokeCard = tour.locator(`.preview-stop[data-stop="${await roanokeTick.getAttribute('data-tick')}"] [data-testid="preview-stop-card"]`)
-  await expect(roanokeCard.getByTestId('preview-stop-available')).toHaveText('Available4,000 SQF')
-  await expect(roanokeCard).toContainText('Dock positions127')
+  await expect(roanokeCard.locator('.preview-stop-facts')).toHaveText('Total568,632 SQFAvailable4,000 SQFBulkPendingRackPendingCeiling height36 ftLoading docks34')
+
+  // Joliet has every figure, so all six facts show values.
+  const jolietTick = tour.getByRole('button', { name: 'Jump to facility 16, Joliet' })
+  await jolietTick.click()
+  const jolietCard = tour.locator(`.preview-stop[data-stop="${await jolietTick.getAttribute('data-tick')}"] [data-testid="preview-stop-card"]`)
+  await expect(jolietCard.locator('.preview-stop-facts')).toHaveText('Total826,755 SQFAvailable110,000 SQFBulk110,000 SQFRack3,000 pallet positionsCeiling height36 ftLoading docks82')
 
   for (let step = 0; step < facilities.length; step += 1) await page.keyboard.press('ArrowRight')
   await expect(tour.locator('[data-finale]')).toContainText('29 FACILITIES · 13 REGIONS')

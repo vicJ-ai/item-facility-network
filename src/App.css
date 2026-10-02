@@ -108,6 +108,8 @@ body.is-resizing-explorer, body.is-resizing-explorer * { cursor: col-resize !imp
 .square-footage-preview > span { min-width: 0; display: grid; gap: 2px; }
 .dashboard-pin-preview-content .square-footage-preview strong { font: inherit; font-weight: 700; }
 .square-footage-pending { color: var(--muted); font-style: italic; }
+/* Bulk and rack sit under Available, indented to read as its breakdown. */
+.square-footage-preview .square-footage-sub { padding-left: 12px; }
 @keyframes dashboard-preview-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
 
 /* Operating hours and open state */
@@ -532,11 +534,8 @@ tbody tr:hover td:last-child, tbody tr.selected td:last-child { color: var(--pri
 .operations-contact-group > header h3 { margin: 2px 0 0; font-size: 14px; }
 .operations-contact-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 8px; }
 .operations-contact-card { min-width: 0; padding: 12px; display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 12px; align-items: start; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); }
-.operations-contact-photo { width: 70px; height: 70px; display: block; object-fit: contain; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
-.operations-contact-photo[src$='-v2.png'] { object-fit: cover; object-position: center top; }
-.operations-contact-photo[src$='efrain-islas-alcaraz.png'] { object-fit: cover; object-position: center top; }
-.operations-contact-photo[src$='mary-smothers.jpg'] { object-fit: cover; object-position: center 18%; }
-.operations-contact-photo[src$='jimmy-esparza.png'] { object-fit: cover; object-position: center 20%; }
+/* Portraits are pre-cropped squares, so every one fills the rounded frame edge to edge. */
+.operations-contact-photo { width: 70px; height: 70px; display: block; object-fit: cover; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
 .operations-contact-photo.is-blank { background: transparent; }
 .operations-contact-copy { min-width: 0; }
 .operations-contact-role { display: block; color: var(--primary-ink); font-size: 12px; font-weight: 700; line-height: 1.35; }
@@ -551,6 +550,10 @@ tbody tr:hover td:last-child, tbody tr.selected td:last-child { color: var(--pri
 .operations-contacts-empty { margin: 5px 12px 0; padding: 24px 18px; display: grid; justify-items: center; gap: 5px; border: 1px dashed var(--border); border-radius: 8px; color: var(--muted); background: var(--surface-2); text-align: center; }
 .operations-contacts-empty strong { color: var(--text); font-size: 14px; }
 .operations-contacts-empty span { font-size: 12px; line-height: 1.45; }
+.top-customers-list { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 6px; }
+.top-customers-list li { min-width: 0; padding: 7px 10px; display: flex; align-items: baseline; gap: 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; }
+.top-customers-list li > span { flex: 0 0 auto; min-width: 18px; color: var(--primary-ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+.top-customers-note { margin: 8px 2px 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
 
 /* Toast, drawer, and dialogs */
 .toast { position: fixed; z-index: 3000; top: 72px; left: 50%; transform: translateX(-50%); padding: 10px 16px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); background: var(--surface); box-shadow: var(--shadow-lg); font-size: 13px; font-weight: 500; }
