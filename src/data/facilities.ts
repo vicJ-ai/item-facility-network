@@ -141,7 +141,7 @@ export const facilities: Facility[] = [
     coordinateSource: 'Esri World Geocoding Service', coordinatePrecision: 'Point address', geocoderMatch: '250 Vista Blvd, Sparks, NV, 89434, USA',
   },
   {
-    id: 'houston-navigation', number: 23, status: 'Active', facilityType: 'UF/CUBEWORKS', street: '3401 Navigation Blvd', city: 'Houston', state: 'TX', stateName: 'Texas', zip: '77003',
+    id: 'houston-navigation', number: 23, status: 'Unassigned', facilityType: 'UF/CUBEWORKS', street: '3401 Navigation Blvd', city: 'Houston', state: 'TX', stateName: 'Texas', zip: '77003',
     fullAddress: '3401 Navigation Blvd, Houston, TX 77003', coordinates: [29.7574596, -95.3355715],
     coordinateSource: 'Esri World Geocoding Service', coordinatePrecision: 'Point address', geocoderMatch: '3401 Navigation Blvd, Houston, TX, 77003, USA',
   },
