@@ -30,6 +30,21 @@ async function openValleyView(page: import('@playwright/test').Page) {
 test('admin availability workflow updates both public surfaces while privileged navigation stays hidden publicly', async ({ browser, page }, testInfo) => {
   test.setTimeout(60_000)
   const consoleErrors: string[] = []
+  let releaseStaleAvailability = () => {}
+  let staleAvailabilityFulfilled = false
+  let capturedInitialAvailability = false
+  const staleAvailabilityGate = new Promise<void>((resolve) => { releaseStaleAvailability = resolve })
+  await page.route('**/api/availability', async (route) => {
+    if (route.request().method() !== 'GET' || capturedInitialAvailability) {
+      await route.continue()
+      return
+    }
+    capturedInitialAvailability = true
+    const response = await route.fetch()
+    await staleAvailabilityGate
+    await route.fulfill({ response })
+    staleAvailabilityFulfilled = true
+  })
   page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()) })
   await useFlatMap(page)
   await page.goto('/')
@@ -49,13 +64,17 @@ test('admin availability workflow updates both public surfaces while privileged 
   await expect(workbench.getByText('Pending', { exact: true }).first()).toBeVisible()
 
   const editor = workbench.getByRole('form', { name: `Update facility space for ${valleyViewAddress}` })
-  await editor.getByLabel('Available space').fill('123456')
+  await editor.getByLabel('Available space').fill('500000')
   await editor.getByRole('button', { name: 'Save facility space' }).click()
   await expect(editor.getByRole('status')).toHaveText('Facility space saved.')
-  await expect(editor).toContainText('123,456 SQF')
+  await expect(editor).toContainText('500,000 SQF')
+
+  releaseStaleAvailability()
+  await expect.poll(() => staleAvailabilityFulfilled).toBe(true)
+  await expect(editor).toContainText('500,000 SQF')
 
   const history = workbench.getByRole('region', { name: 'Change history' })
-  await expect(history).toContainText('Pending → 123,456 SQF')
+  await expect(history).toContainText('Pending → 500,000 SQF')
   await expect(history).toContainText('lmadala')
   await expect(history).toContainText('IAM ID 2084344241143070722')
   await expect(history.getByRole('time')).toContainText('UTC')
@@ -77,13 +96,25 @@ test('admin availability workflow updates both public surfaces while privileged 
   await page.setViewportSize({ width: 1536, height: 1024 })
   await openValleyView(page)
   const overviewAvailability = page.getByTestId('overview-available-space')
-  await expect(overviewAvailability).toContainText('123,456 SQF')
+  await expect(overviewAvailability).toContainText('500,000 SQF')
+  const availableLayout = await overviewAvailability.evaluate((element) => {
+    const style = getComputedStyle(element)
+    const box = element.getBoundingClientRect()
+    const parent = element.parentElement!.getBoundingClientRect()
+    return {
+      borderWidth: style.borderWidth,
+      padding: style.padding,
+      backgroundColor: style.backgroundColor,
+      contained: box.left >= parent.left && box.right <= parent.right && box.top >= parent.top && box.bottom <= parent.bottom,
+    }
+  })
+  expect(availableLayout).toEqual({ borderWidth: '0px', padding: '0px', backgroundColor: 'rgba(0, 0, 0, 0)', contained: true })
   await expect(page.getByTestId('overview-square-footage')).toContainText('Administrator-maintained live portal value, separate from immutable building-capacity and site-plan facts.')
 
   await publicNavigation.getByRole('button', { name: 'Dashboard', exact: true }).click()
   await page.getByRole('button', { name: 'Open facility 01 in Facilities' }).dispatchEvent('mouseover')
   const preview = page.locator('[data-testid="dashboard-pin-preview"][data-facility-id="buena-park-valley-view"]')
-  await expect(preview.getByTestId('square-footage-available')).toHaveText('Available 123,456 SQF')
+  await expect(preview.getByTestId('square-footage-available')).toHaveText('Available 500,000 SQF')
 
   const publicPage = await browser.newPage({ viewport: { width: 1280, height: 900 } })
   try {
@@ -92,10 +123,22 @@ test('admin availability workflow updates both public surfaces while privileged 
     const refreshedPublicNavigation = publicPage.getByRole('navigation', { name: 'Primary navigation' })
     await expect(refreshedPublicNavigation.getByRole('button')).toHaveText(['Dashboard', 'Facilities'])
     await openValleyView(publicPage)
-    await expect(publicPage.getByTestId('overview-available-space')).toContainText('123,456 SQF')
+    await expect(publicPage.getByTestId('overview-available-space')).toContainText('500,000 SQF')
+    await publicPage.setViewportSize({ width: 390, height: 844 })
+    const mobileAvailable = publicPage.getByTestId('overview-available-space')
+    await mobileAvailable.scrollIntoViewIfNeeded()
+    expect(await mobileAvailable.evaluate((element) => {
+      const style = getComputedStyle(element)
+      return style.borderWidth === '0px' && style.padding === '0px' && style.backgroundColor === 'rgba(0, 0, 0, 0)'
+    })).toBe(true)
+    expect(await publicPage.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true)
+    const mobileOverviewScreenshot = testInfo.outputPath('availability-overview-mobile.png')
+    await publicPage.screenshot({ path: mobileOverviewScreenshot })
+    await testInfo.attach('availability-overview-mobile', { path: mobileOverviewScreenshot, contentType: 'image/png' })
+    await publicPage.setViewportSize({ width: 1280, height: 900 })
     await refreshedPublicNavigation.getByRole('button', { name: 'Dashboard', exact: true }).click()
     await publicPage.getByRole('button', { name: 'Open facility 01 in Facilities' }).dispatchEvent('mouseover')
-    await expect(publicPage.locator('[data-testid="dashboard-pin-preview"][data-facility-id="buena-park-valley-view"]').getByTestId('square-footage-available')).toHaveText('Available 123,456 SQF')
+    await expect(publicPage.locator('[data-testid="dashboard-pin-preview"][data-facility-id="buena-park-valley-view"]').getByTestId('square-footage-available')).toHaveText('Available 500,000 SQF')
   } finally {
     await publicPage.close()
   }
@@ -134,6 +177,10 @@ test('administrator zero replaces a source snapshot in Overview and the generate
   }))
   expect(pdf.getKeywords()).toContain('0 SQF')
   expect(pdf.getKeywords()).toContain('Administrator-maintained')
+
+  await navigation.getByRole('button', { name: 'Dashboard', exact: true }).click()
+  await page.getByRole('button', { name: 'Open facility 05 in Facilities' }).focus()
+  await expect(page.locator('[data-testid="dashboard-pin-preview"][data-facility-id="roanoke-highway-114"]').getByTestId('square-footage-available')).toHaveText('Available 0 SQF')
 })
 
 test('admin saves Bulk and Rack independently while public Overview and map preview stay synchronized', async ({ browser, page }, testInfo) => {

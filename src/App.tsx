@@ -26,7 +26,8 @@ import {
   type FacilityType,
 } from './data/facilities'
 import { FACILITY_BUILDING_SOURCE_NOTE, formatCeilingHeight, formatLeaseExpiration, formatLoadingDocks, formatOfficeArea, getFacilityBuildingDetails } from './data/facility-building'
-import { getFacilityTopCustomers, TOP_CUSTOMERS_SOURCE_NOTE } from './data/facility-customers'
+import { getFacilityTopCustomers } from './data/facility-customers'
+import { getClientLogo } from './data/client-logos'
 import { getFacilityMedia, isOfficialFacilitySheetMedia, type FacilityMedia } from './data/facility-media'
 import { getFacilityOperatingHours } from './data/facility-hours'
 import { useAccess } from './auth/access-context'
@@ -67,7 +68,7 @@ function previewParam(name: string, max: number) {
 const PREVIEW_SPEED = previewParam('previewSpeed', 100) ?? 1
 const PREVIEW_MAX_FPS = previewParam('previewFps', 120)
 
-type Tab = 'Overview' | 'Site Plan' | 'Photos' | 'Documents' | 'Operations'
+type Tab = 'Overview' | 'Site Plan' | 'Photos' | 'Documents' | 'Operations' | 'Client Base'
 type Theme = 'light' | 'dark'
 type AppView = 'dashboard' | 'locations' | 'operations'
 type StatusFilter = 'All' | DisplayStatus
@@ -91,7 +92,7 @@ const MAX_DIRECTORY_WIDTH = 760
 const MIN_MAP_WIDTH = 360
 const ESRI_STREET_ATTRIBUTION = 'Tiles &copy; Esri &mdash; Source: Esri, TomTom, Garmin, FAO, NOAA, USGS, OpenStreetMap contributors, and the GIS User Community'
 const ESRI_STREET_TILE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}'
-const facilityTabs: Tab[] = ['Overview', 'Site Plan', 'Photos', 'Documents', 'Operations']
+const facilityTabs: Tab[] = ['Overview', 'Site Plan', 'Photos', 'Documents', 'Operations', 'Client Base']
 const assignableStatuses: DisplayStatus[] = ['Unassigned', 'Active', 'Coming Soon', 'Planned']
 const statusColor: Record<DisplayStatus, string> = {
   Active: '#13a663',
@@ -418,6 +419,13 @@ function getDashboardRegionBounds(regionFacilities: readonly MappableFacility[],
   return bounds
 }
 
+function stopLeafletAnimation(map: L.Map) {
+  // React can dispose child effects after Leaflet has removed its panes. Calling
+  // stop() at that point reads the missing map pane and throws from Leaflet.
+  if (!map.getPane('mapPane')?.isConnected) return
+  map.stop()
+}
+
 function MapFocus({ selected, focusSignal, recenterSignal, cameraMode, visibilityKey }: { selected: Facility | null; focusSignal: number; recenterSignal: number; cameraMode: 'overview' | 'site'; visibilityKey: string }) {
   const map = useMap()
 
@@ -434,7 +442,7 @@ function MapFocus({ selected, focusSignal, recenterSignal, cameraMode, visibilit
     return () => {
       window.cancelAnimationFrame(resizeFrame)
       window.cancelAnimationFrame(focusFrame)
-      map.stop()
+      stopLeafletAnimation(map)
     }
   }, [cameraMode, focusSignal, map, selected, visibilityKey])
 
@@ -473,11 +481,11 @@ function DashboardOverview({ active, signal, targets, regionActive, regionBounda
   useEffect(() => {
     const cameraRequest = ++cameraRequestRef.current
     if (!active) {
-      map.stop()
+      stopLeafletAnimation(map)
       return
     }
     if (signal === 0) return
-    map.stop()
+    stopLeafletAnimation(map)
     let fitFrame = 0
     const resizeFrame = window.requestAnimationFrame(() => {
       if (cameraRequest !== cameraRequestRef.current) return
@@ -509,7 +517,7 @@ function DashboardOverview({ active, signal, targets, regionActive, regionBounda
       if (cameraRequest === cameraRequestRef.current) cameraRequestRef.current += 1
       window.cancelAnimationFrame(resizeFrame)
       window.cancelAnimationFrame(fitFrame)
-      map.stop()
+      stopLeafletAnimation(map)
     }
   }, [active, map, onViewChange, panelOpen, regionActive, regionBoundary, signal, targets])
 
@@ -785,7 +793,11 @@ function App() {
   const previewing = previewActive && appView === 'dashboard'
   // The Preview tour shows the globe without changing the saved projection preference.
   const globeActive = appView === 'dashboard' && (projection === 'globe' || previewing) && !globeUnavailable
-  if (globeActive && !globeMounted) setGlobeMounted(true)
+  useEffect(() => {
+    // Keep the lazily loaded globe mounted after its first use without updating state during render.
+    // oxlint-disable-next-line react/set-state-in-effect
+    if (globeActive && !globeMounted) setGlobeMounted(true)
+  }, [globeActive, globeMounted])
   const activeRegion = dashboardRegions.find((region) => region.id === activeRegionId) ?? null
   const dashboardFacilities = useMemo(() => {
     if (!activeRegion) return facilities
@@ -1081,6 +1093,7 @@ function App() {
                   : operationsState.error
                     ? <EmptyState icon={FileQuestion} title="Operations unavailable" body={operationsState.error} />
                     : <OperationsContent facility={selected} operations={selectedOperations} />)}
+                {displayedTab === 'Client Base' && <ClientBaseContent facility={selected} />}
               </div>
               <div className="detail-footer"><button className="secondary-button" onClick={() => setAboutOpen(true)}><CircleHelp size={16} />About data</button><button className="primary-button" onClick={() => setDetailsOpen(true)}>View Full Details <ChevronRight size={17} /></button></div>
             </aside>
@@ -1596,31 +1609,37 @@ function OperationsContent({ facility, operations }: { facility: Facility; opera
           <span>No staff contacts were confidently matched to this facility.</span>
         </div>
       )}
-      <TopCustomersSection facilityId={facility.id} />
     </section>
   )
 }
 
-function TopCustomersSection({ facilityId }: { facilityId: string }) {
-  const topCustomers = getFacilityTopCustomers(facilityId)
+function ClientLogo({ name }: { name: string }) {
+  const [failed, setFailed] = useState(false)
+  const logo = getClientLogo(name)
   return (
-    <section className="operations-contact-group top-customers" aria-labelledby="top-customers-title" data-testid="top-customers">
-      <header>
+    <span className={`client-logo${name === 'ROAR BEVERAGES INC' || name === 'NZXT' ? ' client-logo-dark' : ''}`} aria-hidden="true">
+      {logo && !failed && <img src={logo} alt="" loading="lazy" onError={() => setFailed(true)} />}
+    </span>
+  )
+}
+
+function ClientBaseContent({ facility }: { facility: Facility }) {
+  const topCustomers = getFacilityTopCustomers(facility.id)
+  return (
+    <section className="facility-client-base" aria-labelledby="client-base-title" data-testid="client-base">
+      <header className="client-base-heading">
         <span className="eyebrow">Client base</span>
-        <h3 id="top-customers-title">Top customers</h3>
+        <h2 id="client-base-title">Top customers</h2>
       </header>
-      {topCustomers ? (
-        <>
-          <ol className="top-customers-list">
-            {topCustomers.customers.map((name, index) => <li key={`${index}-${name}`}><span>{index + 1}</span>{name}</li>)}
-          </ol>
-          <p className="top-customers-note">
-            Ranked as listed for location {topCustomers.locationCode}{topCustomers.abbreviation ? ` · ${topCustomers.abbreviation}` : ''}. {TOP_CUSTOMERS_SOURCE_NOTE}
-          </p>
-        </>
-      ) : (
-        <p className="top-customers-note">No top customers have been provided for this facility yet.</p>
-      )}
+      <ol className="client-base-list">
+        {topCustomers?.customers.map((name, index) => (
+          <li key={`${index}-${name}`} data-client-name={name}>
+            <span className="client-rank">{index + 1}</span>
+            <ClientLogo name={name} />
+            <strong>{name}</strong>
+          </li>
+        ))}
+      </ol>
     </section>
   )
 }

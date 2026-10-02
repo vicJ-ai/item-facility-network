@@ -6,7 +6,7 @@ async function openPublicOperations(page: Page) {
   await page.getByRole('button', { name: 'Facilities', exact: true }).click()
   await page.getByRole('button', { name: `Select ${valleyViewAddress}` }).click()
   const tabs = page.getByRole('tablist', { name: 'Facility details' })
-  await expect(tabs.getByRole('tab')).toHaveText(['Overview', 'Site Plan', 'Photos', 'Documents', 'Operations'])
+  await expect(tabs.getByRole('tab')).toHaveText(['Overview', 'Site Plan', 'Photos', 'Documents', 'Operations', 'Client Base'])
   await tabs.getByRole('tab', { name: 'Operations' }).click()
   return page.getByRole('region', { name: `Operations contacts for ${valleyViewAddress}` })
 }
@@ -58,11 +58,7 @@ test('anonymous visitors can read facility contacts and portraits while admin su
     await expect.poll(() => portrait.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0 && image.naturalHeight > 0)).toBe(true)
   }
 
-  const customers = panel.getByTestId('top-customers')
-  await expect(customers.locator('li')).toHaveCount(20)
-  await expect(customers.locator('li').first()).toHaveText('1GURUNANDA, LLC')
-  await expect(customers.locator('li').last()).toHaveText('20DUPRAY USA LLC')
-  await expect(customers).toContainText('Ranked as listed for location 889 · SNA.')
+  await expect(panel.getByTestId('client-base')).toHaveCount(0)
 
   expect((await page.request.get('/api/operations/not-a-facility')).status()).toBe(404)
   expect((await page.request.get('/api/operations/portraits/not-allowlisted.png')).status()).toBe(404)
