@@ -93,8 +93,9 @@ export const MARY_SMOTHERS_PHOTO_URL = '/media/operations/people/mary-smothers.j
 // Portrait supplied and identified as Mary Smothers by the user on 2026-10-01; not independently identity-verified.
 export const MARY_SMOTHERS_PHOTO_SOURCE_NOTE = 'Mary Smothers portrait supplied and identified by user on 2026-10-01; identity not independently verified.'
 
+export const JIMMY_ESPARZA_EMAIL = 'jimmy.esparza@unisco.com'
 export const JIMMY_ESPARZA_PHOTO_URL = '/media/operations/university-park-central/jimmy-esparza.png'
-// Name, title, phone, and portrait supplied by the user on 2026-10-01 for University Park; no email was given.
+// Name, title, phone, and portrait supplied by the user on 2026-10-01 for University Park; email added in a follow-up the same day.
 export const JIMMY_ESPARZA_SOURCE_NOTE = 'Jimmy Esparza contact and portrait supplied by user on 2026-10-01; identity not independently verified.'
 const JIMMY_ESPARZA_PHONES: FacilityContactPhone[] = [{ label: 'Phone', display: '626-341-7845', href: '+16263417845' }]
 
@@ -397,7 +398,7 @@ export const facilityOperations: Partial<Record<string, FacilityOperations>> = {
   ]),
   'university-park-central': userContactUpdate('university-park-central', [
     sheetContact('H', 'operations', JOHN_DIAZ_ROLE, 'John Diaz', JOHN_DIAZ_EMAIL, JOHN_DIAZ_PHONES),
-    sheetContact('J', 'operations', 'Regional Director of Operations', 'Jimmy Esparza', undefined, JIMMY_ESPARZA_PHONES, JIMMY_ESPARZA_PHOTO_URL),
+    sheetContact('J', 'operations', 'Regional Director of Operations', 'Jimmy Esparza', JIMMY_ESPARZA_EMAIL, JIMMY_ESPARZA_PHONES, JIMMY_ESPARZA_PHOTO_URL),
   ]),
 }
 
