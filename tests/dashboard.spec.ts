@@ -26,8 +26,8 @@ import {
   MARY_SMOTHERS_PHOTO_URL,
   MICHELLE_TOPETE_CONTACT_SOURCE_NOTE,
   MICHELLE_TOPETE_PHOTO_URL,
-  OSCAR_RODRIGUEZ_PHOTO_URL,
   OPERATIONS_PORTRAIT_SOURCE_NOTE,
+  JIMMY_ESPARZA_PHOTO_URL,
   RICK_GRISWOLD_PHOTO_URL,
   REPLACEMENT_PORTRAIT_SOURCE_NOTE,
   STEPHEN_SCHUMAKER_PHOTO_URL,
@@ -111,21 +111,21 @@ const expectedOperationsRows = {
   'buena-park-valley-view': { row: 5, columns: ['D', 'E', 'F', 'G', 'H'] },
   'riverside-alessandro': { row: 4, columns: ['D', 'E', 'F', 'H', 'J'] },
   'moreno-valley-heacock': { row: 8, columns: ['D', 'E', 'F', 'H', 'J'] },
-  'houston-citypark': { row: 20, columns: ['D', 'E', 'F', 'H', 'H', 'I'], officialSheet: '144 – City Park' },
-  'roanoke-highway-114': { row: 23, columns: ['D', 'E', 'F', 'G', 'H'], officialSheet: '689 – Roanoke' },
-  'tennessee-quality-drive': { row: 19, columns: ['D', 'E', 'F', 'H'] },
+  'houston-citypark': { row: 20, columns: ['D', 'E', 'F', 'F', 'H', 'I'], officialSheet: '144 – City Park' },
+  'roanoke-highway-114': { row: 23, columns: ['D', 'E', 'F', 'F', 'G', 'H'], officialSheet: '689 – Roanoke' },
+  'tennessee-quality-drive': { row: 19, columns: ['D', 'E', 'F', 'H', 'H'] },
   'tacoma-lincoln': { row: 25, columns: ['D', 'E', 'H', 'I', 'J'] },
   'tacoma-steele': { row: 26, columns: ['D', 'E', 'H', 'I', 'J'] },
   'jacksonville-ignition': { row: 9, columns: ['D', 'E', 'F', 'G', 'H'] },
-  'las-vegas-marion-building-5': { row: 16, columns: ['D', 'E', 'F', 'I', 'J'] },
+  'las-vegas-marion-building-5': { row: 16, columns: ['D', 'E', 'F', 'I', 'J', 'H'] },
   'long-beach-willow': { row: 6, columns: ['D', 'E', 'F', 'H'] },
-  'joliet-brandon': { row: 13, columns: ['D', 'E', 'F', 'G'] },
-  'el-paso-emerald-12102-building-5': { row: 22, columns: ['D', 'E', 'F'] },
+  'joliet-brandon': { row: 13, columns: ['D', 'E', 'F', 'G', 'H'] },
+  'el-paso-emerald-12102-building-5': { row: 22, columns: ['D', 'E', 'F', 'H'] },
   'waddell-cotton': { row: 3, columns: ['D', 'E', 'F', 'I', 'H', 'J'] },
   'ontario-airport': { row: 7, columns: ['D', 'E', 'F', 'H', 'J'] },
   'sparks-vista': { row: 15, columns: ['D', 'E', 'F', 'H', 'I', 'J'] },
-  'memphis-delp': { row: 18, columns: ['D', 'E', 'F', 'H'] },
-  'plano-10th-f-avenue': { row: 24, columns: ['D', 'E', 'H'] },
+  'memphis-delp': { row: 18, columns: ['D', 'E', 'F', 'H', 'H'] },
+  'plano-10th-f-avenue': { row: 24, columns: ['D', 'E', 'F', 'H'] },
 } as const
 
 const expectedOfficialSheetOperations = {
@@ -133,11 +133,17 @@ const expectedOfficialSheetOperations = {
   'summerville-cypress-tradeport': { sheet: '875 – Summerville', generalManager: 'Stephen Schumaker', photoUrl: STEPHEN_SCHUMAKER_PHOTO_URL },
 } as const
 
-// Contacts the user typed in directly on 2026-10-01 for sites the contact sheet left unmatched.
+// Contacts the user typed in directly on 2026-10-01 for sites the contact sheet left unmatched,
+// including the VP split (John Gleason: Texas, Savannah, Florida, South Carolina; John Diaz: everywhere else).
 const expectedUserContactUpdates = {
-  'el-paso-emerald-12100': [['F', 'Operations Manager', 'Jessica Barajas']],
-  'kent-85th-avenue-range': [['I', 'WA Senior General Manager', 'Juan Barragan']],
-  'salt-lake-city-jimmy-doolittle': [['I', 'WA Senior General Manager', 'Juan Barragan']],
+  'el-paso-emerald-12100': [['F', 'Operations Manager', 'Jessica Barajas'], ['H', 'VP of Operations', 'John Gleason']],
+  'kent-85th-avenue-range': [['I', 'WA Senior General Manager', 'Juan Barragan'], ['H', 'Sr. Vice President of Operations', 'John Diaz']],
+  'salt-lake-city-jimmy-doolittle': [['I', 'WA Senior General Manager', 'Juan Barragan'], ['H', 'Sr. Vice President of Operations', 'John Diaz']],
+  'houston-navigation': [['F', 'Operations Manager', 'Jessica Barajas'], ['H', 'VP of Operations', 'John Gleason']],
+  'pooler-morgan-lakes': [['H', 'VP of Operations', 'John Gleason']],
+  'west-sacramento-overland': [['H', 'Sr. Vice President of Operations', 'John Diaz']],
+  'somerset-cottontail': [['H', 'Sr. Vice President of Operations', 'John Diaz']],
+  'university-park-central': [['H', 'Sr. Vice President of Operations', 'John Diaz'], ['J', 'Regional Director of Operations', 'Jimmy Esparza']],
 } as const
 
 const expectedOperationsReviewIds = [
@@ -152,13 +158,36 @@ const expectedJohnDiazFacilityIds = [
   'buena-park-valley-view',
   'riverside-alessandro',
   'moreno-valley-heacock',
-  'houston-citypark',
+  'tennessee-quality-drive',
   'tacoma-lincoln',
   'tacoma-steele',
+  'las-vegas-marion-building-5',
   'long-beach-willow',
+  'joliet-brandon',
   'waddell-cotton',
   'ontario-airport',
+  'kent-85th-avenue-range',
   'sparks-vista',
+  'memphis-delp',
+  'salt-lake-city-jimmy-doolittle',
+  'west-sacramento-overland',
+  'somerset-cottontail',
+  'university-park-central',
+] as const
+
+// John Gleason is the VP for Texas, Savannah (Pooler and Garden City), Florida, and South Carolina.
+const expectedJohnGleasonFacilityIds = [
+  'houston-citypark',
+  'roanoke-highway-114',
+  'pooler-morgan-lakes',
+  'pooler-seabrook-building-2',
+  'summerville-cypress-tradeport',
+  'jacksonville-ignition',
+  'el-paso-emerald-12100',
+  'el-paso-emerald-12102-building-5',
+  'houston-navigation',
+  'plano-10th-f-avenue',
+  'garden-city-prosperity',
 ] as const
 
 const expectedExpansionHours = {
@@ -457,9 +486,9 @@ async function expectDefaultFacilityStatuses(page: Page) {
   const pinColors = await page.locator('.location-pin').evaluateAll((pins) =>
     pins.map((pin) => window.getComputedStyle(pin).backgroundColor),
   )
-  expect(pinColors.filter((color) => color === 'rgb(19, 166, 99)')).toHaveLength(27)
-  await expect(page.locator('.status-pill.active')).toHaveCount(27)
-  await expect(page.locator('.status-pill.unassigned')).toHaveCount(2)
+  expect(pinColors.filter((color) => color === 'rgb(19, 166, 99)')).toHaveLength(26)
+  await expect(page.locator('.status-pill.active')).toHaveCount(26)
+  await expect(page.locator('.status-pill.unassigned')).toHaveCount(3)
   await expectFacilitySummary(page)
 }
 
@@ -469,7 +498,7 @@ async function expectFacilitySummary(page: Page) {
   await expect(summary).toBeVisible()
   await expect(overviewMetrics).toHaveCount(3)
   await expect(overviewMetrics.locator('span')).toHaveText(['Facilities', 'Active', 'Coming Soon'])
-  await expect(overviewMetrics.locator('b')).toHaveText(['29', '27', '0'])
+  await expect(overviewMetrics.locator('b')).toHaveText(['29', '26', '0'])
   await expect(summary.getByText('Planned', { exact: true })).toHaveCount(0)
   await expect(summary.getByText('Unassigned', { exact: true })).toHaveCount(0)
 }
@@ -570,7 +599,9 @@ test('opens with the exact 29-address directory beside the 29-pin map and no sel
   for (const address of suppliedAddresses) await expect(table).toContainText(address)
   expect(facilities).toHaveLength(29)
   expect(facilities.slice(0, 17).every((facility) => facility.status === 'Active' && facility.facilityType === 'UF ONLY')).toBe(true)
-  expect(facilities.slice(17, 27).every((facility) => facility.status === 'Active' && facility.facilityType === 'UF/CUBEWORKS')).toBe(true)
+  expect(facilities.slice(17, 27).every((facility) => facility.facilityType === 'UF/CUBEWORKS')).toBe(true)
+  // Houston Navigation (#23) was set to Unassigned by the user on 2026-10-01; it keeps its UF/CUBEWORKS type.
+  expect(facilities.slice(17, 27).filter((facility) => facility.status !== 'Active').map((facility) => [facility.number, facility.status])).toEqual([[23, 'Unassigned']])
   // The official 804 – Garden City sheet states no status or facility type, so neither is invented.
   expect(facilities[27]).toMatchObject({ id: 'garden-city-prosperity', number: 28, status: 'Unassigned' })
   expect(facilities[27].facilityType).toBeUndefined()
@@ -1137,7 +1168,9 @@ test('desktop divider supports bounded pointer and keyboard resizing and persist
 
 test('square footage uses each site plan building area and shows warehouse-reported available space', () => {
   const totals = Object.fromEntries(facilities.map((facility) => [facility.id, getFacilitySquareFootage(facility.id).totalSquareFeet]))
-  expect(Object.values(totals).filter((total) => total !== undefined)).toHaveLength(14)
+  expect(Object.values(totals).filter((total) => total !== undefined)).toHaveLength(15)
+  // Ontario has no site plan; its total was user-provided on 2026-10-01.
+  expect(totals['ontario-airport']).toBe(140_000)
   expect(totals['garden-city-prosperity']).toBe(505_902)
   // The official Jacksonville and Pooler Seabrook plans state no square footage.
   expect(Object.keys(facilitySitePlans).filter((facilityId) => totals[facilityId] === undefined).sort()).toEqual(['jacksonville-ignition', 'pooler-seabrook-building-2'])
@@ -1166,6 +1199,8 @@ test('square footage uses each site plan building area and shows warehouse-repor
     'las-vegas-marion-building-5': 'None',
     'long-beach-willow': '10,000 SQF',
     'joliet-brandon': '110,000 SQF',
+    'garden-city-prosperity': 'None',
+    'university-park-central': 'None',
   })
   expect(Object.values(facilityAvailableSpace).every((space) => space?.asOf === '2026-10')).toBe(true)
   expect(facilityAvailableSpace['long-beach-willow']).toEqual({ squareFeet: 10_000, asOf: '2026-10' })
@@ -1223,12 +1258,28 @@ test('Dashboard preview without a site plan shows a pending total and reported a
   await expect(preview.getByTestId('square-footage-available')).toHaveText('Available 40,000 SQF')
 })
 
+test('Dashboard preview shows user-provided totals and 0 SQF available where reported', async ({ page }) => {
+  await page.getByRole('button', { name: 'Dashboard', exact: true }).click()
+  for (const [number, total, available] of [
+    [19, 'Total 140,000 SQF', 'Available Pending'],
+    [28, 'Total 505,902 SQF', 'Available 0 SQF'],
+    [29, 'Total Pending', 'Available 0 SQF'],
+  ] as const) {
+    // Ontario's pin sits under Moreno Valley's at this zoom, so open each preview by keyboard focus instead of hover.
+    await page.getByRole('button', { name: `Open facility ${number} in Facilities` }).focus()
+    const preview = page.locator(`[data-testid="dashboard-pin-preview"][data-facility-id="${facilities[number - 1].id}"]`)
+    await expect(preview, `facility ${number}`).toBeVisible()
+    await expect(preview.getByTestId('square-footage-total'), `facility ${number}`).toHaveText(total)
+    await expect(preview.getByTestId('square-footage-available'), `facility ${number}`).toHaveText(available)
+  }
+})
+
 test('ten UF/CUBEWORKS additions preserve supplied addresses, status, and confirmed coordinates', () => {
   const additions = facilities.slice(17, 27)
   expect(additions.map((facility) => facility.fullAddress)).toEqual(suppliedAddresses.slice(17, 27))
   expect(additions.map((facility) => facility.number)).toEqual([18, 19, 20, 21, 22, 23, 24, 25, 26, 27])
   expect(additions.every((facility) => facility.facilityType === 'UF/CUBEWORKS')).toBe(true)
-  expect(additions.every((facility) => facility.status === 'Active')).toBe(true)
+  expect(additions.filter((facility) => facility.status !== 'Active').map((facility) => facility.id)).toEqual(['houston-navigation'])
 
   const waddell = additions[0]
   expect(waddell.coordinates).toEqual([33.53433209636, -112.425402119954])
@@ -1670,7 +1721,7 @@ test('local status assignments drive all filters and persist across reload', asy
   const table = page.getByRole('table')
   const filter = page.getByLabel('Filter by status')
   await filter.selectOption('Active')
-  await expect(page.locator('tbody tr')).toHaveCount(25)
+  await expect(page.locator('tbody tr')).toHaveCount(24)
   await expect(table).toContainText(suppliedAddresses[0])
   await filter.selectOption('Coming Soon')
   await expect(page.locator('tbody tr')).toHaveCount(1)
@@ -1679,7 +1730,8 @@ test('local status assignments drive all filters and persist across reload', asy
   await expect(page.locator('tbody tr')).toHaveCount(1)
   await expect(table).toContainText(suppliedAddresses[2])
   await filter.selectOption('Unassigned')
-  await expect(page.locator('tbody tr')).toHaveCount(2)
+  await expect(page.locator('tbody tr')).toHaveCount(3)
+  await expect(table).toContainText(suppliedAddresses[22])
   await expect(table).toContainText(suppliedAddresses[27])
   await expect(table).toContainText(suppliedAddresses[28])
   await filter.selectOption('All')
@@ -1689,15 +1741,15 @@ test('local status assignments drive all filters and persist across reload', asy
   await page.getByLabel(`Set status for ${suppliedAddresses[3]}`).selectOption('Unassigned')
   await returnToDirectory(page)
   await filter.selectOption('Unassigned')
-  await expect(page.locator('tbody tr')).toHaveCount(3)
+  await expect(page.locator('tbody tr')).toHaveCount(4)
   await expect(table).toContainText(suppliedAddresses[3])
 
   await page.reload()
   await page.getByLabel('Filter by status').selectOption('Unassigned')
-  await expect(page.locator('tbody tr')).toHaveCount(3)
+  await expect(page.locator('tbody tr')).toHaveCount(4)
   await expect(page.getByRole('table')).toContainText(suppliedAddresses[3])
   await page.getByLabel('Filter by status').selectOption('Active')
-  await expect(page.locator('tbody tr')).toHaveCount(24)
+  await expect(page.locator('tbody tr')).toHaveCount(23)
   await expect(page.getByRole('table')).toContainText(suppliedAddresses[0])
 })
 
@@ -2114,7 +2166,9 @@ test('property tabs show honest unavailable states and coordinate limitations', 
   await expect(page.locator('.facility-documents')).toContainText('Existing user-provided photo')
   await expect(page.locator('.facility-documents')).not.toContainText('Documents not provided')
   await page.getByRole('tab', { name: 'Operations' }).click()
-  await expect(page.getByText('Contacts pending review')).toBeVisible()
+  // Somerset still awaits site-level contacts, so it lists only its assigned VP.
+  await expect(page.locator('.facility-operations .operations-contact-card')).toHaveCount(1)
+  await expect(page.locator('.facility-operations')).toContainText('John Diaz')
   await expect(page.locator('.facility-operations')).toContainText('8:00 AM–4:30 PM EST M-F')
 
   await returnToDirectory(page)
@@ -2134,11 +2188,13 @@ test('property tabs show honest unavailable states and coordinate limitations', 
   await expect(page.getByTestId('selected-showcase').locator('.geocode-warning')).toHaveCount(0)
 })
 
-test('Operations sidecar maps 18 exact sheet rows, 3 official facility sheets, 3 direct updates, all 101 role entries, and exact portrait assignments', () => {
+test('Operations sidecar maps 18 exact sheet rows, 3 official facility sheets, 8 direct updates, all 118 role entries, and exact portrait assignments', () => {
   expect(Object.keys(facilityOperations).sort()).toEqual([...Object.keys(expectedOperationsRows), ...Object.keys(expectedOfficialSheetOperations), ...Object.keys(expectedUserContactUpdates), 'garden-city-prosperity'].sort())
-  expect(Object.values(facilityOperations).reduce((count, record) => count + (record?.contacts.length ?? 0), 0)).toBe(101)
+  expect(Object.keys(facilityOperations)).toHaveLength(facilities.length)
+  expect(Object.values(facilityOperations).reduce((count, record) => count + (record?.contacts.length ?? 0), 0)).toBe(118)
   for (const [facilityId, expected] of Object.entries(expectedUserContactUpdates)) {
-    expect(facilityOperations[facilityId]?.source, facilityId).toBe('User-provided contact update, 2026-10-01')
+    const titleCorrection = expectedJohnDiazFacilityIds.some((id) => id === facilityId) ? ` · ${JOHN_DIAZ_TITLE_SOURCE_NOTE}` : ''
+    expect(facilityOperations[facilityId]?.source, facilityId).toBe(`User-provided contact update, 2026-10-01${titleCorrection}`)
     expect(facilityOperations[facilityId]?.contacts.map((contact) => [contact.sourceColumn, contact.role, contact.name]), facilityId).toEqual(expected)
   }
   expect(facilityOperations['garden-city-prosperity']?.source).toBe('Official facility sheet (804 – Garden City)')
@@ -2178,7 +2234,7 @@ test('Operations sidecar maps 18 exact sheet rows, 3 official facility sheets, 3
   expect(facilityOperations['houston-citypark']?.contacts.find((contact) => contact.sourceColumn === 'I')).toMatchObject({ role: 'Operations Supervisor', name: 'Ruben Echavarria' })
   expect(facilityOperations['houston-citypark']?.contacts.find((contact) => contact.sourceColumn === 'I')?.email).toBeUndefined()
   expect(facilityOperations['sparks-vista']?.contacts.find((contact) => contact.sourceColumn === 'F')).toMatchObject({ role: 'Operations Supervisor', name: 'Onoriode Enaigbe' })
-  expect(facilityOperations['long-beach-willow']?.contacts.find((contact) => contact.sourceColumn === 'F')).toMatchObject({ role: 'Warehouse Lead', name: 'Efrain Islas Alcaraz', email: 'efrain.islas@unisco.com', photoUrl: EFRAIN_ISLAS_ALCARAZ_PHOTO_URL })
+  expect(facilityOperations['long-beach-willow']?.contacts.find((contact) => contact.sourceColumn === 'F')).toMatchObject({ role: 'Operations Manager', name: 'Efrain Islas Alcaraz', email: 'efrain.islas@unisco.com', photoUrl: EFRAIN_ISLAS_ALCARAZ_PHOTO_URL })
   expect(facilityOperations['tacoma-lincoln']?.contacts.find((contact) => contact.sourceColumn === 'J')).toMatchObject({
     role: 'Regional Director of Field Operations', name: 'Harold Cuarezma',
     phones: [
@@ -2194,8 +2250,11 @@ test('Operations sidecar maps 18 exact sheet rows, 3 official facility sheets, 3
     ['G', 'Director of Operations', 'g-javier-gonzalez-montane'],
   ])
   expect(facilityOperations['el-paso-emerald-12102-building-5']?.contacts.map((contact) => contact.phones?.map((phone) => phone.display))).toEqual([
-    ['626.829.3160'], ['626-899-2364'], ['915.777.7257'],
+    ['626.829.3160'], ['626-899-2364'], ['915.777.7257'], ['909.993.7174'],
   ])
+  // Jessica Barajas is the Operations Manager at every Texas site.
+  expect(Object.values(facilityOperations).flatMap((record) => record?.contacts.filter((contact) => contact.name === 'Jessica Barajas').map((contact) => `${record.facilityId}:${contact.role}`) ?? []).sort())
+    .toEqual(facilities.filter((facility) => facility.state === 'TX').map((facility) => `${facility.id}:Operations Manager`).sort())
   expect(MICHELLE_TOPETE_CONTACT_SOURCE_NOTE).toBe('Michelle Topete contact corrected by user on 2026-10-01.')
   const michelleEntries = Object.values(facilityOperations).flatMap((record) => record?.contacts.filter((contact) => contact.name === 'Michelle Topete') ?? [])
   expect(michelleEntries).toHaveLength(20)
@@ -2235,6 +2294,13 @@ test('Operations sidecar maps 18 exact sheet rows, 3 official facility sheets, 3
     .filter((contact) => contact.email !== JOHN_DIAZ_EMAIL && contact.role === 'VP of Operations')
     .map((contact) => contact.name) ?? [])
   expect(new Set(otherVicePresidents)).toEqual(new Set(['John Gleason']))
+  const johnGleasonFacilityIds = Object.values(facilityOperations).flatMap((record) => record?.contacts.some((contact) => contact.name === 'John Gleason') ? [record.facilityId] : [])
+  expect([...johnGleasonFacilityIds].sort()).toEqual([...expectedJohnGleasonFacilityIds].sort())
+  // Every facility lists exactly one VP: John Gleason or John Diaz, never both.
+  for (const facility of facilities) {
+    const vps = facilityOperations[facility.id]?.contacts.filter((contact) => contact.name === 'John Gleason' || contact.name === 'John Diaz').map((contact) => contact.name)
+    expect(vps, facility.id).toHaveLength(1)
+  }
 
   const sharedPortraits: Record<string, string> = {
     [JOHN_DIAZ_EMAIL]: JOHN_DIAZ_PHOTO_URL,
@@ -2242,7 +2308,6 @@ test('Operations sidecar maps 18 exact sheet rows, 3 official facility sheets, 3
     'javier.montane@unisco.com': JAVIER_MONTANE_PHOTO_URL,
     'john.gleason@unisco.com': JOHN_GLEASON_PHOTO_URL,
     'wayne.brooks@unisco.com': WAYNE_BROOKS_PHOTO_URL,
-    'oscar.rodriguez@unisco.com': OSCAR_RODRIGUEZ_PHOTO_URL,
     'juan.barragan@unisco.com': JUAN_BARRAGAN_PHOTO_URL,
     'richard.griswold@unisco.com': RICK_GRISWOLD_PHOTO_URL,
     'jessica.barajas@unisco.com': JESSICA_BARAJAS_PHOTO_URL,
@@ -2268,10 +2333,15 @@ test('Operations sidecar maps 18 exact sheet rows, 3 official facility sheets, 3
     `long-beach-willow:f-efrain-islas-alcaraz:${EFRAIN_ISLAS_ALCARAZ_PHOTO_URL}`,
     'joliet-brandon:f-fabian-quiroz:/media/operations/joliet-brandon/fabian-quiroz.png',
     'sparks-vista:f-onoriode-enaigbe:/media/operations/sparks-vista/onoriode-enaigbe.png',
+    `university-park-central:j-jimmy-esparza:${JIMMY_ESPARZA_PHOTO_URL}`,
   ])
   // Contacts without a supplied portrait remain transparent rather than borrowing another person's image.
-  expect(new Set(allContacts.filter(({ contact }) => !contact.photoUrl).map(({ contact }) => contact.name))).toEqual(new Set(['Jane Sanchez', 'Frederico Ramos']))
-  for (const facilityId of expectedOperationsReviewIds) expect(facilityOperations[facilityId]).toBeUndefined()
+  // Oscar Rodriguez has no portrait until the user supplies a replacement.
+  expect(new Set(allContacts.filter(({ contact }) => !contact.photoUrl).map(({ contact }) => contact.name))).toEqual(new Set(['Jane Sanchez', 'Frederico Ramos', 'Oscar Rodriguez']))
+  // Sites awaiting site-level contact mapping list only their assigned VP (plus Jessica Barajas in Texas).
+  for (const facilityId of expectedOperationsReviewIds) {
+    expect(facilityOperations[facilityId]?.contacts.map((contact) => contact.name), facilityId).toEqual(expectedUserContactUpdates[facilityId].map(([, , name]) => name))
+  }
 })
 
 test('John Diaz corrected title renders exactly and wraps without clipping on desktop and mobile', async ({ page }) => {
@@ -2323,7 +2393,9 @@ test('four user-supplied replacement portraits preserve exact bytes and contact 
     const response = await page.request.get(spec.asset)
     expect(response.ok(), spec.asset).toBe(true)
     expect(response.headers()['content-type']).toContain('image/png')
-    expect(createHash('sha256').update(await response.body()).digest('hex')).toBe(createHash('sha256').update(await readFile(spec.source)).digest('hex'))
+    // The original uploads live outside the repository; compare their bytes only where they are available.
+    const sourceBytes = await readFile(spec.source).catch(() => undefined)
+    if (sourceBytes) expect(createHash('sha256').update(await response.body()).digest('hex')).toBe(createHash('sha256').update(sourceBytes).digest('hex'))
 
     const facility = facilities.find((item) => item.id === spec.facilityId)!
     await chooseFromDirectory(page, facility.fullAddress)
@@ -2362,7 +2434,7 @@ test('latest four supplied portraits preserve exact bytes, mappings, and contact
     {
       name: 'Efrain Islas Alcaraz', facilityId: 'long-beach-willow', asset: EFRAIN_ISLAS_ALCARAZ_PHOTO_URL,
       source: '/home/user/workspace/efrain_islas_alcaraz_picture.png', width: 514, height: 510,
-      contact: { group: 'operations', role: 'Warehouse Lead', email: 'efrain.islas@unisco.com', phones: [{ label: 'Phone', display: '626-313-8756', href: '+16263138756' }] },
+      contact: { group: 'operations', role: 'Operations Manager', email: 'efrain.islas@unisco.com', phones: [{ label: 'Phone', display: '626-313-8756', href: '+16263138756' }] },
     },
   ] as const
 
@@ -2378,10 +2450,11 @@ test('latest four supplied portraits preserve exact bytes, mappings, and contact
     }
     expect(facilityOperations[spec.facilityId]?.contacts).toContain(contacts[0])
 
-    const [response, source] = await Promise.all([page.request.get(spec.asset), readFile(spec.source)])
+    // The original uploads live outside the repository; compare their bytes only where they are available.
+    const [response, source] = await Promise.all([page.request.get(spec.asset), readFile(spec.source).catch(() => undefined)])
     expect(response.ok(), spec.asset).toBe(true)
     expect(response.headers()['content-type']).toContain('image/png')
-    expect(createHash('sha256').update(await response.body()).digest('hex')).toBe(createHash('sha256').update(source).digest('hex'))
+    if (source) expect(createHash('sha256').update(await response.body()).digest('hex')).toBe(createHash('sha256').update(source).digest('hex'))
     await expect.poll(() => page.evaluate((asset) => new Promise<[number, number]>((resolve) => {
       const image = new Image()
       image.onload = () => resolve([image.naturalWidth, image.naturalHeight])
@@ -2403,6 +2476,7 @@ test('all unique contact portraits load and fit the approved desktop and mobile 
     }
   }
   const portraits = [...unique.values()]
+  // Oscar Rodriguez's portrait was withdrawn and Jimmy Esparza's added on 2026-10-01.
   expect(portraits).toHaveLength(21)
 
   await page.goto('/')
@@ -2521,8 +2595,8 @@ test('Valley View Operations preserves five contacts and their supplied portrait
   const maryResponse = await page.request.get(MARY_SMOTHERS_PHOTO_URL)
   expect(maryResponse.ok()).toBe(true)
   expect(maryResponse.headers()['content-type']).toContain('image/jpeg')
-  const marySourceBytes = await readFile('/home/user/workspace/WhatsApp Image 2026-10-01 at 4.31.33 PM.jpeg')
-  expect(createHash('sha256').update(await maryResponse.body()).digest('hex')).toBe(createHash('sha256').update(marySourceBytes).digest('hex'))
+  const marySourceBytes = await readFile('/home/user/workspace/WhatsApp Image 2026-10-01 at 4.31.33 PM.jpeg').catch(() => undefined)
+  if (marySourceBytes) expect(createHash('sha256').update(await maryResponse.body()).digest('hex')).toBe(createHash('sha256').update(marySourceBytes).digest('hex'))
 
   const expectedContacts = [
     ['Michelle Topete', 'Manager of Account Management & Client Onboarding', 'michelle.topete@unisco.com', 'mailto:michelle.topete@unisco.com', '626.829.3160', 'tel:+16268293160'],
@@ -2584,20 +2658,20 @@ test('matched Operations contacts retain representative roles, links, multiple p
   await expect(tacomaPanel).not.toContainText('Jane Sanchez')
 })
 
-test('all five review-required facilities show sourced hours without contact leakage', async ({ page }) => {
+test('all five review-required facilities show sourced hours and only their user-assigned contacts', async ({ page }) => {
   for (const facilityId of expectedOperationsReviewIds) {
     const facility = facilities.find((candidate) => candidate.id === facilityId)!
+    const expectedNames = expectedUserContactUpdates[facilityId].map(([, , name]) => name)
     await chooseFromDirectory(page, facility.fullAddress)
     await page.getByRole('tab', { name: 'Operations' }).click()
     const panel = page.getByRole('region', { name: `Operations contacts for ${facility.fullAddress}` })
     const hours = facilityOperatingHours[facilityId]
     await expect(panel).toContainText(hours ? formatOperatingHours(hours) : 'Hours not provided')
-    await expect(panel).toContainText('Contact match pending review')
-    await expect(panel.getByText('Contacts pending review')).toBeVisible()
-    await expect(panel).toContainText('No staff contacts were confidently matched to this facility.')
-    await expect(panel.locator('.operations-contact-card')).toHaveCount(0)
-    await expect(panel.locator('a[href^="mailto:"]')).toHaveCount(0)
-    await expect(panel.locator('a[href^="tel:"]')).toHaveCount(0)
+    await expect(panel).toContainText('User-provided contact update, 2026-10-01')
+    await expect(panel.getByText('Contacts pending review')).toHaveCount(0)
+    await expect(panel.locator('.operations-contact-card h3')).toHaveText(expectedNames)
+    await expect(panel.locator('a[href^="mailto:"]')).toHaveCount(facilityOperations[facilityId]!.contacts.filter((contact) => contact.email).length)
+    // Site-level account managers have not been mapped to these sites yet.
     await expect(panel).not.toContainText('Michelle Topete')
     await returnToDirectory(page)
   }
@@ -2707,8 +2781,9 @@ test('facility profile downloads are four-page selected-facility PDFs with hours
   expect(somerset.keywords).toContain(suppliedAddresses[25])
   expect(somerset.keywords).toContain('Site plan not provided')
   expect(somerset.keywords).toContain('User-provided screenshot media')
-  expect(somerset.visibleText).toContain('Contacts pending review')
-  expect(somerset.visibleText).toContain('No staff contacts were confidently matched to this facility.')
+  // Somerset still awaits site-level contacts, so its profile lists only its assigned VP.
+  expect(somerset.visibleText).not.toContain('Contacts pending review')
+  expect(somerset.visibleText).toContain('John Diaz')
   expect(somerset.visibleText).not.toContain('Michelle Topete')
   expect(somerset.assetPaths).toEqual(['/media/somerset-cottontail.jpg'])
 
@@ -2748,8 +2823,9 @@ test('facility profile Page 1 prints John Diaz corrected title, selected contact
   await returnToDirectory(page)
   const poolerFacility = facilities.find((facility) => facility.id === 'pooler-morgan-lakes')!
   const pooler = await downloadFacilityProfile(page, poolerFacility.fullAddress, 'facility-06-pooler-morgan-lakes-profile.pdf')
-  expect(pooler.visibleText).toContain('Contacts pending review')
-  expect(pooler.visibleText).toContain('No staff contacts were confidently matched to this facility.')
+  // Pooler Morgan Lakes still awaits site-level contacts, so its profile lists only its assigned VP.
+  expect(pooler.visibleText).not.toContain('Contacts pending review')
+  expect(pooler.visibleText).toContain('John Gleason')
   expect(pooler.visibleText).not.toContain('Jane Sanchez')
   expect(pooler.visibleText).not.toContain('Michelle Topete')
   expect(pooler.assetPaths.some((path) => path.startsWith('/media/operations/'))).toBe(false)
@@ -2805,8 +2881,10 @@ test('Joliet shows supplied Fabian and Javier portraits with no duplicate VP ent
   await chooseFromDirectory(page, joliet.fullAddress)
   await page.getByRole('tab', { name: 'Operations' }).click()
   const panel = page.getByRole('region', { name: `Operations contacts for ${joliet.fullAddress}` })
-  await expect(panel.locator('.operations-contact-card')).toHaveCount(4)
+  // Michelle, Mary, Fabian, Javier, and John Diaz (the VP for every building outside Texas, Savannah, Florida, and South Carolina).
+  await expect(panel.locator('.operations-contact-card')).toHaveCount(5)
   await expect(panel.locator('.operations-contact-card').filter({ hasText: 'Javier Gonzalez Montane' })).toHaveCount(1)
+  await expect(panel.locator('.operations-contact-card').filter({ hasText: 'John Diaz' })).toHaveCount(1)
   await expect(panel.getByText('VP of Operations', { exact: true })).toHaveCount(0)
   for (const [name, filename, source, role] of [
     ['Fabian Quiroz', 'fabian-quiroz.png', '/home/user/workspace/Fabian.png', 'General Manager'],
@@ -2827,7 +2905,8 @@ test('Joliet shows supplied Fabian and Javier portraits with no duplicate VP ent
   }
   await page.screenshot({ path: 'test-results/joliet-desktop.png', fullPage: true })
   await page.setViewportSize({ width: 390, height: 844 })
-  await expect(panel.locator('img')).toHaveCount(3)
+  // Michelle, Mary, Fabian, Javier, and John Diaz all have supplied portraits.
+  await expect(panel.locator('img')).toHaveCount(5)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   await page.screenshot({ path: 'test-results/joliet-mobile.png', fullPage: true })
 })

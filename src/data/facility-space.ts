@@ -22,6 +22,14 @@ export const facilityAvailableSpace: Partial<Record<string, FacilityAvailableSpa
   'las-vegas-marion-building-5': { squareFeet: 0, asOf: '2026-10' },
   'long-beach-willow': { squareFeet: 10_000, asOf: '2026-10' },
   'joliet-brandon': { squareFeet: 110_000, asOf: '2026-10', note: 'Bulk; up to 150,000 SF with increased utilization · Rack: 3,000 pallet positions' },
+  'garden-city-prosperity': { squareFeet: 0, asOf: '2026-10' },
+  'university-park-central': { squareFeet: 0, asOf: '2026-10' },
+}
+
+// User-provided total square footage for sites without a site plan; a site plan's area wins when both exist.
+export const facilityTotalSquareFeet: Partial<Record<string, number>> = {
+  // User-provided on 2026-10-01.
+  'ontario-airport': 140_000,
 }
 
 // Warehouse-reported bulk floor space (SF) and rack capacity (pallet positions), keyed by facility id.
@@ -48,11 +56,12 @@ export function formatRack(bulkRack?: FacilityBulkRack) {
 
 export type FacilitySquareFootage = { totalSquareFeet?: number; available?: FacilityAvailableSpace }
 
-// Total square footage is the first numeric SF fact on the supplied site plan (the building or facility area).
+// Total square footage is the first numeric SF fact on the supplied site plan (the building or facility area),
+// falling back to a user-provided total.
 export function getFacilitySquareFootage(facilityId: string): FacilitySquareFootage {
   const areaFact = getFacilitySitePlan(facilityId)?.facts.find((fact) => fact.unit === 'SF' && typeof fact.value === 'number')
   return {
-    totalSquareFeet: typeof areaFact?.value === 'number' ? areaFact.value : undefined,
+    totalSquareFeet: typeof areaFact?.value === 'number' ? areaFact.value : facilityTotalSquareFeet[facilityId],
     available: facilityAvailableSpace[facilityId],
   }
 }

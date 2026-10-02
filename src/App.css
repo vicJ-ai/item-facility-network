@@ -536,6 +536,7 @@ tbody tr:hover td:last-child, tbody tr.selected td:last-child { color: var(--pri
 .operations-contact-photo[src$='-v2.png'] { object-fit: cover; object-position: center top; }
 .operations-contact-photo[src$='efrain-islas-alcaraz.png'] { object-fit: cover; object-position: center top; }
 .operations-contact-photo[src$='mary-smothers.jpg'] { object-fit: cover; object-position: center 18%; }
+.operations-contact-photo[src$='jimmy-esparza.png'] { object-fit: cover; object-position: center 20%; }
 .operations-contact-photo.is-blank { background: transparent; }
 .operations-contact-copy { min-width: 0; }
 .operations-contact-role { display: block; color: var(--primary-ink); font-size: 12px; font-weight: 700; line-height: 1.35; }
