@@ -115,7 +115,7 @@ const expectedOperationsRows = {
   'buena-park-valley-view': { row: 5, columns: ['D', 'E', 'F', 'G', 'H'] },
   'riverside-alessandro': { row: 4, columns: ['D', 'E', 'F', 'H', 'J'] },
   'moreno-valley-heacock': { row: 8, columns: ['D', 'E', 'F', 'H', 'J'] },
-  'houston-citypark': { row: 20, columns: ['D', 'E', 'F', 'F', 'H', 'I'], officialSheet: '144 – City Park' },
+  'houston-citypark': { row: 20, columns: ['D', 'E', 'F', 'H', 'I'], officialSheet: '144 – City Park' },
   'roanoke-highway-114': { row: 23, columns: ['D', 'E', 'F', 'F', 'G', 'H'], officialSheet: '689 – Roanoke' },
   'tennessee-quality-drive': { row: 19, columns: ['D', 'E', 'F', 'H', 'H'] },
   'tacoma-lincoln': { row: 25, columns: ['D', 'E', 'H', 'I', 'J'] },
@@ -123,13 +123,13 @@ const expectedOperationsRows = {
   'jacksonville-ignition': { row: 9, columns: ['D', 'E', 'F', 'G', 'H'] },
   'las-vegas-marion-building-5': { row: 16, columns: ['D', 'E', 'F', 'I', 'J', 'H'] },
   'long-beach-willow': { row: 6, columns: ['D', 'E', 'F', 'H'] },
-  'joliet-brandon': { row: 13, columns: ['D', 'E', 'F', 'G', 'H'] },
+  'joliet-brandon': { row: 13, columns: ['D', 'E', 'F', 'G', 'H', 'J'] },
   'el-paso-emerald-12102-building-5': { row: 22, columns: ['D', 'E', 'F', 'H'] },
   'waddell-cotton': { row: 3, columns: ['D', 'E', 'F', 'I', 'H', 'J'] },
   'ontario-airport': { row: 7, columns: ['D', 'E', 'G', 'H', 'J'] },
   'sparks-vista': { row: 15, columns: ['D', 'E', 'F', 'H', 'I', 'J'] },
   'memphis-delp': { row: 18, columns: ['D', 'E', 'F', 'H', 'H'] },
-  'plano-10th-f-avenue': { row: 24, columns: ['D', 'E', 'F', 'H'] },
+  'plano-10th-f-avenue': { row: 24, columns: ['D', 'E', 'H'] },
 } as const
 
 const expectedOfficialSheetOperations = {
@@ -152,12 +152,12 @@ const pointOfContactNote = (facilityId: string) => expectedPointOfContactSheetId
 // including the VP split (John Gleason: Texas, Savannah, Florida, South Carolina; John Diaz: everywhere else).
 const expectedUserContactUpdates = {
   'el-paso-emerald-12100': [['D', 'Manager of Account Management & Client Onboarding', 'Michelle Topete'], ['E', 'Sr Director of Account Management & Client Onboarding', 'Mary Smothers'], ['F', 'Operations Manager', 'Jessica Barajas'], ['H', 'VP of Operations', 'John Gleason']],
-  'kent-85th-avenue-range': [['I', 'WA Senior General Manager', 'Juan Barragan'], ['H', 'Sr. Vice President of Operations', 'John Diaz']],
+  'kent-85th-avenue-range': [['D', 'Manager of Account Management & Client Onboarding', 'Michelle Topete'], ['E', 'Sr Director of Account Management & Client Onboarding', 'Mary Smothers'], ['I', 'WA Senior General Manager', 'Juan Barragan'], ['H', 'Sr. Vice President of Operations', 'John Diaz']],
   'salt-lake-city-jimmy-doolittle': [['D', 'Manager of Account Management & Client Onboarding', 'Michelle Topete'], ['E', 'Sr Director of Account Management & Client Onboarding', 'Mary Smothers'], ['I', 'WA Senior General Manager', 'Juan Barragan'], ['H', 'Sr. Vice President of Operations', 'John Diaz'], ['J', 'Regional Director of Field Operations', 'Harold Cuarezma']],
-  'houston-navigation': [['F', 'Operations Manager', 'Jessica Barajas'], ['H', 'VP of Operations', 'John Gleason']],
+  'houston-navigation': [['D', 'Manager of Account Management & Client Onboarding', 'Michelle Topete'], ['E', 'Sr Director of Account Management & Client Onboarding', 'Mary Smothers'], ['F', 'Operations Manager', 'Jessica Barajas'], ['H', 'VP of Operations', 'John Gleason']],
   'pooler-morgan-lakes': [['D', 'Manager of Account Management & Client Onboarding', 'Michelle Topete'], ['E', 'Sr Director of Account Management & Client Onboarding', 'Mary Smothers'], ['G', 'Director of Operations', 'Wayne Brooks'], ['H', 'VP of Operations', 'John Gleason']],
-  'west-sacramento-overland': [['H', 'Sr. Vice President of Operations', 'John Diaz']],
-  'somerset-cottontail': [['H', 'Sr. Vice President of Operations', 'John Diaz']],
+  'west-sacramento-overland': [['D', 'Manager of Account Management & Client Onboarding', 'Michelle Topete'], ['E', 'Sr Director of Account Management & Client Onboarding', 'Mary Smothers'], ['H', 'Sr. Vice President of Operations', 'John Diaz']],
+  'somerset-cottontail': [['D', 'Manager of Account Management & Client Onboarding', 'Michelle Topete'], ['E', 'Sr Director of Account Management & Client Onboarding', 'Mary Smothers'], ['J', 'Regional Director of Field Operations', 'Harold Cuarezma']],
   'university-park-central': [['D', 'Manager of Account Management & Client Onboarding', 'Michelle Topete'], ['E', 'Sr Director of Account Management & Client Onboarding', 'Mary Smothers'], ['F', 'General Manager', 'Barry Washington'], ['F', 'Assistant General Manager', 'Jason Hop'], ['G', 'Director of Operations', 'Javier Gonzalez Montane'], ['H', 'Sr. Vice President of Operations', 'John Diaz'], ['J', 'Regional Director of Operations', 'Jimmy Esparza']],
 } as const
 
@@ -186,7 +186,6 @@ const expectedJohnDiazFacilityIds = [
   'memphis-delp',
   'salt-lake-city-jimmy-doolittle',
   'west-sacramento-overland',
-  'somerset-cottontail',
   'university-park-central',
 ] as const
 
@@ -1297,6 +1296,7 @@ test('Overview Bulk & rack section shows each site\'s reported figures', async (
     'pooler-morgan-lakes': [200_000, 0],
     'summerville-cypress-tradeport': [70_000, 0],
     'pooler-seabrook-building-2': [100_000, 0],
+    'buena-park-valley-view': [116_048, 16_783],
   })
   expect(facilityBulkRack['joliet-brandon']).toEqual({ bulkSquareFeet: 110_000, bulkUpToSquareFeet: 150_000, rackPalletPositions: 3_000, asOf: '2026-10' })
   const joliet = facilities.find((facility) => facility.id === 'joliet-brandon')!
@@ -1310,8 +1310,8 @@ test('Overview Bulk & rack section shows each site\'s reported figures', async (
   await returnToDirectory(page)
   await chooseFromDirectory(page, suppliedAddresses[0])
   await expect(section).toHaveAttribute('data-reported', 'true')
-  await expect(section.getByTestId('bulk-rack-bulk')).toHaveText('Bulk0 SQF')
-  await expect(section.getByTestId('bulk-rack-rack')).toHaveText('Rack0 pallet positions')
+  await expect(section.getByTestId('bulk-rack-bulk')).toHaveText('Bulk116,048 SQF')
+  await expect(section.getByTestId('bulk-rack-rack')).toHaveText('Rack16,783 pallet positions')
 })
 
 test('Overview square footage, building facts, and plan facts match the cards and never repeat a superseded plan area', async ({ page }) => {
@@ -2270,9 +2270,9 @@ test('property tabs show honest unavailable states and coordinate limitations', 
   await expect(page.locator('.facility-documents')).toContainText('Existing user-provided photo')
   await expect(page.locator('.facility-documents')).not.toContainText('Documents not provided')
   await page.getByRole('tab', { name: 'Operations' }).click()
-  // Somerset still awaits site-level contacts, so it lists only its assigned VP.
-  await expect(page.locator('.facility-operations .operations-contact-card')).toHaveCount(1)
-  await expect(page.locator('.facility-operations')).toContainText('John Diaz')
+  // Somerset still awaits a General Manager; it lists Michelle Topete, Mary Smothers, Harold Cuarezma, and Jennifer Stanek.
+  await expect(page.locator('.facility-operations .operations-contact-card')).toHaveCount(4)
+  await expect(page.locator('.facility-operations')).not.toContainText('John Diaz')
   await expect(page.locator('.facility-operations')).toContainText('8:00 AM–4:30 PM EST M-F')
 
   await returnToDirectory(page)
@@ -2328,7 +2328,6 @@ test('account manager profiles match the supplied sheets and sit at their assign
     'ontario-airport': ['Alondra Toledano'],
     'memphis-delp': ['Thelma Tolentino'],
     'garden-city-prosperity': ['Jessica Chaidez', 'Jehnifur Morvai'],
-    'university-park-central': ['Yesenia Diaz'],
     'jacksonville-ignition': ['Jehnifur Morvai'],
     'pooler-morgan-lakes': ['Jehnifur Morvai'],
     'summerville-cypress-tradeport': ['Jehnifur Morvai'],
@@ -2340,6 +2339,8 @@ test('account manager profiles match the supplied sheets and sit at their assign
     'sparks-vista': ['Jennifer Stanek'],
     'las-vegas-marion-building-5': ['Jennifer Stanek'],
     'salt-lake-city-jimmy-doolittle': ['Jennifer Stanek'],
+    'kent-85th-avenue-range': ['Jennifer Stanek'],
+    'somerset-cottontail': ['Jennifer Stanek'],
   })
   expect(accountManagerProfiles['jehnifur-morvai'].role).toBe('Regional Account Manager')
   expect(accountManagerProfiles['jennifer-stanek'].role).toBe('Regional Account Manager')
@@ -2356,18 +2357,18 @@ test('account manager profiles match the supplied sheets and sit at their assign
       expect(contact.photoUrl, `${facilityId}:${contact.name}`).toBe('photoUrl' in profile ? profile.photoUrl : undefined)
     }
   }
-  expect(Object.values(allFacilityOperations).reduce((count, record) => count + (record?.contacts.length ?? 0), 0)).toBe(169)
+  expect(Object.values(allFacilityOperations).reduce((count, record) => count + (record?.contacts.length ?? 0), 0)).toBe(177)
   // Every profile is assigned to at least one facility.
   const listed = new Set(Object.values(allFacilityOperations).flatMap((record) => record?.contacts.map((contact) => contact.name) ?? []))
   expect(Object.values(accountManagerProfiles).filter((profile) => !listed.has(profile.name)).map((profile) => profile.name)).toEqual([])
 })
 
-test('Operations sidecar maps 18 exact sheet rows, 3 official facility sheets, 8 direct updates, all 133 site role entries, and exact portrait assignments', () => {
+test('Operations sidecar maps 18 exact sheet rows, 3 official facility sheets, 8 direct updates, all 140 site role entries, and exact portrait assignments', () => {
   // Account managers are listed after each site's own contacts; they are checked in their own test, so set them aside here.
   const facilityOperations = siteContactOperations()
   expect(Object.keys(facilityOperations).sort()).toEqual([...Object.keys(expectedOperationsRows), ...Object.keys(expectedOfficialSheetOperations), ...Object.keys(expectedUserContactUpdates), 'garden-city-prosperity'].sort())
   expect(Object.keys(facilityOperations)).toHaveLength(facilities.length)
-  expect(Object.values(facilityOperations).reduce((count, record) => count + (record?.contacts.length ?? 0), 0)).toBe(133)
+  expect(Object.values(facilityOperations).reduce((count, record) => count + (record?.contacts.length ?? 0), 0)).toBe(140)
   for (const [facilityId, expected] of Object.entries(expectedUserContactUpdates)) {
     const titleCorrection = expectedJohnDiazFacilityIds.some((id) => id === facilityId) ? ` · ${JOHN_DIAZ_TITLE_SOURCE_NOTE}` : ''
     expect(facilityOperations[facilityId]?.source, facilityId).toBe(`User-provided contact update, 2026-10-01${titleCorrection}${pointOfContactNote(facilityId)}`)
@@ -2440,18 +2441,18 @@ test('Operations sidecar maps 18 exact sheet rows, 3 official facility sheets, 8
   expect(facilityOperations['el-paso-emerald-12102-building-5']?.contacts.map((contact) => contact.phones?.map((phone) => phone.display))).toEqual([
     ['626.829.3160'], ['626-899-2364'], ['915.777.7257'], ['909.993.7174'],
   ])
-  // Jessica Barajas is the Operations Manager at every Texas site.
+  // Jessica Barajas is the Operations Manager at every Texas site except Houston Citypark and Plano (both removed 2026-10-02).
   expect(Object.values(facilityOperations).flatMap((record) => record?.contacts.filter((contact) => contact.name === 'Jessica Barajas').map((contact) => `${record.facilityId}:${contact.role}`) ?? []).sort())
-    .toEqual(facilities.filter((facility) => facility.state === 'TX').map((facility) => `${facility.id}:Operations Manager`).sort())
+    .toEqual(facilities.filter((facility) => facility.state === 'TX' && facility.id !== 'houston-citypark' && facility.id !== 'plano-10th-f-avenue').map((facility) => `${facility.id}:Operations Manager`).sort())
   expect(MICHELLE_TOPETE_CONTACT_SOURCE_NOTE).toBe('Michelle Topete contact corrected by user on 2026-10-01.')
   const michelleEntries = Object.values(facilityOperations).flatMap((record) => record?.contacts.filter((contact) => contact.name === 'Michelle Topete') ?? [])
-  expect(michelleEntries).toHaveLength(25)
+  expect(michelleEntries).toHaveLength(29)
   expect(michelleEntries.every((contact) => contact.email === 'michelle.topete@unisco.com' && contact.phones?.length === 1 && contact.phones[0].display === '626.829.3160' && contact.phones[0].href === '+16268293160' && contact.photoUrl === MICHELLE_TOPETE_PHOTO_URL)).toBe(true)
 
   expect(MARY_SMOTHERS_PHOTO_SOURCE_NOTE).toContain('supplied and identified by user')
   expect(MARY_SMOTHERS_PHOTO_SOURCE_NOTE).toContain('not independently verified')
   const maryEntries = Object.values(facilityOperations).flatMap((record) => record?.contacts.filter((contact) => contact.email === MARY_SMOTHERS_EMAIL) ?? [])
-  expect(maryEntries).toHaveLength(25)
+  expect(maryEntries).toHaveLength(29)
   expect(maryEntries.every((contact) => contact.photoUrl === MARY_SMOTHERS_PHOTO_URL)).toBe(true)
 
   for (const [facilityId, expected] of Object.entries(expectedOfficialSheetOperations)) {
@@ -2484,10 +2485,10 @@ test('Operations sidecar maps 18 exact sheet rows, 3 official facility sheets, 8
   expect(new Set(otherVicePresidents)).toEqual(new Set(['John Gleason']))
   const johnGleasonFacilityIds = Object.values(facilityOperations).flatMap((record) => record?.contacts.some((contact) => contact.name === 'John Gleason') ? [record.facilityId] : [])
   expect([...johnGleasonFacilityIds].sort()).toEqual([...expectedJohnGleasonFacilityIds].sort())
-  // Every facility lists exactly one VP: John Gleason or John Diaz, never both.
+  // Every facility lists exactly one VP, John Gleason or John Diaz, except Somerset, where the user removed John Diaz.
   for (const facility of facilities) {
     const vps = facilityOperations[facility.id]?.contacts.filter((contact) => contact.name === 'John Gleason' || contact.name === 'John Diaz').map((contact) => contact.name)
-    expect(vps, facility.id).toHaveLength(1)
+    expect(vps, facility.id).toHaveLength(facility.id === 'somerset-cottontail' ? 0 : 1)
   }
 
   const sharedPortraits: Record<string, string> = {
@@ -2520,6 +2521,7 @@ test('Operations sidecar maps 18 exact sheet rows, 3 official facility sheets, 8
     `garden-city-prosperity:f-frank-feliciano:${FRANK_FELICIANO_PHOTO_URL}`,
     `long-beach-willow:f-efrain-islas-alcaraz:${EFRAIN_ISLAS_ALCARAZ_PHOTO_URL}`,
     'joliet-brandon:f-fabian-quiroz:/media/operations/portraits/fabian-quiroz.jpg',
+    `joliet-brandon:j-jimmy-esparza:${JIMMY_ESPARZA_PHOTO_URL}`,
     'ontario-airport:g-mark-tuttle:/media/operations/portraits/mark-tuttle.jpg',
     'sparks-vista:f-onoriode-enaigbe:/media/operations/portraits/onoriode-enaigbe.jpg',
     'university-park-central:f-barry-washington:/media/operations/portraits/barry-washington.jpg',
@@ -2984,10 +2986,10 @@ test('facility profile downloads are four-page selected-facility PDFs with hours
   expect(somerset.keywords).toContain(suppliedAddresses[25])
   expect(somerset.keywords).toContain('Site plan not provided')
   expect(somerset.keywords).toContain('User-provided screenshot media')
-  // Somerset still awaits site-level contacts, so its profile lists only its assigned VP.
+  // Somerset still awaits a General Manager; its profile lists the people assigned so far, and no VP.
   expect(somerset.visibleText).not.toContain('Contacts pending review')
-  expect(somerset.visibleText).toContain('John Diaz')
-  expect(somerset.visibleText).not.toContain('Michelle Topete')
+  expectVisiblePdfContacts(somerset.visibleText, 'somerset-cottontail')
+  expect(somerset.visibleText).not.toContain('John Diaz')
   expect(somerset.assetPaths).toEqual(['/media/somerset-cottontail.jpg'])
 
   await returnToDirectory(page)
@@ -3084,8 +3086,8 @@ test('Joliet shows supplied Fabian and Javier portraits with no duplicate VP ent
   await page.getByRole('tab', { name: 'Operations' }).click()
   const panel = page.getByRole('region', { name: `Operations contacts for ${joliet.fullAddress}` })
   // Michelle, Mary, Fabian, Javier, and John Diaz, plus account managers Yesenia Diaz, Matthew David, Rhonda Moffett, Raed Ali,
-  // and Jehnifur Morvai.
-  await expect(panel.locator('.operations-contact-card')).toHaveCount(10)
+  // and Jehnifur Morvai, and Jimmy Esparza (added 2026-10-02).
+  await expect(panel.locator('.operations-contact-card')).toHaveCount(11)
   await expect(panel.locator('.operations-contact-card').filter({ hasText: 'Javier Gonzalez Montane' })).toHaveCount(1)
   await expect(panel.locator('.operations-contact-card').filter({ hasText: 'John Diaz' })).toHaveCount(1)
   await expect(panel.getByText('VP of Operations', { exact: true })).toHaveCount(0)
@@ -3109,7 +3111,7 @@ test('Joliet shows supplied Fabian and Javier portraits with no duplicate VP ent
   await page.screenshot({ path: 'test-results/joliet-desktop.png', fullPage: true })
   await page.setViewportSize({ width: 390, height: 844 })
   // Michelle, Mary, Fabian, Javier, and John Diaz all have supplied portraits.
-  await expect(panel.locator('img')).toHaveCount(9)
+  await expect(panel.locator('img')).toHaveCount(10)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   await page.screenshot({ path: 'test-results/joliet-mobile.png', fullPage: true })
 })
@@ -3151,7 +3153,7 @@ test('Harold supplied portrait renders on every existing contact without changin
   test.setTimeout(120_000)
   const refs = Object.values(facilityOperations).flatMap(record => record?.contacts.filter(c => c.email === 'harold.cuarezma@unisco.com').map(c => ({ facilityId: record.facilityId, contact: c })) ?? [])
   // Salt Lake City was added from the UNIS Warehouse Point of Contact sheet on 2026-10-02.
-  expect(refs.map(r => r.facilityId)).toEqual(['riverside-alessandro', 'moreno-valley-heacock', 'tacoma-lincoln', 'tacoma-steele', 'las-vegas-marion-building-5', 'waddell-cotton', 'ontario-airport', 'sparks-vista', 'salt-lake-city-jimmy-doolittle'])
+  expect(refs.map(r => r.facilityId)).toEqual(['riverside-alessandro', 'moreno-valley-heacock', 'tacoma-lincoln', 'tacoma-steele', 'las-vegas-marion-building-5', 'waddell-cotton', 'ontario-airport', 'sparks-vista', 'salt-lake-city-jimmy-doolittle', 'somerset-cottontail'])
   const asset = '/media/operations/portraits/harold-cuarezma.jpg'
   // The supplied original is kept unchanged beside the crop.
   const response = await page.request.get('/media/operations/people/harold-cuarezma.png')

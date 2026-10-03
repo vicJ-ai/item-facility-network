@@ -83,9 +83,11 @@ export const facilityBulkRack: Partial<Record<string, FacilityBulkRack>> = {
   'summerville-cypress-tradeport': { bulkSquareFeet: 70_000, rackPalletPositions: 0, asOf: '2026-10' },
   // User-provided on 2026-10-02 (bulk only; rack stays 0 from the zero-fill below).
   'pooler-seabrook-building-2': { bulkSquareFeet: 100_000, rackPalletPositions: 0, asOf: '2026-10' },
+  // User-provided on 2026-10-02.
+  'buena-park-valley-view': { bulkSquareFeet: 116_048, rackPalletPositions: 16_783, asOf: '2026-10' },
   // The user asked on 2026-10-02 to record 0 bulk and 0 rack for every site still without figures.
   ...Object.fromEntries([
-    'buena-park-valley-view', 'riverside-alessandro', 'moreno-valley-heacock', 'roanoke-highway-114',
+    'riverside-alessandro', 'moreno-valley-heacock', 'roanoke-highway-114',
     'tennessee-quality-drive', 'tacoma-lincoln', 'tacoma-steele', 'las-vegas-marion-building-5', 'long-beach-willow',
     'waddell-cotton', 'ontario-airport', 'kent-85th-avenue-range', 'west-sacramento-overland', 'sparks-vista',
     'memphis-delp', 'salt-lake-city-jimmy-doolittle', 'somerset-cottontail', 'garden-city-prosperity', 'university-park-central',
