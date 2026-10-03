@@ -322,14 +322,14 @@ function drawContactDirectory(page: PDFPage, fonts: Fonts, data: FacilityProfile
   }
 
   // The contact source note stays in the PDF's metadata keywords but is not printed on the page.
-  // Three rows fit the box: two columns hold up to six contacts and three columns up to nine. Anything beyond that is
-  // counted in a note rather than silently dropped.
-  const MAX_CONTACTS = 9
+  // Three rows fit the box: two columns hold up to six contacts, three up to nine, and four up to twelve. Anything beyond
+  // that is counted in a note rather than silently dropped.
+  const MAX_CONTACTS = 12
   const contacts = data.operations.contacts.slice(0, MAX_CONTACTS)
   const hidden = data.operations.contacts.length - contacts.length
-  const columns = contacts.length > 6 ? 3 : 2
+  const columns = contacts.length > 9 ? 4 : contacts.length > 6 ? 3 : 2
   const rows = Math.ceil(contacts.length / columns)
-  const columnGap = columns === 3 ? 14 : 18
+  const columnGap = columns === 2 ? 18 : columns === 3 ? 14 : 10
   const columnWidth = (box.width - 30 - columnGap * (columns - 1)) / columns
   const cardsTop = box.y + box.height - 52
   const cardsBottom = box.y + 10
