@@ -18,8 +18,9 @@ export const facilityBulkRackSnapshots: Partial<Record<string, FacilityBulkRackS
   'el-paso-emerald-12102-building-5': { bulkSquareFeet: 0, rackPalletPositions: 0, asOf: '2026-10' },
   'summerville-cypress-tradeport': { bulkSquareFeet: 70_000, rackPalletPositions: 0, asOf: '2026-10' },
   'pooler-seabrook-building-2': { bulkSquareFeet: 100_000, rackPalletPositions: 0, asOf: '2026-10' },
+  'buena-park-valley-view': { bulkSquareFeet: 116_048, rackPalletPositions: 16_783, asOf: '2026-10' },
   ...Object.fromEntries([
-    'buena-park-valley-view', 'riverside-alessandro', 'moreno-valley-heacock', 'roanoke-highway-114',
+    'riverside-alessandro', 'moreno-valley-heacock', 'roanoke-highway-114',
     'tennessee-quality-drive', 'tacoma-lincoln', 'tacoma-steele', 'las-vegas-marion-building-5', 'long-beach-willow',
     'waddell-cotton', 'ontario-airport', 'kent-85th-avenue-range', 'west-sacramento-overland', 'sparks-vista',
     'memphis-delp', 'salt-lake-city-jimmy-doolittle', 'somerset-cottontail', 'garden-city-prosperity', 'university-park-central',

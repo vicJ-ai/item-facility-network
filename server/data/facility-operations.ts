@@ -71,7 +71,8 @@ const RICK_GRISWOLD_PHONES: FacilityContactPhone[] = [{ label: 'Phone', display:
 
 export const JESSICA_BARAJAS_EMAIL = 'jessica.barajas@unisco.com'
 export const JESSICA_BARAJAS_PHOTO_URL = '/api/operations/portraits/compact-jessica-barajas.jpg'
-// User-provided on 2026-10-01: Operations Manager for every Texas site (first given for both El Paso sites); the user kept only her work number.
+// User-provided on 2026-10-01: Operations Manager for every Texas site (first given for both El Paso sites) except Houston
+// Citypark and Plano, where the user removed her on 2026-10-02; the user kept only her work number.
 const JESSICA_BARAJAS_PHONES: FacilityContactPhone[] = [{ label: 'Office', display: '915.777.7257', href: '+19157777257' }]
 
 export const LENIVY_JACKSON_PHOTO_URL = '/api/operations/portraits/compact-lenivy-jackson.jpg'
@@ -159,6 +160,8 @@ export type AccountManagerProfile = {
 
 const accountManagerPortrait = (slug: string) => `/api/operations/portraits/compact-${slug}.jpg`
 const ACCOUNT_MANAGER = 'Account Manager'
+// The "point of contact per warehouse" sheet lists these two as Regional Account Managers; the user set the title on 2026-10-02.
+const REGIONAL_ACCOUNT_MANAGER = 'Regional Account Manager'
 
 export const accountManagerProfiles = {
   'alondra-toledano': { name: 'Alondra Toledano', role: ACCOUNT_MANAGER, email: 'alondra.toledano@unisco.com', phones: [{ label: 'Phone', display: '626-684-6944', href: '+16266846944' }], photoUrl: accountManagerPortrait('alondra-toledano') },
@@ -170,8 +173,8 @@ export const accountManagerProfiles = {
     phones: [{ label: 'Mobile', display: '714.425.5857', href: '+17144255857' }, { label: 'Office', display: '(626) 626-9891', href: '+16266269891' }],
     photoUrl: accountManagerPortrait('susan-mendez'),
   },
-  'jennifer-stanek': { name: 'Jennifer Stanek', role: ACCOUNT_MANAGER, email: 'jennifer.stanek@unisco.com', phones: [{ label: 'Phone', display: '909-569-3849', href: '+19095693849' }], photoUrl: accountManagerPortrait('jennifer-stanek') },
-  'jehnifur-morvai': { name: 'Jehnifur Morvai', role: ACCOUNT_MANAGER, email: 'jehnifur.morvai@unisco.com', phones: [{ label: 'Phone', display: '626.362.7775', href: '+16263627775' }], photoUrl: accountManagerPortrait('jehnifur-morvai') },
+  'jennifer-stanek': { name: 'Jennifer Stanek', role: REGIONAL_ACCOUNT_MANAGER, email: 'jennifer.stanek@unisco.com', phones: [{ label: 'Phone', display: '909-569-3849', href: '+19095693849' }], photoUrl: accountManagerPortrait('jennifer-stanek') },
+  'jehnifur-morvai': { name: 'Jehnifur Morvai', role: REGIONAL_ACCOUNT_MANAGER, email: 'jehnifur.morvai@unisco.com', phones: [{ label: 'Phone', display: '626.362.7775', href: '+16263627775' }], photoUrl: accountManagerPortrait('jehnifur-morvai') },
   // The sheet says "[leave title blank] Don't add title".
   'elizabeth-martinez': { name: 'Elizabeth Martinez', role: '', email: 'elizabeth.martinez@unisco.com', phones: [{ label: 'Phone', display: '713-438-7170', href: '+17134387170' }], photoUrl: accountManagerPortrait('elizabeth-martinez') },
   'karen-nesta': { name: 'Karen Nesta', role: ACCOUNT_MANAGER, email: 'karen.nesta@unisco.com', phones: [{ label: 'Phone', display: '909-956-3732', href: '+19099563732' }], photoUrl: accountManagerPortrait('karen-nesta') },
@@ -228,14 +231,31 @@ export const accountManagerAssignments: Partial<Record<string, readonly AccountM
   'long-beach-willow': ['yessenia-tovar'],
   'ontario-airport': ['alondra-toledano'],
   'moreno-valley-heacock': ['alondra-toledano'],
-  'garden-city-prosperity': ['jessica-chaidez'],
-  'pooler-seabrook-building-2': ['natasha-gray'],
-  'joliet-brandon': ['yesenia-diaz', 'matthew-david', 'rhonda-moffett', 'raed-ali'],
-  'university-park-central': ['yesenia-diaz'],
+  'garden-city-prosperity': ['jessica-chaidez', 'jehnifur-morvai'],
+  'pooler-seabrook-building-2': ['natasha-gray', 'jehnifur-morvai'],
+  'joliet-brandon': ['yesenia-diaz', 'matthew-david', 'rhonda-moffett', 'raed-ali', 'jehnifur-morvai'],
+  // The file also lists Yesenia Diaz at University Park; the user removed her there on 2026-10-02.
   'memphis-delp': ['thelma-tolentino'],
   'tennessee-quality-drive': ['thelma-tolentino'],
-  'houston-citypark': ['elizabeth-martinez'],
-  'roanoke-highway-114': ['kassandra-ibanez'],
+  'houston-citypark': ['elizabeth-martinez', 'jennifer-stanek'],
+  'roanoke-highway-114': ['kassandra-ibanez', 'jennifer-stanek'],
+  // Jehnifur Morvai is the Regional Account Manager for these sites in the "point of contact per warehouse" sheet; the user
+  // added her on 2026-10-02, after any site account manager.
+  'jacksonville-ignition': ['jehnifur-morvai'],
+  'pooler-morgan-lakes': ['jehnifur-morvai'],
+  'summerville-cypress-tradeport': ['jehnifur-morvai'],
+  'el-paso-emerald-12100': ['jehnifur-morvai'],
+  'el-paso-emerald-12102-building-5': ['jehnifur-morvai'],
+  // Jennifer Stanek, Regional Account Manager for these sites in the same sheet, added by the user on 2026-10-02.
+  'plano-10th-f-avenue': ['jennifer-stanek'],
+  'tacoma-lincoln': ['jennifer-stanek'],
+  'tacoma-steele': ['jennifer-stanek'],
+  'sparks-vista': ['jennifer-stanek'],
+  'las-vegas-marion-building-5': ['jennifer-stanek'],
+  'salt-lake-city-jimmy-doolittle': ['jennifer-stanek'],
+  // Added per Brayan Escobar's org chart review, 2026-10-02.
+  'kent-85th-avenue-range': ['jennifer-stanek'],
+  'somerset-cottontail': ['jennifer-stanek'],
 }
 
 const normalizedEmail = (email?: string) => email?.trim().toLowerCase()
@@ -379,7 +399,7 @@ const baseFacilityOperations: Partial<Record<string, FacilityOperations>> = {
     sheetContact('D', 'account-management', 'Manager of Account Management & Client Onboarding', 'Michelle Topete', MICHELLE_TOPETE_EMAIL, MICHELLE_TOPETE_PHONES),
     sheetContact('E', 'account-management', 'Sr Director of Account Management & Client Onboarding', 'Mary Smothers', 'mary.smothers@unisco.com', [{ label: 'Phone', display: '626-899-2363', href: '+16268992363' }]),
     sheetContact('F', 'operations', 'General Manager', 'Rick Griswold', RICK_GRISWOLD_EMAIL, RICK_GRISWOLD_PHONES),
-    sheetContact('F', 'operations', 'Operations Manager', 'Jessica Barajas', JESSICA_BARAJAS_EMAIL, JESSICA_BARAJAS_PHONES),
+    // Jessica Barajas was removed from Houston Citypark at the user's request on 2026-10-02.
     sheetContact('H', 'operations', JOHN_GLEASON_ROLE, 'John Gleason', JOHN_GLEASON_EMAIL, JOHN_GLEASON_PHONES),
     sheetContact('I', 'operations', 'Operations Supervisor', 'Ruben Echavarria', undefined, [], '/api/operations/portraits/compact-ruben-echavarria.jpg'),
   ], '144 – City Park'),
@@ -461,6 +481,8 @@ const baseFacilityOperations: Partial<Record<string, FacilityOperations>> = {
     sheetContact('F', 'operations', 'General Manager', 'Fabian Quiroz', 'fabian.quiroz@unisco.com', [{ label: 'Phone', display: '626-693-6394', href: '+16266936394' }], '/api/operations/portraits/compact-fabian-quiroz.jpg'),
     sheetContact('G', 'operations', JAVIER_MONTANE_ROLE, JAVIER_MONTANE_NAME, JAVIER_MONTANE_EMAIL, JAVIER_MONTANE_PHONES),
     sheetContact('H', 'operations', JOHN_DIAZ_ROLE, 'John Diaz', JOHN_DIAZ_EMAIL, JOHN_DIAZ_PHONES),
+    // Added at the user's request on 2026-10-02, with the same details as at University Park.
+    sheetContact('J', 'operations', 'Regional Director of Operations', 'Jimmy Esparza', JIMMY_ESPARZA_EMAIL, JIMMY_ESPARZA_PHONES, JIMMY_ESPARZA_PHOTO_URL),
   ]),
   // The point-of-contact sheet lists this site as 12104 Emerald Pass Dr; the user confirmed it is the same facility.
   'el-paso-emerald-12100': withPointOfContactSheet(userContactUpdate('el-paso-emerald-12100', [
@@ -492,6 +514,9 @@ const baseFacilityOperations: Partial<Record<string, FacilityOperations>> = {
     sheetContact('J', 'operations', 'Regional Director of Field Operations', 'Harold Cuarezma', 'harold.cuarezma@unisco.com', [{ label: 'Cell', display: '909-753-6346', href: '+19097536346' }, { label: 'Mobile', display: '626-362-9596', href: '+16263629596' }]),
   ]),
   'kent-85th-avenue-range': userContactUpdate('kent-85th-avenue-range', [
+    // Michelle Topete and Mary Smothers added per Brayan Escobar's org chart review, 2026-10-02.
+    sheetContact('D', 'account-management', 'Manager of Account Management & Client Onboarding', 'Michelle Topete', MICHELLE_TOPETE_EMAIL, MICHELLE_TOPETE_PHONES),
+    sheetContact('E', 'account-management', 'Sr Director of Account Management & Client Onboarding', 'Mary Smothers', MARY_SMOTHERS_EMAIL, [{ label: 'Phone', display: '626-899-2363', href: '+16268992363' }]),
     sheetContact('I', 'operations', JUAN_BARRAGAN_ROLE, 'Juan Barragan', JUAN_BARRAGAN_EMAIL, JUAN_BARRAGAN_PHONES),
     sheetContact('H', 'operations', JOHN_DIAZ_ROLE, 'John Diaz', JOHN_DIAZ_EMAIL, JOHN_DIAZ_PHONES),
   ]),
@@ -522,12 +547,15 @@ const baseFacilityOperations: Partial<Record<string, FacilityOperations>> = {
   'plano-10th-f-avenue': sheetOperations('plano-10th-f-avenue', 24, [
     sheetContact('D', 'account-management', 'Manager of Account Management & Client Onboarding', 'Michelle Topete', MICHELLE_TOPETE_EMAIL, MICHELLE_TOPETE_PHONES),
     sheetContact('E', 'account-management', 'Sr Director of Account Management & Client Onboarding', 'Mary Smothers', 'mary.smothers@unisco.com', [{ label: 'Phone', display: '626-899-2363', href: '+16268992363' }]),
-    sheetContact('F', 'operations', 'Operations Manager', 'Jessica Barajas', JESSICA_BARAJAS_EMAIL, JESSICA_BARAJAS_PHONES),
+    // Jessica Barajas was removed from Plano at the user's request on 2026-10-02.
     sheetContact('H', 'operations', 'VP of Operations', 'John Gleason', 'john.gleason@unisco.com', [{ label: 'Phone', display: '909.993.7174', href: '+19099937174' }]),
   ]),
   // Sites still awaiting site-level contact mapping list only the people assigned to them by the user (2026-10-01) or the
   // point-of-contact sheet (2026-10-02).
   'houston-navigation': userContactUpdate('houston-navigation', [
+    // Michelle Topete and Mary Smothers added per Brayan Escobar's org chart review, 2026-10-02.
+    sheetContact('D', 'account-management', 'Manager of Account Management & Client Onboarding', 'Michelle Topete', MICHELLE_TOPETE_EMAIL, MICHELLE_TOPETE_PHONES),
+    sheetContact('E', 'account-management', 'Sr Director of Account Management & Client Onboarding', 'Mary Smothers', MARY_SMOTHERS_EMAIL, [{ label: 'Phone', display: '626-899-2363', href: '+16268992363' }]),
     sheetContact('F', 'operations', 'Operations Manager', 'Jessica Barajas', JESSICA_BARAJAS_EMAIL, JESSICA_BARAJAS_PHONES),
     sheetContact('H', 'operations', JOHN_GLEASON_ROLE, 'John Gleason', JOHN_GLEASON_EMAIL, JOHN_GLEASON_PHONES),
   ]),
@@ -538,10 +566,18 @@ const baseFacilityOperations: Partial<Record<string, FacilityOperations>> = {
     sheetContact('H', 'operations', JOHN_GLEASON_ROLE, 'John Gleason', JOHN_GLEASON_EMAIL, JOHN_GLEASON_PHONES),
   ])),
   'west-sacramento-overland': userContactUpdate('west-sacramento-overland', [
+    // Michelle Topete and Mary Smothers confirmed for West Sacramento on 2026-10-02 (Brayan Escobar's org chart review).
+    sheetContact('D', 'account-management', 'Manager of Account Management & Client Onboarding', 'Michelle Topete', MICHELLE_TOPETE_EMAIL, MICHELLE_TOPETE_PHONES),
+    sheetContact('E', 'account-management', 'Sr Director of Account Management & Client Onboarding', 'Mary Smothers', MARY_SMOTHERS_EMAIL, [{ label: 'Phone', display: '626-899-2363', href: '+16268992363' }]),
     sheetContact('H', 'operations', JOHN_DIAZ_ROLE, 'John Diaz', JOHN_DIAZ_EMAIL, JOHN_DIAZ_PHONES),
   ]),
   'somerset-cottontail': userContactUpdate('somerset-cottontail', [
-    sheetContact('H', 'operations', JOHN_DIAZ_ROLE, 'John Diaz', JOHN_DIAZ_EMAIL, JOHN_DIAZ_PHONES),
+    // Michelle Topete and Mary Smothers added per Brayan Escobar's org chart review, 2026-10-02.
+    sheetContact('D', 'account-management', 'Manager of Account Management & Client Onboarding', 'Michelle Topete', MICHELLE_TOPETE_EMAIL, MICHELLE_TOPETE_PHONES),
+    sheetContact('E', 'account-management', 'Sr Director of Account Management & Client Onboarding', 'Mary Smothers', MARY_SMOTHERS_EMAIL, [{ label: 'Phone', display: '626-899-2363', href: '+16268992363' }]),
+    // John Diaz was removed from Somerset at the user's request on 2026-10-02, so it lists no VP.
+    // Added at the user's request on 2026-10-02.
+    sheetContact('J', 'operations', 'Regional Director of Field Operations', 'Harold Cuarezma', HAROLD_CUAREZMA_EMAIL, [{ label: 'Cell', display: '909-753-6346', href: '+19097536346' }, { label: 'Mobile', display: '626-362-9596', href: '+16263629596' }]),
   ]),
   'university-park-central': withPointOfContactSheet(userContactUpdate('university-park-central', [
     sheetContact('D', 'account-management', 'Manager of Account Management & Client Onboarding', 'Michelle Topete', MICHELLE_TOPETE_EMAIL, MICHELLE_TOPETE_PHONES),

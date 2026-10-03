@@ -121,7 +121,7 @@ test('public browsing exposes approved facility contacts and allowlisted portrai
   assert.equal(matched.body.reviewRequired, false)
   const review = await request(app).get('/api/operations/pooler-morgan-lakes').expect(200)
   assert.equal(review.body.reviewRequired, true)
-  assert.deepEqual(review.body.operations.contacts.map((contact: { name: string }) => contact.name), ['Michelle Topete', 'Mary Smothers', 'Wayne Brooks', 'John Gleason'])
+  assert.deepEqual(review.body.operations.contacts.map((contact: { name: string }) => contact.name), ['Michelle Topete', 'Mary Smothers', 'Wayne Brooks', 'John Gleason', 'Jehnifur Morvai'])
   await request(app).get('/api/operations/not-a-facility').expect(404, { ok: false, error: 'facility_not_found' })
   const portraits = {
     'ruben-jauregui.png': 'image/png', 'mark-tuttle.png': 'image/png',

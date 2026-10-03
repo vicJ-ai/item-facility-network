@@ -351,14 +351,14 @@ function drawContactDirectory(page: PDFPage, fonts: Fonts, data: FacilityProfile
   }
 
   // The contact source note stays in the PDF's metadata keywords but is not printed on the page.
-  // Three rows fit the box: two columns hold up to six contacts and three columns up to nine. Anything beyond that is
+  // Three rows fit the box: two columns hold up to six contacts, three columns up to nine, and four columns up to twelve. Anything beyond that is
   // counted in a note rather than silently dropped.
-  const MAX_CONTACTS = 9
+  const MAX_CONTACTS = 12
   const contacts = operations.contacts.slice(0, MAX_CONTACTS)
   const hidden = operations.contacts.length - contacts.length
-  const columns = contacts.length > 6 ? 3 : 2
+  const columns = contacts.length > 9 ? 4 : contacts.length > 6 ? 3 : 2
   const rows = Math.ceil(contacts.length / columns)
-  const columnGap = columns === 3 ? 14 : 18
+  const columnGap = columns === 4 ? 10 : columns === 3 ? 14 : 18
   const columnWidth = (box.width - 30 - columnGap * (columns - 1)) / columns
   const cardsTop = box.y + box.height - 52
   const cardsBottom = box.y + 10
@@ -370,7 +370,7 @@ function drawContactDirectory(page: PDFPage, fonts: Fonts, data: FacilityProfile
     const x = box.x + 15 + column * (columnWidth + columnGap)
     const top = cardsTop - row * rowHeight
     const phone = contactPhoneText(contact)
-    // Long titles and phone lines may wrap to a second line in the narrower three-column layout.
+    // Long titles and phone lines may wrap to a second line in the narrower multi-column layouts.
     if (contact.role) drawWrappedText(page, contact.role, { x, y: top - 8, width: columnWidth, font: fonts.bold, size: 5.8, color: rgb(0.76, 0.82, 0.88), lineHeight: 6.4, maxLines: 2 })
     drawWrappedText(page, contact.name, { x, y: top - 25, width: columnWidth, font: fonts.bold, size: 8.8, color: WHITE, maxLines: 1 })
     if (contact.email) drawWrappedText(page, contact.email, { x, y: top - 37, width: columnWidth, font: fonts.regular, size: 6.3, color: rgb(0.88, 0.91, 0.94), maxLines: 1 })
