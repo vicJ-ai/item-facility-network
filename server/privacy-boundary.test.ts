@@ -31,5 +31,7 @@ test('built public assets, gzip, and brotli copies contain no Operations registr
 test('private portrait bytes live only outside the static public tree', async () => {
   const files = await readdir('private-media/operations', { recursive: true, withFileTypes: true })
   const portraits = files.filter((entry) => entry.isFile() && /\.(?:png|jpe?g)$/i.test(entry.name))
-  assert.equal(portraits.length, 50)
+  assert.equal(portraits.length, 88)
+  assert.equal(portraits.filter((entry) => entry.parentPath.endsWith('/account-managers')).length, 17)
+  assert.equal(portraits.filter((entry) => entry.parentPath.endsWith('/compact')).length, 40)
 })

@@ -116,7 +116,7 @@ test('public browsing exposes approved facility contacts and allowlisted portrai
   await request(app).get('/').expect(200)
   await request(app).get('/api/auth/session').expect(200, { authenticated: false })
   const matched = await request(app).get('/api/operations/buena-park-valley-view').expect('cache-control', 'no-store').expect(200)
-  assert.equal(matched.body.operations.contacts.length, 5)
+  assert.equal(matched.body.operations.contacts.length, 8)
   assert.equal(matched.body.operations.contacts[0].email, 'michelle.topete@unisco.com')
   assert.equal(matched.body.reviewRequired, false)
   const review = await request(app).get('/api/operations/pooler-morgan-lakes').expect(200)
@@ -141,10 +141,12 @@ test('public browsing exposes approved facility contacts and allowlisted portrai
     assert.ok(portrait.body.length > 0, filename)
   }
   const compactPortraits = [
-    'adam-lubin', 'efrain-islas-alcaraz', 'fabian-quiroz', 'frank-feliciano', 'harold-cuarezma', 'javier-montane',
-    'jessica-barajas', 'jimmy-esparza', 'john-diaz', 'john-gleason', 'juan-barragan', 'lenivy-jackson', 'mark-tuttle',
-    'mary-smothers', 'michelle-topete', 'onoriode-enaigbe', 'rick-griswold', 'ruben-echavarria', 'ruben-jauregui',
-    'stephen-schumaker', 'wayne-brooks',
+    'adam-lubin', 'alondra-toledano', 'barry-washington', 'efrain-islas-alcaraz', 'elizabeth-martinez', 'fabian-quiroz',
+    'francisca-aispuro', 'frank-feliciano', 'harold-cuarezma', 'jason-hop', 'javier-montane', 'jehnifur-morvai',
+    'jennifer-stanek', 'jessica-barajas', 'jessica-chaidez', 'jimmy-esparza', 'john-diaz', 'john-gleason', 'juan-barragan',
+    'karen-nesta', 'kassandra-ibanez', 'lenivy-jackson', 'margaret-medina', 'mark-tuttle', 'mary-smothers', 'matthew-david',
+    'melissa-ortiz', 'michelle-topete', 'natasha-gray', 'onoriode-enaigbe', 'raed-ali', 'rick-griswold', 'ruben-echavarria',
+    'ruben-jauregui', 'stephen-schumaker', 'susan-mendez', 'thelma-tolentino', 'wayne-brooks', 'yesenia-diaz', 'yessenia-tovar',
   ]
   for (const name of compactPortraits) {
     const portrait = await request(app).get(`/api/operations/portraits/compact-${name}.jpg`).expect('cache-control', 'no-store').expect('content-type', /image\/jpeg/).expect(200)
@@ -244,7 +246,7 @@ test('ordinary active admins retain selected operations access but cannot call c
   const agent = request.agent(app)
   assert.equal((await login(agent, 'operations')).status, 200)
   const operations = await agent.get('/api/operations/buena-park-valley-view').expect(200)
-  assert.equal(operations.body.operations.contacts.length, 5)
+  assert.equal(operations.body.operations.contacts.length, 8)
   assert.equal(operations.body.operations.contacts[0].email, 'michelle.topete@unisco.com')
   await agent.get('/api/operations/portraits/john-diaz.png').expect('content-type', /image\/png/).expect(200)
   await agent.get('/api/admin/access').expect(403)

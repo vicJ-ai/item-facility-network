@@ -35,7 +35,7 @@ test('anonymous visitors can read facility contacts and portraits while admin su
   const navigation = page.getByRole('navigation', { name: 'Primary navigation' })
   await expect(navigation.getByRole('button')).toHaveText(['Dashboard', 'Facilities'])
   const panel = await openPublicOperations(page)
-  await expect(panel.locator('.operations-contact-card')).toHaveCount(5)
+  await expect(panel.locator('.operations-contact-card')).toHaveCount(8)
 
   const expectedContacts = [
     ['Michelle Topete', 'Manager of Account Management & Client Onboarding', 'michelle.topete@unisco.com'],
@@ -43,6 +43,9 @@ test('anonymous visitors can read facility contacts and portraits while admin su
     ['Ruben Jauregui', 'General Manager', 'ruben.jauregui@unisco.com'],
     ['Mark Tuttle', 'Director of Operations', 'mark.tuttle@unisco.com'],
     ['John Diaz', 'Sr. Vice President of Operations', 'john.diaz@unisco.com'],
+    ['Susan Mendez', 'Account Manager', 'susan.mendez@unisco.com'],
+    ['Margaret Medina', 'Account Manager', 'margaret.medina@unisco.com'],
+    ['Melissa Ortiz', 'Account Manager', 'melissa.ortiz@unisco.com'],
   ] as const
   for (const [name, role, email] of expectedContacts) {
     const card = panel.locator('.operations-contact-card').filter({ hasText: email })
@@ -52,7 +55,7 @@ test('anonymous visitors can read facility contacts and portraits while admin su
     await expectCardFits(card)
   }
 
-  for (const name of ['Michelle Topete', 'Mary Smothers', 'Ruben Jauregui', 'Mark Tuttle', 'John Diaz']) {
+  for (const name of ['Michelle Topete', 'Mary Smothers', 'Ruben Jauregui', 'Mark Tuttle', 'John Diaz', 'Susan Mendez', 'Margaret Medina', 'Melissa Ortiz']) {
     const portrait = panel.getByRole('img', { name: `Portrait of ${name}` })
     await portrait.scrollIntoViewIfNeeded()
     await expect.poll(() => portrait.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0 && image.naturalHeight > 0)).toBe(true)

@@ -8,7 +8,7 @@ export type FacilityAvailabilitySnapshot = {
 // user-supplied snapshots, never database seeds; persistent administrator values override them.
 export const facilityAvailabilitySnapshots: Partial<Record<string, FacilityAvailabilitySnapshot>> = {
   'roanoke-highway-114': { squareFeet: 4_000, asOf: '2026-10' },
-  'houston-citypark': { squareFeet: 5_000, asOf: '2026-10' },
+  'houston-citypark': { squareFeet: 86_000, asOf: '2026-10' },
   'tacoma-lincoln': { squareFeet: 80_000, asOf: '2026-10' },
   'tacoma-steele': { squareFeet: 0, asOf: '2026-10' },
   'kent-85th-avenue-range': { squareFeet: 0, asOf: '2026-10' },
@@ -24,4 +24,6 @@ export const facilityAvailabilitySnapshots: Partial<Record<string, FacilityAvail
   'garden-city-prosperity': { squareFeet: 0, asOf: '2026-10' },
   'university-park-central': { squareFeet: 0, asOf: '2026-10' },
   'ontario-airport': { squareFeet: 140_000, asOf: '2026-10' },
+  'houston-navigation': { squareFeet: 86_000, asOf: '2026-10' },
+  'plano-10th-f-avenue': { squareFeet: 0, asOf: '2026-10' },
 }

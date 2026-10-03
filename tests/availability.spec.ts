@@ -4,6 +4,8 @@ import { PDFDocument } from 'pdf-lib'
 const valleyViewAddress = '6800 Valley View St., Buena Park, CA 90620'
 const roanokeAddress = '1230 W Highway 114, Roanoke, TX 76262'
 const summervilleAddress = '369 N Cypress Dr, Summerville, SC'
+const houstonNavigationAddress = '3401 Navigation Blvd, Houston, TX 77003'
+const planoAddress = '910 10th Street / 880 F Ave., Plano, TX'
 
 async function useFlatMap(page: import('@playwright/test').Page) {
   await page.addInitScript(() => {
@@ -26,6 +28,62 @@ async function openValleyView(page: import('@playwright/test').Page) {
   await page.getByRole('button', { name: `Select ${valleyViewAddress}` }).click()
   await expect(page.getByTestId('selected-showcase')).toContainText(valleyViewAddress)
 }
+
+test('new Houston and Plano snapshots render publicly while a saved Houston zero override wins everywhere', async ({ page }, testInfo) => {
+  test.setTimeout(90_000)
+  await useFlatMap(page)
+  await page.goto('/')
+  const navigation = page.getByRole('navigation', { name: 'Primary navigation' })
+  await navigation.getByRole('button', { name: 'Facilities', exact: true }).click()
+  await page.getByRole('button', { name: `Select ${houstonNavigationAddress}` }).click()
+  await expect(page.getByTestId('overview-available-space')).toContainText('86,000 SQF')
+  await expect(page.getByTestId('bulk-rack-bulk')).toHaveText('Bulk5,000 SQF')
+  await expect(page.getByTestId('bulk-rack-rack')).toHaveText('Rack0 pallet positions')
+
+  await page.getByRole('button', { name: 'All facilities' }).click()
+  await page.getByRole('button', { name: `Select ${planoAddress}` }).click()
+  await expect(page.getByTestId('overview-available-space')).toContainText('0 SQF')
+  await expect(page.getByTestId('bulk-rack-bulk')).toHaveText('Bulk62,000 SQF')
+  await expect(page.getByTestId('bulk-rack-rack')).toHaveText('Rack0 pallet positions')
+
+  await signIn(page)
+  await navigation.getByRole('button', { name: 'Operations', exact: true }).click()
+  const workbench = page.getByRole('region', { name: 'Operations facility space workbench' })
+  await workbench.getByRole('button', { name: /Facility 23[\s\S]*Houston, TX/ }).click()
+  const editor = workbench.getByRole('form', { name: `Update facility space for ${houstonNavigationAddress}` })
+  await expect(editor.getByLabel('Available space')).toHaveValue('86000')
+  await expect(editor.getByLabel('Bulk')).toHaveValue('5000')
+  await expect(editor.getByLabel('Rack')).toHaveValue('0')
+  await expect(editor.getByText('User-supplied snapshot · Oct 2026')).toHaveCount(3)
+  await editor.getByLabel('Available space').fill('0')
+  await editor.getByLabel('Bulk').fill('0')
+  await editor.getByLabel('Rack').fill('12')
+  await editor.getByRole('button', { name: 'Save facility space' }).click()
+  await expect(editor.getByRole('status')).toHaveText('Facility space saved.')
+  const historyRow = workbench.getByRole('region', { name: 'Change history' }).locator('tbody tr')
+  await expect(historyRow).toHaveCount(1)
+  await expect(historyRow).toContainText('86,000 SQF')
+  await expect(historyRow).toContainText('5,000 SQF')
+  await expect(historyRow).toContainText('12 pallet positions')
+
+  await navigation.getByRole('button', { name: 'Facilities', exact: true }).click()
+  await page.getByRole('button', { name: `Select ${houstonNavigationAddress}` }).click()
+  await expect(page.getByTestId('overview-available-space')).toContainText('0 SQF')
+  await expect(page.getByTestId('bulk-rack-bulk')).toHaveText('Bulk0 SQF')
+  await expect(page.getByTestId('bulk-rack-rack')).toHaveText('Rack12 pallet positions')
+  await expect(page.getByTestId('bulk-rack')).toContainText('Administrator-maintained live portal values.')
+  const screenshot = testInfo.outputPath('houston-snapshot-admin-override.png')
+  await page.getByTestId('overview-square-footage').scrollIntoViewIfNeeded()
+  await page.screenshot({ path: screenshot })
+  await testInfo.attach('houston-snapshot-admin-override', { path: screenshot, contentType: 'image/png' })
+
+  await navigation.getByRole('button', { name: 'Dashboard', exact: true }).click()
+  await page.getByRole('button', { name: 'Open facility 23 in Facilities' }).focus()
+  const preview = page.locator('[data-testid="dashboard-pin-preview"][data-facility-id="houston-navigation"]')
+  await expect(preview.getByTestId('square-footage-available')).toHaveText('Available 0 SQF')
+  await expect(preview.getByTestId('square-footage-bulk')).toHaveText('Bulk: 0 SQF')
+  await expect(preview.getByTestId('square-footage-rack')).toHaveText('Rack: 12 pallet positions')
+})
 
 test('admin availability workflow updates both public surfaces while privileged navigation stays hidden publicly', async ({ browser, page }, testInfo) => {
   test.setTimeout(60_000)
@@ -79,8 +137,8 @@ test('admin availability workflow updates both public surfaces while privileged 
   const savedRecord = history.locator('tbody tr')
   await expect(savedRecord).toHaveCount(1)
   await expect(savedRecord).toContainText('Pending → 500,000 SQF')
-  await expect(savedRecord).toContainText('Not provided → 25,000 SQF')
-  await expect(savedRecord).toContainText('Not provided → 700 pallet positions')
+  await expect(savedRecord).toContainText(/0 SQFsource snapshot → 25,000 SQF/)
+  await expect(savedRecord).toContainText(/0 pallet positionssource snapshot → 700 pallet positions/)
   await expect(savedRecord).toContainText('lmadala')
   await expect(savedRecord).toContainText('IAM ID 2084344241143070722')
   await expect(savedRecord.getByRole('time')).toContainText('UTC')
@@ -205,8 +263,8 @@ test('admin saves one complete facility-space record while public Overview and m
   await workbench.getByRole('button', { name: /Facility 08[\s\S]*Summerville, SC/ }).click()
   const editor = workbench.getByRole('form', { name: `Update facility space for ${summervilleAddress}` })
   await expect(editor.getByLabel('Available space')).toHaveValue('')
-  await expect(editor.getByLabel('Bulk')).toHaveValue('')
-  await expect(editor.getByLabel('Rack')).toHaveValue('')
+  await expect(editor.getByLabel('Bulk')).toHaveValue('70000')
+  await expect(editor.getByLabel('Rack')).toHaveValue('0')
   await editor.getByLabel('Available space').fill('80000')
   await editor.getByLabel('Bulk').fill('25000')
   await editor.getByLabel('Rack').fill('700')
@@ -220,8 +278,8 @@ test('admin saves one complete facility-space record while public Overview and m
   const firstRecord = history.locator('tbody tr')
   await expect(firstRecord).toHaveCount(1)
   await expect(firstRecord).toContainText('Pending → 80,000 SQF')
-  await expect(firstRecord).toContainText('Not provided → 25,000 SQF')
-  await expect(firstRecord).toContainText('Not provided → 700 pallet positions')
+  await expect(firstRecord).toContainText(/70,000 SQFsource snapshot → 25,000 SQF/)
+  await expect(firstRecord).toContainText(/0 pallet positionssource snapshot → 700 pallet positions/)
   await expect(firstRecord).toContainText('IAM ID 2084344241143070722')
   await expect(firstRecord.getByRole('time')).toContainText('UTC')
   await expect(history.getByRole('button', { name: 'Previous history page' })).toBeDisabled()

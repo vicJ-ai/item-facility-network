@@ -1,13 +1,14 @@
 export type FacilityStatus = 'Active' | 'Coming Soon' | 'Planned'
 export type DisplayStatus = FacilityStatus | 'Unassigned'
 export type CoordinatePrecision = 'Point address' | 'Street address' | 'Approximate' | 'Unavailable'
-export type FacilityType = 'UF ONLY' | 'UF/CUBEWORKS'
+export type FacilityType = 'UF ONLY' | 'UF/CUBEWORKS' | 'Samsung Warehouse'
 
 export type Facility = {
   id: string
   number: number
   status: DisplayStatus
-  // Omitted when no source states whether the site is UF ONLY or UF/CUBEWORKS.
+  // Omitted when no source states the site's type. Garden City and University Park were set to Samsung Warehouse by the
+  // user on 2026-10-02 (both serve Samsung SDS).
   facilityType?: FacilityType
   street: string
   city?: string
@@ -141,7 +142,7 @@ export const facilities: Facility[] = [
     coordinateSource: 'Esri World Geocoding Service', coordinatePrecision: 'Point address', geocoderMatch: '250 Vista Blvd, Sparks, NV, 89434, USA',
   },
   {
-    id: 'houston-navigation', number: 23, status: 'Unassigned', facilityType: 'UF/CUBEWORKS', street: '3401 Navigation Blvd', city: 'Houston', state: 'TX', stateName: 'Texas', zip: '77003',
+    id: 'houston-navigation', number: 23, status: 'Active', facilityType: 'UF/CUBEWORKS', street: '3401 Navigation Blvd', city: 'Houston', state: 'TX', stateName: 'Texas', zip: '77003',
     fullAddress: '3401 Navigation Blvd, Houston, TX 77003', coordinates: [29.7574596, -95.3355715],
     coordinateSource: 'Esri World Geocoding Service', coordinatePrecision: 'Point address', geocoderMatch: '3401 Navigation Blvd, Houston, TX, 77003, USA',
   },
@@ -167,13 +168,13 @@ export const facilities: Facility[] = [
     geocodeNote: 'The marker uses the primary 910 10th St point-address candidate. The supplied alternate 880 F Ave. address is preserved but is not represented by a separate pin; no ZIP is added because none was supplied.',
   },
   {
-    id: 'garden-city-prosperity', number: 28, status: 'Unassigned', street: '140 Prosperity Dr', city: 'Garden City', state: 'GA', stateName: 'Georgia', zip: '31408',
+    id: 'garden-city-prosperity', number: 28, status: 'Active', facilityType: 'Samsung Warehouse', street: '140 Prosperity Dr', city: 'Garden City', state: 'GA', stateName: 'Georgia', zip: '31408',
     fullAddress: '140 Prosperity Dr, Garden City, GA 31408', coordinates: [32.074542144348, -81.178988824216],
     coordinateSource: 'Esri World Geocoding Service', coordinatePrecision: 'Point address', geocoderMatch: '140 Prosperity Dr, Savannah, GA, 31408, USA',
     geocodeNote: 'Added from the official 804 – Garden City facility sheet, which states no status, facility type, or operating hours. The geocoder places this point address in Savannah, GA 31408; the sheet address is unchanged.',
   },
   {
-    id: 'university-park-central', number: 29, status: 'Unassigned', street: '701 S Central Ave', city: 'University Park', state: 'IL', stateName: 'Illinois', zip: '60484',
+    id: 'university-park-central', number: 29, status: 'Active', facilityType: 'Samsung Warehouse', street: '701 S Central Ave', city: 'University Park', state: 'IL', stateName: 'Illinois', zip: '60484',
     fullAddress: '701 S Central Ave, University Park, IL 60484', coordinates: [41.443366097027, -87.745403120176],
     coordinateSource: 'Esri World Geocoding Service', coordinatePrecision: 'Point address', geocoderMatch: '701 Central Ave, University Park, IL, 60484, USA',
     geocodeNote: 'Added by the user with only an address on 2026-10-01; status, facility type, and operating hours are not supplied yet. The geocoder match drops the S street direction; the supplied address is unchanged.',

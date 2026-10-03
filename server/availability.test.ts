@@ -9,7 +9,10 @@ import { createApp } from './app.js'
 import type { AppConfig } from './config.js'
 import { createDb, ensureDatabaseSchema, migrate } from './db.js'
 import { facilityIds } from './data/facility-ids.js'
+import { facilityAvailabilitySnapshots } from './data/facility-availability-snapshots.js'
+import { facilityBulkRackSnapshots } from './data/facility-bulk-rack-snapshots.js'
 import { facilities } from '../src/data/facilities.js'
+import { facilityAvailableSpace, facilityBulkRack } from '../src/data/facility-space.js'
 import { hmacSha256 } from './security.js'
 
 loadEnv({ path: '.env.local', override: false, quiet: true })
@@ -58,6 +61,18 @@ before(async () => {
 beforeEach(resetDb)
 after(async () => { await resetDb(); await db.close() })
 
+test('server fallback maps stay in exact parity with every frontend source snapshot', () => {
+  const frontendAvailability = Object.fromEntries(Object.entries(facilityAvailableSpace).map(([facilityId, value]) => [facilityId, {
+    squareFeet: value!.squareFeet,
+    asOf: value!.asOf,
+    ...(value!.status ? { status: value!.status } : {}),
+  }]))
+  assert.deepEqual(facilityAvailabilitySnapshots, frontendAvailability)
+  assert.deepEqual(facilityBulkRackSnapshots, facilityBulkRack)
+  assert.equal(Object.keys(facilityAvailabilitySnapshots).length, 19)
+  assert.deepEqual(Object.keys(facilityBulkRackSnapshots).sort(), facilityIds.slice().sort())
+})
+
 test('repeat migration is idempotent and public projection contains only facility ID and value', async () => {
   await migrate(db)
   await migrate(db)
@@ -80,7 +95,7 @@ test('one combined save persists all three values in one authenticated record', 
     valueSource: 'administrator', snapshotAsOf: null, snapshotStatus: null,
     bulkSquareFeet: 25_000, bulkUpToSquareFeet: null, bulkValueSource: 'administrator',
     rackPalletPositions: 700, rackValueSource: 'administrator', bulkRackVersion: 1,
-    bulkRackUpdatedAt: saved.body.space.bulkRackUpdatedAt, bulkRackSnapshotAsOf: null,
+    bulkRackUpdatedAt: saved.body.space.bulkRackUpdatedAt, bulkRackSnapshotAsOf: '2026-10',
   })
   const combined = await db.query(`SELECT old_available_square_feet,new_available_square_feet,old_available_value_source,
     old_bulk_square_feet,new_bulk_square_feet,old_bulk_value_source,old_rack_pallet_positions,new_rack_pallet_positions,
@@ -89,8 +104,8 @@ test('one combined save persists all three values in one authenticated record', 
   assert.equal(combined.rowCount, 1)
   assert.deepEqual({ ...combined.rows[0], created_at: undefined }, {
     old_available_square_feet: null, new_available_square_feet: '50000', old_available_value_source: 'pending',
-    old_bulk_square_feet: null, new_bulk_square_feet: '25000', old_bulk_value_source: 'pending',
-    old_rack_pallet_positions: null, new_rack_pallet_positions: '700', old_rack_value_source: 'pending',
+    old_bulk_square_feet: '70000', new_bulk_square_feet: '25000', old_bulk_value_source: 'source-snapshot',
+    old_rack_pallet_positions: '0', new_rack_pallet_positions: '700', old_rack_value_source: 'source-snapshot',
     availability_version: 1, bulk_rack_version: 1, actor_iam_user_id: actor.iamUserId, actor_username: actor.username,
     created_at: undefined,
   })
@@ -370,8 +385,45 @@ test('admin facility-space projection covers all facilities without persisting s
     bulkSquareFeet: 110000, bulkUpToSquareFeet: 150000, bulkValueSource: 'source-snapshot', rackPalletPositions: 3000, rackValueSource: 'source-snapshot',
     bulkRackVersion: 0, bulkRackUpdatedAt: null, bulkRackSnapshotAsOf: '2026-10',
   })
+  assert.deepEqual(records.find((entry) => entry.facilityId === 'houston-navigation'), {
+    facilityId: 'houston-navigation', squareFeet: 86000, version: 0, updatedAt: null, valueSource: 'source-snapshot', snapshotAsOf: '2026-10', snapshotStatus: null,
+    bulkSquareFeet: 5000, bulkUpToSquareFeet: null, bulkValueSource: 'source-snapshot', rackPalletPositions: 0, rackValueSource: 'source-snapshot',
+    bulkRackVersion: 0, bulkRackUpdatedAt: null, bulkRackSnapshotAsOf: '2026-10',
+  })
+  assert.deepEqual(records.find((entry) => entry.facilityId === 'plano-10th-f-avenue'), {
+    facilityId: 'plano-10th-f-avenue', squareFeet: 0, version: 0, updatedAt: null, valueSource: 'source-snapshot', snapshotAsOf: '2026-10', snapshotStatus: null,
+    bulkSquareFeet: 62000, bulkUpToSquareFeet: null, bulkValueSource: 'source-snapshot', rackPalletPositions: 0, rackValueSource: 'source-snapshot',
+    bulkRackVersion: 0, bulkRackUpdatedAt: null, bulkRackSnapshotAsOf: '2026-10',
+  })
   const persisted = await db.query('SELECT count(*)::int count FROM facility_bulk_rack')
   assert.equal(persisted.rows[0].count, 0)
+})
+
+test('saved Houston values override all three new fallbacks without seeding source snapshots', async () => {
+  const { agent, csrf } = await authorizedAgent()
+  const saved = await agent.post('/api/admin/facility-space/houston-navigation').set('Origin', origin).set('x-csrf-token', csrf)
+    .send({ availableSquareFeet: 0, bulkSquareFeet: 0, rackPalletPositions: 12, availabilityVersion: 0, bulkRackVersion: 0 }).expect(200)
+  assert.deepEqual({
+    squareFeet: saved.body.space.squareFeet,
+    bulkSquareFeet: saved.body.space.bulkSquareFeet,
+    rackPalletPositions: saved.body.space.rackPalletPositions,
+    valueSource: saved.body.space.valueSource,
+    bulkValueSource: saved.body.space.bulkValueSource,
+    rackValueSource: saved.body.space.rackValueSource,
+  }, {
+    squareFeet: 0, bulkSquareFeet: 0, rackPalletPositions: 12,
+    valueSource: 'administrator', bulkValueSource: 'administrator', rackValueSource: 'administrator',
+  })
+  const publicAvailability = await request(createApp({ config, db })).get('/api/availability').expect(200)
+  const publicBulkRack = await request(createApp({ config, db })).get('/api/bulk-rack').expect(200)
+  assert.deepEqual(publicAvailability.body, { availability: [{ facilityId: 'houston-navigation', squareFeet: 0 }] })
+  assert.deepEqual(publicBulkRack.body, { bulkRack: [{ facilityId: 'houston-navigation', bulkSquareFeet: 0, rackPalletPositions: 12 }] })
+  const persisted = await Promise.all([
+    db.query('SELECT count(*)::int count FROM facility_availability'),
+    db.query('SELECT count(*)::int count FROM facility_bulk_rack'),
+    db.query('SELECT count(*)::int count FROM facility_space_save_audit'),
+  ])
+  assert.deepEqual(persisted.map((result) => result.rows[0].count), [1, 1, 1])
 })
 
 test('optimistic versions serialize first writes and reject stale updates without extra audit', async () => {
