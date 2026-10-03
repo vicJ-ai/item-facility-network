@@ -159,6 +159,8 @@ export type AccountManagerProfile = {
 
 const accountManagerPortrait = (slug: string) => `/media/operations/portraits/${slug}.jpg`
 const ACCOUNT_MANAGER = 'Account Manager'
+// The "point of contact per warehouse" sheet lists these two as Regional Account Managers; the user set the title on 2026-10-02.
+const REGIONAL_ACCOUNT_MANAGER = 'Regional Account Manager'
 
 export const accountManagerProfiles = {
   'alondra-toledano': { name: 'Alondra Toledano', role: ACCOUNT_MANAGER, email: 'alondra.toledano@unisco.com', phones: [{ label: 'Phone', display: '626-684-6944', href: '+16266846944' }], photoUrl: accountManagerPortrait('alondra-toledano') },
@@ -170,8 +172,8 @@ export const accountManagerProfiles = {
     phones: [{ label: 'Mobile', display: '714.425.5857', href: '+17144255857' }, { label: 'Office', display: '(626) 626-9891', href: '+16266269891' }],
     photoUrl: accountManagerPortrait('susan-mendez'),
   },
-  'jennifer-stanek': { name: 'Jennifer Stanek', role: ACCOUNT_MANAGER, email: 'jennifer.stanek@unisco.com', phones: [{ label: 'Phone', display: '909-569-3849', href: '+19095693849' }], photoUrl: accountManagerPortrait('jennifer-stanek') },
-  'jehnifur-morvai': { name: 'Jehnifur Morvai', role: ACCOUNT_MANAGER, email: 'jehnifur.morvai@unisco.com', phones: [{ label: 'Phone', display: '626.362.7775', href: '+16263627775' }], photoUrl: accountManagerPortrait('jehnifur-morvai') },
+  'jennifer-stanek': { name: 'Jennifer Stanek', role: REGIONAL_ACCOUNT_MANAGER, email: 'jennifer.stanek@unisco.com', phones: [{ label: 'Phone', display: '909-569-3849', href: '+19095693849' }], photoUrl: accountManagerPortrait('jennifer-stanek') },
+  'jehnifur-morvai': { name: 'Jehnifur Morvai', role: REGIONAL_ACCOUNT_MANAGER, email: 'jehnifur.morvai@unisco.com', phones: [{ label: 'Phone', display: '626.362.7775', href: '+16263627775' }], photoUrl: accountManagerPortrait('jehnifur-morvai') },
   // The sheet says "[leave title blank] Don't add title".
   'elizabeth-martinez': { name: 'Elizabeth Martinez', role: '', email: 'elizabeth.martinez@unisco.com', phones: [{ label: 'Phone', display: '713-438-7170', href: '+17134387170' }], photoUrl: accountManagerPortrait('elizabeth-martinez') },
   'karen-nesta': { name: 'Karen Nesta', role: ACCOUNT_MANAGER, email: 'karen.nesta@unisco.com', phones: [{ label: 'Phone', display: '909-956-3732', href: '+19099563732' }], photoUrl: accountManagerPortrait('karen-nesta') },
@@ -228,14 +230,28 @@ export const accountManagerAssignments: Partial<Record<string, readonly AccountM
   'long-beach-willow': ['yessenia-tovar'],
   'ontario-airport': ['alondra-toledano'],
   'moreno-valley-heacock': ['alondra-toledano'],
-  'garden-city-prosperity': ['jessica-chaidez'],
-  'pooler-seabrook-building-2': ['natasha-gray'],
-  'joliet-brandon': ['yesenia-diaz', 'matthew-david', 'rhonda-moffett', 'raed-ali'],
+  'garden-city-prosperity': ['jessica-chaidez', 'jehnifur-morvai'],
+  'pooler-seabrook-building-2': ['natasha-gray', 'jehnifur-morvai'],
+  'joliet-brandon': ['yesenia-diaz', 'matthew-david', 'rhonda-moffett', 'raed-ali', 'jehnifur-morvai'],
   'university-park-central': ['yesenia-diaz'],
   'memphis-delp': ['thelma-tolentino'],
   'tennessee-quality-drive': ['thelma-tolentino'],
-  'houston-citypark': ['elizabeth-martinez'],
-  'roanoke-highway-114': ['kassandra-ibanez'],
+  'houston-citypark': ['elizabeth-martinez', 'jennifer-stanek'],
+  'roanoke-highway-114': ['kassandra-ibanez', 'jennifer-stanek'],
+  // Jehnifur Morvai is the Regional Account Manager for these sites in the "point of contact per warehouse" sheet; the user
+  // added her on 2026-10-02, after any site account manager.
+  'jacksonville-ignition': ['jehnifur-morvai'],
+  'pooler-morgan-lakes': ['jehnifur-morvai'],
+  'summerville-cypress-tradeport': ['jehnifur-morvai'],
+  'el-paso-emerald-12100': ['jehnifur-morvai'],
+  'el-paso-emerald-12102-building-5': ['jehnifur-morvai'],
+  // Jennifer Stanek, Regional Account Manager for these sites in the same sheet, added by the user on 2026-10-02.
+  'plano-10th-f-avenue': ['jennifer-stanek'],
+  'tacoma-lincoln': ['jennifer-stanek'],
+  'tacoma-steele': ['jennifer-stanek'],
+  'sparks-vista': ['jennifer-stanek'],
+  'las-vegas-marion-building-5': ['jennifer-stanek'],
+  'salt-lake-city-jimmy-doolittle': ['jennifer-stanek'],
 }
 
 const normalizedEmail = (email?: string) => email?.trim().toLowerCase()

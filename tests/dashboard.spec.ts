@@ -2318,18 +2318,31 @@ test('account manager profiles match the supplied sheets and sit at their assign
     'buena-park-valley-view': ['Susan Mendez', 'Margaret Medina', 'Melissa Ortiz'],
     'riverside-alessandro': ['Francisca Aispuro', 'Alondra Toledano'],
     'moreno-valley-heacock': ['Alondra Toledano'],
-    'houston-citypark': ['Elizabeth Martinez'],
-    'roanoke-highway-114': ['Kassandra Ibanez'],
-    'pooler-seabrook-building-2': ['Natasha Gray'],
+    'houston-citypark': ['Elizabeth Martinez', 'Jennifer Stanek'],
+    'roanoke-highway-114': ['Kassandra Ibanez', 'Jennifer Stanek'],
+    'pooler-seabrook-building-2': ['Natasha Gray', 'Jehnifur Morvai'],
     'tennessee-quality-drive': ['Thelma Tolentino'],
     'long-beach-willow': ['Yessenia Tovar'],
-    'joliet-brandon': ['Yesenia Diaz', 'Matthew David', 'Rhonda Moffett', 'Raed Ali'],
+    'joliet-brandon': ['Yesenia Diaz', 'Matthew David', 'Rhonda Moffett', 'Raed Ali', 'Jehnifur Morvai'],
     'waddell-cotton': ['Karen Nesta'],
     'ontario-airport': ['Alondra Toledano'],
     'memphis-delp': ['Thelma Tolentino'],
-    'garden-city-prosperity': ['Jessica Chaidez'],
+    'garden-city-prosperity': ['Jessica Chaidez', 'Jehnifur Morvai'],
     'university-park-central': ['Yesenia Diaz'],
+    'jacksonville-ignition': ['Jehnifur Morvai'],
+    'pooler-morgan-lakes': ['Jehnifur Morvai'],
+    'summerville-cypress-tradeport': ['Jehnifur Morvai'],
+    'el-paso-emerald-12100': ['Jehnifur Morvai'],
+    'el-paso-emerald-12102-building-5': ['Jehnifur Morvai'],
+    'plano-10th-f-avenue': ['Jennifer Stanek'],
+    'tacoma-lincoln': ['Jennifer Stanek'],
+    'tacoma-steele': ['Jennifer Stanek'],
+    'sparks-vista': ['Jennifer Stanek'],
+    'las-vegas-marion-building-5': ['Jennifer Stanek'],
+    'salt-lake-city-jimmy-doolittle': ['Jennifer Stanek'],
   })
+  expect(accountManagerProfiles['jehnifur-morvai'].role).toBe('Regional Account Manager')
+  expect(accountManagerProfiles['jennifer-stanek'].role).toBe('Regional Account Manager')
   for (const [facilityId, record] of Object.entries(allFacilityOperations)) {
     const contacts = record!.contacts
     const firstAccountManager = contacts.findIndex((contact) => contact.sourceColumn === 'K')
@@ -2343,10 +2356,10 @@ test('account manager profiles match the supplied sheets and sit at their assign
       expect(contact.photoUrl, `${facilityId}:${contact.name}`).toBe('photoUrl' in profile ? profile.photoUrl : undefined)
     }
   }
-  expect(Object.values(allFacilityOperations).reduce((count, record) => count + (record?.contacts.length ?? 0), 0)).toBe(153)
-  // Jennifer Stanek and Jehnifur Morvai have profiles but no assignment yet.
+  expect(Object.values(allFacilityOperations).reduce((count, record) => count + (record?.contacts.length ?? 0), 0)).toBe(169)
+  // Every profile is assigned to at least one facility.
   const listed = new Set(Object.values(allFacilityOperations).flatMap((record) => record?.contacts.map((contact) => contact.name) ?? []))
-  expect(Object.values(accountManagerProfiles).filter((profile) => !listed.has(profile.name)).map((profile) => profile.name)).toEqual(['Jennifer Stanek', 'Jehnifur Morvai'])
+  expect(Object.values(accountManagerProfiles).filter((profile) => !listed.has(profile.name)).map((profile) => profile.name)).toEqual([])
 })
 
 test('Operations sidecar maps 18 exact sheet rows, 3 official facility sheets, 8 direct updates, all 133 site role entries, and exact portrait assignments', () => {
@@ -2664,7 +2677,7 @@ test('all unique contact portraits load and fit the approved desktop and mobile 
   }
   const portraits = [...unique.values()]
   // Oscar Rodriguez's portrait was withdrawn and Jimmy Esparza's added on 2026-10-01.
-  expect(portraits).toHaveLength(38)
+  expect(portraits).toHaveLength(40)
 
   await page.goto('/')
   await page.evaluate((items) => {
@@ -2701,7 +2714,7 @@ test('all unique contact portraits load and fit the approved desktop and mobile 
   }, portraits)
 
   const images = page.locator('.portrait-audit-board .operations-contact-photo')
-  await expect(images).toHaveCount(38)
+  await expect(images).toHaveCount(40)
   await expect.poll(() => images.evaluateAll((nodes) => nodes.every((node) => {
     const image = node as HTMLImageElement
     return image.complete && image.naturalWidth > 0 && image.naturalHeight > 0
@@ -3070,8 +3083,9 @@ test('Joliet shows supplied Fabian and Javier portraits with no duplicate VP ent
   await chooseFromDirectory(page, joliet.fullAddress)
   await page.getByRole('tab', { name: 'Operations' }).click()
   const panel = page.getByRole('region', { name: `Operations contacts for ${joliet.fullAddress}` })
-  // Michelle, Mary, Fabian, Javier, and John Diaz, plus account managers Yesenia Diaz, Matthew David, Rhonda Moffett, and Raed Ali.
-  await expect(panel.locator('.operations-contact-card')).toHaveCount(9)
+  // Michelle, Mary, Fabian, Javier, and John Diaz, plus account managers Yesenia Diaz, Matthew David, Rhonda Moffett, Raed Ali,
+  // and Jehnifur Morvai.
+  await expect(panel.locator('.operations-contact-card')).toHaveCount(10)
   await expect(panel.locator('.operations-contact-card').filter({ hasText: 'Javier Gonzalez Montane' })).toHaveCount(1)
   await expect(panel.locator('.operations-contact-card').filter({ hasText: 'John Diaz' })).toHaveCount(1)
   await expect(panel.getByText('VP of Operations', { exact: true })).toHaveCount(0)
@@ -3095,7 +3109,7 @@ test('Joliet shows supplied Fabian and Javier portraits with no duplicate VP ent
   await page.screenshot({ path: 'test-results/joliet-desktop.png', fullPage: true })
   await page.setViewportSize({ width: 390, height: 844 })
   // Michelle, Mary, Fabian, Javier, and John Diaz all have supplied portraits.
-  await expect(panel.locator('img')).toHaveCount(8)
+  await expect(panel.locator('img')).toHaveCount(9)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   await page.screenshot({ path: 'test-results/joliet-mobile.png', fullPage: true })
 })
