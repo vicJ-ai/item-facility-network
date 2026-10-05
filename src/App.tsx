@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import {
-  ArrowLeft, Bell, Boxes, Building2, CalendarClock, Camera, Check, ChevronRight, CircleHelp, Clapperboard, ClipboardList, Clock, Earth,
+  Archive, ArrowLeft, Bell, Boxes, Building2, CalendarClock, Camera, Check, ChevronRight, CircleHelp, Clapperboard, ClipboardList, Clock, Earth,
   ExternalLink, FileText, Grid2X2, Info, Layers3, LocateFixed, Mail, Maximize2,
   Map as MapIcon, MapPin, Menu, Moon, PackageSearch, Phone, Search, ShieldCheck,
   SlidersHorizontal, Sun, Warehouse, X,
@@ -17,7 +17,11 @@ import { FacilityDocuments } from './components/FacilityDocuments'
 import { FacilityPhoto } from './components/FacilityPhoto'
 import { UserProvidedPhotoGallery } from './components/UserProvidedPhotoGallery'
 import {
+  archivedFacilities,
+  archivedLabel,
   facilities,
+  isArchived,
+  networkFacilities,
   searchableFacilityText,
   type DisplayStatus,
   type Facility,
@@ -92,6 +96,7 @@ const statusColor: Record<DisplayStatus, string> = {
   'Coming Soon': '#f4b71b',
   Planned: '#6b46c1',
   Unassigned: '#7a8798',
+  Archived: '#4b5563',
 }
 const dashboardRegions = [
   { id: 'southern-california', label: 'Southern California', facilityNumbers: [1, 2, 3, 15, 19] },
@@ -156,6 +161,7 @@ function getInitialProjection(): DashboardProjection {
 
 
 function resolveFacilityStatus(facility: Facility, overrides: StatusAssignments): DisplayStatus {
+  if (isArchived(facility)) return 'Archived'
   return overrides[facility.id] ?? facility.status
 }
 
@@ -735,8 +741,8 @@ function App() {
   if (globeActive && !globeMounted) setGlobeMounted(true)
   const activeRegion = dashboardRegions.find((region) => region.id === activeRegionId) ?? null
   const dashboardFacilities = useMemo(() => {
-    if (!activeRegion) return facilities
-    return facilities.filter((facility) => activeRegion.facilityNumbers.some((number) => number === facility.number))
+    if (!activeRegion) return networkFacilities
+    return networkFacilities.filter((facility) => activeRegion.facilityNumbers.some((number) => number === facility.number))
   }, [activeRegion])
 
   const filtered = useMemo(() => {
@@ -746,15 +752,17 @@ function App() {
       const matchesText = !query || (isStateAbbreviation ? facility.state.toLowerCase() === query : searchableFacilityText(facility).includes(query))
       const matchesFacilityType = facilityTypeFilter === 'All' || facility.facilityType === facilityTypeFilter
       const currentStatus = resolveFacilityStatus(facility, statusAssignments)
-      return matchesText && matchesFacilityType && (statusFilter === 'All' || currentStatus === statusFilter)
+      // Archived facilities stay out of the list unless the Archived filter is chosen.
+      const matchesStatus = statusFilter === 'Archived' ? currentStatus === 'Archived' : currentStatus !== 'Archived' && (statusFilter === 'All' || currentStatus === statusFilter)
+      return matchesText && matchesFacilityType && matchesStatus
     })
   }, [facilityTypeFilter, search, statusAssignments, statusFilter])
   const mappableDashboardFacilities = useMemo(() => dashboardFacilities.filter(hasUsableCoordinates), [dashboardFacilities])
   // With a region active, the other regions' pins stay on the map, faded, for network context.
-  const mappableDashboardPins = useMemo(() => facilities.filter(hasUsableCoordinates), [])
+  const mappableDashboardPins = useMemo(() => networkFacilities.filter(hasUsableCoordinates), [])
   const dashboardRegionIds = useMemo(() => new Set(mappableDashboardFacilities.map((facility) => facility.id)), [mappableDashboardFacilities])
   const activeRegionBoundary = useMemo(() => activeRegion ? getRegionBoundary(activeRegion.id) : null, [activeRegion])
-  const previewChapters = useMemo(() => buildTour(facilities, dashboardRegions), [])
+  const previewChapters = useMemo(() => buildTour(networkFacilities, dashboardRegions), [])
   const tourBoundary = useMemo(() => tourFocus ? tourFocus.flatMap((regionId) => getRegionBoundary(regionId) ?? []) : null, [tourFocus])
   const tourTargets = useMemo(() => {
     if (!tourFocus) return mappableDashboardPins
@@ -769,13 +777,13 @@ function App() {
     const at = new Date(mapTime)
     return Object.fromEntries(facilities.map((facility) => [facility.id, getFacilityOpenState(facility, getFacilityOperatingHours(facility.id), at)])) as Record<string, FacilityOpenState>
   }, [mapTime])
-  const openCount = facilities.filter((facility) => openStates[facility.id].isOpen).length
-  const facilitiesWithHoursCount = facilities.filter((facility) => openStates[facility.id].hoursKnown).length
+  const openCount = networkFacilities.filter((facility) => openStates[facility.id].isOpen).length
+  const facilitiesWithHoursCount = networkFacilities.filter((facility) => openStates[facility.id].hoursKnown).length
 
   const counts = useMemo(() => {
-    const statuses = facilities.map((facility) => resolveFacilityStatus(facility, statusAssignments))
+    const statuses = networkFacilities.map((facility) => resolveFacilityStatus(facility, statusAssignments))
     return {
-      total: facilities.length,
+      total: networkFacilities.length,
       active: statuses.filter((item) => item === 'Active').length,
       coming: statuses.filter((item) => item === 'Coming Soon').length,
       planned: statuses.filter((item) => item === 'Planned').length,
@@ -1005,6 +1013,7 @@ function App() {
               </div>
               <div className="detail-header">
                 <div className="title-line"><MapPin /><h1>Facility {String(selected.number).padStart(2, '0')}</h1><span className={`status-pill ${statusClass(selectedStatus)}`}>{selectedStatus}</span></div>
+                {isArchived(selected) && <p className="archived-banner" role="note" data-testid="archived-banner"><Archive size={15} />{archivedLabel(selected)}. Its details are kept as they were when archived.</p>}
                 <div className="address-line">
                   <MapPin size={15} />
                   <span>{selected.fullAddress}</span>
@@ -1028,12 +1037,12 @@ function App() {
             <div className="locations-card directory-panel">
               <div className="directory-heading">
                 <div><span className="eyebrow">User-provided roster</span><h1>Facility directory</h1><p>Select a location to view its available information alongside the map.</p></div>
-                <span>{filtered.length} of {facilities.length}</span>
+                <span>{filtered.length} of {statusFilter === 'Archived' ? `${archivedFacilities.length} archived` : networkFacilities.length}</span>
               </div>
               <div className="list-filters">
                 <label><Search size={16} /><span className="sr-only">Filter facilities</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search street, city, state, ZIP..." /></label>
                 <select aria-label="Filter by status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}>
-                  <option value="All">All statuses</option><option>Active</option><option>Coming Soon</option><option>Planned</option><option>Unassigned</option>
+                  <option value="All">All statuses</option><option>Active</option><option>Coming Soon</option><option>Planned</option><option>Unassigned</option><option>Archived</option>
                 </select>
                 <select aria-label="Filter by facility type" value={facilityTypeFilter} onChange={(event) => setFacilityTypeFilter(event.target.value as FacilityTypeFilter)}>
                   <option value="All">All types</option><option>UF ONLY</option><option>UF/CUBEWORKS</option><option>Samsung Warehouse</option>
@@ -1243,13 +1252,15 @@ function App() {
                     aria-pressed={activeRegion === null}
                     onClick={clearDashboardRegion}
                   >
-                    <span><strong>All facilities</strong><small>Nationwide roster</small></span><b>{facilities.length}</b>
+                    <span><strong>All facilities</strong><small>Nationwide roster</small></span><b>{networkFacilities.length}</b>
                   </button>
                   <div className="dashboard-region-list">
                     {dashboardRegions.map((region) => {
                       const expanded = region.id === expandedRegionId
                       const active = region.id === activeRegionId
-                      const regionFacilities = facilities.filter((facility) => region.facilityNumbers.some((number) => number === facility.number))
+                      const regionFacilities = networkFacilities.filter((facility) => region.facilityNumbers.some((number) => number === facility.number))
+                      // A region whose facilities are all archived drops out of the panel, as it does from the tour.
+                      if (regionFacilities.length === 0) return null
                       return (
                         <section key={region.id} className={expanded ? 'dashboard-region-group is-expanded' : 'dashboard-region-group'}>
                           <button
@@ -1642,10 +1653,16 @@ function OverviewContent({ facility, sitePlan, status, openState, onStatusChange
         {!hasUsableCoordinates(facility) && <p className="overview-map-note"><Info size={14} />Location unverified: this facility is not pinned on the network map because its geocoder candidates conflict.</p>}
       </section>
 
-      <section className="status-assignment">
-        <div><span className="eyebrow">Local planning field</span><h2>Facility status</h2><p>{facility.status === 'Active' ? 'This facility is Active by default; the status can be changed locally.' : 'No status was supplied for this facility; the status can be changed locally.'}</p></div>
-        <label><span>Local status</span><select aria-label={`Set status for ${facility.fullAddress}`} value={status} onChange={(event) => onStatusChange(event.target.value as DisplayStatus)}>{assignableStatuses.map((item) => <option key={item}>{item}</option>)}</select></label>
-      </section>
+      {isArchived(facility) ? (
+        <section className="status-assignment" data-testid="archived-status">
+          <div><span className="eyebrow">Facility status</span><h2>Archived</h2><p>{archivedLabel(facility)}. Restoring it, and choosing its new status, is done as a site update.</p></div>
+        </section>
+      ) : (
+        <section className="status-assignment">
+          <div><span className="eyebrow">Local planning field</span><h2>Facility status</h2><p>{facility.status === 'Active' ? 'This facility is Active by default; the status can be changed locally.' : 'No status was supplied for this facility; the status can be changed locally.'}</p></div>
+          <label><span>Local status</span><select aria-label={`Set status for ${facility.fullAddress}`} value={status} onChange={(event) => onStatusChange(event.target.value as DisplayStatus)}>{assignableStatuses.map((item) => <option key={item}>{item}</option>)}</select></label>
+        </section>
+      )}
 
       <section className="known-details info-section">
         <h2><Building2 />Known location details</h2>

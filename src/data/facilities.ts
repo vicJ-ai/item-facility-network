@@ -1,5 +1,7 @@
 export type FacilityStatus = 'Active' | 'Coming Soon' | 'Planned'
-export type DisplayStatus = FacilityStatus | 'Unassigned'
+// Archived is set only in this data file, never through the per-browser status dropdown, so every viewer sees the same
+// archived facilities. An archived facility keeps all of its records but is left out of the live network.
+export type DisplayStatus = FacilityStatus | 'Unassigned' | 'Archived'
 export type CoordinatePrecision = 'Point address' | 'Street address' | 'Approximate' | 'Unavailable'
 export type FacilityType = 'UF ONLY' | 'UF/CUBEWORKS' | 'Samsung Warehouse'
 
@@ -7,6 +9,8 @@ export type Facility = {
   id: string
   number: number
   status: DisplayStatus
+  /** Set together with status 'Archived': when the facility was archived (YYYY-MM-DD) and who archived it. */
+  archived?: { date: string; by: string }
   // Omitted when no source states the site's type. Garden City and University Park were set to Samsung Warehouse by the
   // user on 2026-10-02 (both serve Samsung SDS).
   facilityType?: FacilityType
@@ -177,9 +181,24 @@ export const facilities: Facility[] = [
     id: 'university-park-central', number: 29, status: 'Active', facilityType: 'Samsung Warehouse', street: '701 S Central Ave', city: 'University Park', state: 'IL', stateName: 'Illinois', zip: '60484',
     fullAddress: '701 S Central Ave, University Park, IL 60484', coordinates: [41.443366097027, -87.745403120176],
     coordinateSource: 'Esri World Geocoding Service', coordinatePrecision: 'Point address', geocoderMatch: '701 Central Ave, University Park, IL, 60484, USA',
-    geocodeNote: 'Added by the user with only an address on 2026-10-01; status, facility type, and operating hours are not supplied yet. The geocoder match drops the S street direction; the supplied address is unchanged.',
+    geocodeNote: 'The geocoder match drops the S street direction; the supplied address is unchanged.',
   },
 ]
+
+export const isArchived = (facility: Facility) => facility.status === 'Archived'
+
+/** The live network: every facility that is not archived. Maps, regions, the Preview tour, and totals use this list. */
+export const networkFacilities = facilities.filter((facility) => !isArchived(facility))
+
+export const archivedFacilities = facilities.filter(isArchived)
+
+/** "Archived on Oct 5, 2026 by Victor Jun", for the profile banner and the PDF. */
+export function archivedLabel(facility: Facility) {
+  if (!facility.archived) return 'Archived'
+  const [year, month, day] = facility.archived.date.split('-').map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day)).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+  return `Archived on ${date} by ${facility.archived.by}`
+}
 
 export const searchableFacilityText = (facility: Facility) =>
   [facility.fullAddress, facility.street, facility.city, facility.state, facility.stateName, facility.zip]
