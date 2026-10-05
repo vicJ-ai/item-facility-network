@@ -1,4 +1,5 @@
 node_modules
+scripts/narration/node_modules
 dist
 dist-ssr
 test-results
