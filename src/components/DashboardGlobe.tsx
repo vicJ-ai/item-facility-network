@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Minus, Plus } from 'lucide-react'
 import {
   Cartesian2,
@@ -14,8 +14,8 @@ import {
   WebMercatorTilingScheme,
 } from 'cesium'
 import 'cesium/Build/Cesium/Widgets/CesiumWidget/CesiumWidget.css'
-import type { Facility } from '../data/facilities'
 import type { RegionBoundary } from '../data/region-boundaries'
+import type { MappableFacility } from '../lib/facility-display'
 import { lowerTier, QUALITY_TIERS, type QualityChoice, type QualityTier } from '../lib/globe-quality'
 import type { TourCameraApi } from '../lib/preview-tour/camera-api'
 import { createGlobeTourApi } from './globe-tour-api'
@@ -24,7 +24,6 @@ import { regionHighlightLayer } from './region-highlight-imagery'
 declare const CESIUM_BASE_URL: string
 ;(window as Window & { CESIUM_BASE_URL?: string }).CESIUM_BASE_URL = CESIUM_BASE_URL
 
-type MappableFacility = Facility & { coordinates: [number, number] }
 type GlobeLayer = 'street' | 'satellite'
 
 const ESRI_ATTRIBUTIONS: Record<GlobeLayer, string> = {
@@ -122,7 +121,7 @@ type DashboardGlobeProps = {
 type PinPoint = { x: number; y: number; visible: boolean }
 type PinWrite = { transform: string; visible: boolean }
 
-export default function DashboardGlobe({ active, facilities, targets, regionBoundary, regionOutline = true, regionKey = null, quality, detectedTier, onEffectiveTier, debugPerf = false, time, shading, layer, flySignal, regionActive, panelOpen, pinMarkup, pinLabel, isOpen, renderPreview, onChoose, onUnavailable, onTourApi }: DashboardGlobeProps) {
+function DashboardGlobe({ active, facilities, targets, regionBoundary, regionOutline = true, regionKey = null, quality, detectedTier, onEffectiveTier, debugPerf = false, time, shading, layer, flySignal, regionActive, panelOpen, pinMarkup, pinLabel, isOpen, renderPreview, onChoose, onUnavailable, onTourApi }: DashboardGlobeProps) {
   const stageRef = useRef<HTMLDivElement>(null)
   const canvasHostRef = useRef<HTMLDivElement>(null)
   const creditsRef = useRef<HTMLDivElement>(null)
@@ -534,3 +533,6 @@ export default function DashboardGlobe({ active, facilities, targets, regionBoun
     </div>
   )
 }
+
+// Memoized so app state the globe does not use, such as a notice or the theme, does not re-render its pins.
+export default memo(DashboardGlobe)
