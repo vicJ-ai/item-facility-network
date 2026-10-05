@@ -6,7 +6,7 @@ import {
   type PDFImage,
   type PDFPage,
 } from 'pdf-lib'
-import type { Facility } from '../data/facilities'
+import { archivedLabel, type Facility } from '../data/facilities'
 import { formatCeilingHeight, formatLoadingDocks, getFacilityBuildingDetails } from '../data/facility-building'
 import { formatOperatingHours, type FacilityOperatingHours } from '../data/facility-hours'
 import type { FacilityMedia } from '../data/facility-media'
@@ -363,6 +363,8 @@ async function drawOverviewPage(pdf: PDFDocument, fonts: Fonts, data: FacilityPr
   drawHeader(page, fonts, 'Overview')
   drawSectionTitle(page, fonts, `Facility ${facilityNumber(data.facility)}`, data.facilityTitle, 707)
   drawWrappedText(page, data.facility.fullAddress, { x: MARGIN, y: 650, width: PAGE_WIDTH - MARGIN * 2, font: fonts.regular, size: 10, color: MUTED, maxLines: 2 })
+  // An archived facility's profile says so at the top, with when and by whom.
+  if (data.facility.status === 'Archived') drawWrappedText(page, `${archivedLabel(data.facility)}. Details are kept as they were when archived.`, { x: MARGIN, y: 622, width: PAGE_WIDTH - MARGIN * 2, font: fonts.bold, size: 9, color: MUTED, maxLines: 1 })
 
   const coverUrl = data.userPhotos?.photos.find((photo) => photo.id === data.userPhotos?.coverPhotoId)?.assetUrl ?? data.media?.detail.assetUrl
   const cover = coverUrl ? await loadAsset(coverUrl, 'photo') : null

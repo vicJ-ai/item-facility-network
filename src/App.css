@@ -360,6 +360,9 @@ tbody tr:hover td:last-child, tbody tr.selected td:last-child { color: var(--pri
 .status-pill.coming-soon { color: var(--warning-ink); background: var(--warning-soft); }
 .status-pill.planned { color: var(--primary-ink); background: var(--primary-soft); }
 .status-pill.unassigned { min-width: 84px; color: var(--neutral-ink); background: var(--neutral-soft); }
+.status-pill.archived { color: var(--neutral-ink); background: var(--neutral-soft); border: 1px dashed var(--border); }
+.archived-banner { margin: 10px 0 0; padding: 9px 12px; display: flex; align-items: center; gap: 8px; border: 1px dashed var(--border); border-radius: 8px; color: var(--neutral-ink); background: var(--neutral-soft); font-size: 13px; font-weight: 600; line-height: 1.4; }
+.archived-banner svg { flex: 0 0 auto; }
 
 /* Selected showcase */
 .detail-panel { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--surface); }
