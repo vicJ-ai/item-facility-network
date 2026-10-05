@@ -27,7 +27,7 @@ import {
 } from './data/facilities'
 import { FACILITY_BUILDING_SOURCE_NOTE, formatCeilingHeight, formatLeaseExpiration, formatLoadingDocks, formatOfficeArea, getFacilityBuildingDetails } from './data/facility-building'
 import { getFacilityTopCustomers } from './data/facility-customers'
-import { getClientLogo } from './data/client-logos'
+import { clientLogoNeedsDarkBackground, getClientLogo } from './data/client-logos'
 import { getFacilityMedia, isOfficialFacilitySheetMedia, type FacilityMedia } from './data/facility-media'
 import { getFacilityOperatingHours } from './data/facility-hours'
 import { useAccess } from './auth/access-context'
@@ -1617,7 +1617,7 @@ function ClientLogo({ name }: { name: string }) {
   const [failed, setFailed] = useState(false)
   const logo = getClientLogo(name)
   return (
-    <span className={`client-logo${name === 'ROAR BEVERAGES INC' || name === 'NZXT' ? ' client-logo-dark' : ''}`} aria-hidden="true">
+    <span className={`client-logo${clientLogoNeedsDarkBackground(name) ? ' client-logo-dark' : ''}`} aria-hidden="true">
       {logo && !failed && <img src={logo} alt="" loading="lazy" onError={() => setFailed(true)} />}
     </span>
   )

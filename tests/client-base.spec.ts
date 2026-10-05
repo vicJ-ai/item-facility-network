@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { clientLogoByCustomerName } from '../src/data/client-logos'
+import { clientLogoByCustomerName, clientLogoNeedsDarkBackground } from '../src/data/client-logos'
 import { facilityTopCustomers } from '../src/data/facility-customers'
+import { facilities } from '../src/data/facilities'
 
 const valleyViewAddress = '6800 Valley View St., Buena Park, CA 90620'
 const riversideAddress = '2677 East Alessandro Blvd., Riverside, CA 92508'
@@ -38,6 +39,60 @@ async function expectContained(locator: Locator) {
   expect(await locator.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true)
 }
 
+async function clickAttached(locator: Locator) {
+  await locator.waitFor({ state: 'attached' })
+  await locator.evaluate((element: HTMLElement) => element.click())
+}
+
+async function openFacilityFromDirectory(page: Page, address: string) {
+  const target = page.getByRole('button', { name: `Select ${address}` })
+  const allFacilities = page.getByRole('button', { name: 'All facilities', exact: true })
+  if (await allFacilities.count()) {
+    await clickAttached(allFacilities)
+    await target.waitFor({ state: 'attached' })
+  } else if (!(await target.count())) {
+    const openNavigation = page.getByRole('button', { name: 'Open navigation' })
+    if (await openNavigation.count()) await clickAttached(openNavigation)
+    await clickAttached(page.getByRole('button', { name: 'Facilities', exact: true }))
+    await target.waitFor({ state: 'attached' })
+  }
+  await clickAttached(target)
+  await expect(page.getByTestId('selected-showcase')).toContainText(address)
+}
+
+async function scrollEveryClientRow(rows: Locator) {
+  await rows.evaluateAll(async (elements) => {
+    for (const row of elements) {
+      row.scrollIntoView({ block: 'center' })
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+    }
+  })
+}
+
+async function renderedClientRows(rows: Locator) {
+  return rows.evaluateAll((elements) => elements.map((row) => {
+    const slot = row.querySelector<HTMLElement>('.client-logo')
+    const image = row.querySelector<HTMLImageElement>('.client-logo img')
+    return {
+      name: row.querySelector('strong')?.textContent,
+      rank: row.querySelector('.client-rank')?.textContent,
+      source: image?.getAttribute('src') ?? null,
+      slotClass: slot?.className,
+      contained: row.scrollWidth <= row.clientWidth + 1,
+    }
+  }))
+}
+
+function expectedClientRows(customers: readonly string[]) {
+  return customers.map((customer, index) => ({
+    name: customer,
+    rank: String(index + 1),
+    source: clientLogoByCustomerName[customer as keyof typeof clientLogoByCustomerName] ?? null,
+    slotClass: clientLogoNeedsDarkBackground(customer) ? 'client-logo client-logo-dark' : 'client-logo',
+    contained: true,
+  }))
+}
+
 test.beforeEach(async ({ page }) => {
   await useFlatMap(page)
 })
@@ -45,6 +100,10 @@ test.beforeEach(async ({ page }) => {
 test('client source mapping remains complete for all 29 facilities and 234 ranked entries', () => {
   expect(Object.keys(facilityTopCustomers)).toHaveLength(29)
   expect(Object.values(facilityTopCustomers).reduce((count, record) => count + (record?.customers.length ?? 0), 0)).toBe(234)
+  expect(Object.keys(clientLogoByCustomerName)).toHaveLength(49)
+  expect(new Set(Object.values(clientLogoByCustomerName)).size).toBe(43)
+  expect(Object.values(facilityTopCustomers).flatMap(({ customers }) => customers).filter((name) => name in clientLogoByCustomerName)).toHaveLength(84)
+  expect(Object.keys(clientLogoByCustomerName).every((name) => Object.values(facilityTopCustomers).some(({ customers }) => customers.includes(name)))).toBe(true)
 })
 
 test('public Client Base preserves Buena Park ranking, serves 17 reviewed marks, and leaves unresolved slots blank', async ({ page }, testInfo) => {
@@ -78,7 +137,9 @@ test('public Client Base preserves Buena Park ranking, serves 17 reviewed marks,
     expect(response.ok(), source!).toBe(true)
     expect(response.headers()['content-type']).toContain('image/png')
   }
-  expect(new Set(await logos.evaluateAll((images) => images.map((image) => image.getAttribute('src'))))).toEqual(new Set(Object.values(clientLogoByCustomerName)))
+  expect(new Set(await logos.evaluateAll((images) => images.map((image) => image.getAttribute('src'))))).toEqual(
+    new Set(buenaParkCustomers.map((name) => clientLogoByCustomerName[name as keyof typeof clientLogoByCustomerName]).filter(Boolean)),
+  )
 
   for (const unresolved of ['Euromarket Designs, Inc.', 'KARAKA, LLC', 'TORQUAY ETRADING LLC']) {
     const row = rows.filter({ hasText: unresolved })
@@ -114,6 +175,82 @@ test('public Client Base preserves Buena Park ranking, serves 17 reviewed marks,
   const screenshot = testInfo.outputPath('client-base-desktop.png')
   await page.screenshot({ path: screenshot, fullPage: true })
   await testInfo.attach('client-base-desktop', { path: screenshot, contentType: 'image/png' })
+  expect(pageErrors).toEqual([])
+})
+
+test('every desktop facility renders each reviewed exact alias and keeps every unresolved logo slot blank', async ({ page }, testInfo) => {
+  test.setTimeout(150_000)
+  const pageErrors: string[] = []
+  const requestedAssets = new Set<string>()
+  const screenshotRowByFacility = new Map<string, number>([
+    ['riverside-alessandro', 0],
+    ['houston-citypark', 5],
+    ['joliet-brandon', 0],
+    ['el-paso-emerald-12100', 0],
+    ['las-vegas-marion-building-5', 0],
+    ['memphis-delp', 0],
+  ])
+  page.on('pageerror', (error) => pageErrors.push(error.message))
+  await page.goto('/')
+
+  for (const facility of facilities) {
+    await openFacilityFromDirectory(page, facility.fullAddress)
+    await clickAttached(page.getByRole('tab', { name: 'Client Base' }))
+    const clientBase = page.getByTestId('client-base')
+    const rows = clientBase.locator('li')
+    const customers = facilityTopCustomers[facility.id]?.customers ?? []
+    await expect(rows).toHaveCount(customers.length)
+    await expect(rows.locator('strong')).toHaveText(customers)
+
+    await scrollEveryClientRow(rows)
+    await expect.poll(() => rows.locator('img').evaluateAll((images: HTMLImageElement[]) => images.every((image) => image.complete && image.naturalWidth > 0 && image.naturalHeight > 0))).toBe(true)
+    expect(await renderedClientRows(rows)).toEqual(expectedClientRows(customers))
+    for (const expectedSource of customers.map((customer) => clientLogoByCustomerName[customer as keyof typeof clientLogoByCustomerName]).filter(Boolean)) {
+      if (!requestedAssets.has(expectedSource)) {
+        const response = await page.request.get(expectedSource)
+        expect(response.ok(), expectedSource).toBe(true)
+        expect(response.headers()['content-type']).toContain('image/png')
+        requestedAssets.add(expectedSource)
+      }
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true)
+    const screenshotRow = screenshotRowByFacility.get(facility.id)
+    if (screenshotRow !== undefined) {
+      await rows.nth(screenshotRow).screenshot({ path: testInfo.outputPath(`client-base-${facility.id}-desktop.png`) })
+    }
+  }
+
+  expect(requestedAssets).toEqual(new Set(Object.values(clientLogoByCustomerName)))
+  expect(pageErrors).toEqual([])
+})
+
+test('every mobile facility preserves exact logo identity, blank slots, contrast treatment, and containment', async ({ page }, testInfo) => {
+  test.setTimeout(150_000)
+  const pageErrors: string[] = []
+  const renderedAssets = new Set<string>()
+  page.on('pageerror', (error) => pageErrors.push(error.message))
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/')
+  for (const facility of facilities) {
+    await openFacilityFromDirectory(page, facility.fullAddress)
+    const clientTab = page.getByRole('tab', { name: 'Client Base' })
+    await clickAttached(clientTab)
+    const clientBase = page.getByTestId('client-base')
+    const rows = clientBase.locator('li')
+    const customers = facilityTopCustomers[facility.id]?.customers ?? []
+    await expect(rows).toHaveCount(customers.length)
+    await scrollEveryClientRow(rows)
+    await expect.poll(() => rows.locator('img').evaluateAll((images: HTMLImageElement[]) => images.every((image) => image.complete && image.naturalWidth > 0 && image.naturalHeight > 0))).toBe(true)
+    const mobileRows = await renderedClientRows(rows)
+    expect(mobileRows).toEqual(expectedClientRows(customers))
+    for (const row of mobileRows) if (row.source) renderedAssets.add(row.source)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true)
+    if (facility.id === 'joliet-brandon') {
+      await rows.nth(16).screenshot({ path: testInfo.outputPath('client-base-joliet-brandon-mobile.png') })
+    }
+  }
+
+  expect(renderedAssets).toEqual(new Set(Object.values(clientLogoByCustomerName)))
   expect(pageErrors).toEqual([])
 })
 
