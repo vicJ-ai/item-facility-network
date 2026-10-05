@@ -1,10 +1,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { Pause, Play, SkipBack, SkipForward, X } from 'lucide-react'
+import { Pause, Play, SkipBack, SkipForward, Volume2, VolumeX, X } from 'lucide-react'
 import { gsap } from 'gsap'
 import { SplitText } from 'gsap/SplitText'
 import type { RegionBoundary } from '../data/region-boundaries'
 import type { TourCameraApi } from '../lib/preview-tour/camera-api'
-import { choreograph, highlightOpacity, outlineProgress } from '../lib/preview-tour/choreography'
+import { choreograph, FINALE_TITLE_LEAD, highlightOpacity, outlineProgress } from '../lib/preview-tour/choreography'
+import { narrationClips, narrationLines, type NarrationManifest } from '../lib/preview-tour/narration'
+import narrationManifest from '../lib/preview-tour/narration-manifest.json'
 import type { TourChapter, TourFacility, TourStopDetails } from '../lib/preview-tour/script'
 import './PreviewTour.css'
 
@@ -18,6 +20,9 @@ const EXIT_MS = 450
 const SEEK_INSIDE = 0.02
 // How long a title takes to appear after its stop begins: the fade starts 0.35 s in and runs ~0.9 s.
 const TITLE_REVEAL = 1.3
+// The narration is moved back in line with the tour when it drifts further than this, in seconds.
+const NARRATION_DRIFT = 0.3
+const NARRATION_MUTED_KEY = 'preview-narration-muted'
 
 type PreviewTourProps = {
   api: TourCameraApi | null
@@ -44,6 +49,8 @@ type Controls = {
   jumpToRegion: (chapterIndex: number) => void
   jumpToFinale: () => void
   stop: () => void
+  /** Brings the narration in line with the tour's current state, for changes made while it is paused. */
+  syncNarration: () => void
 }
 /** What the progress bar is pointing at: a region, a facility, or the finale; `left` is a percentage. */
 type ProgressHint = { left: number; kicker: string; label: string }
@@ -56,6 +63,14 @@ const titleFit = (title: string) => ({ '--title-chars': Math.max(...title.split(
 
 function prefersReducedMotion() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+function getInitialMuted() {
+  try {
+    return window.localStorage.getItem(NARRATION_MUTED_KEY) === 'true'
+  } catch {
+    return false
+  }
 }
 
 function mergeBoundaries(boundaries: (RegionBoundary | null)[]): RegionBoundary {
@@ -73,13 +88,32 @@ export default function PreviewTour({ api, chapters, interactionTarget, localTim
   const [paused, setPaused] = useState(false)
   const [closing, setClosing] = useState(false)
   const [hint, setHint] = useState<ProgressHint | null>(null)
-  const choreography = useMemo(() => choreograph(chapters, { reducedMotion }), [chapters, reducedMotion])
+  const [muted, setMuted] = useState(getInitialMuted)
+  const mutedRef = useRef(muted)
+  // Lines whose current text has a generated clip; any other moment stays silent and keeps its usual timing.
+  // Sped-up test runs play no narration.
+  const clips = useMemo(() => narrationClips(narrationLines(chapters), narrationManifest as NarrationManifest), [chapters])
+  const narrated = speed === 1 && clips.size > 0
+  const choreography = useMemo(
+    () => choreograph(chapters, { reducedMotion, narration: narrated ? new Map([...clips].map(([key, clip]) => [key, clip.seconds])) : undefined }),
+    [chapters, clips, narrated, reducedMotion],
+  )
   const stops = useMemo(() => chapters.flatMap((chapter) => chapter.stops), [chapters])
   const finaleBoundary = useMemo(() => mergeBoundaries(chapters.map((chapter) => chapter.boundary)), [chapters])
 
   useLayoutEffect(() => {
     callbacks.current = { onFocusChange, onExit }
   })
+
+  useEffect(() => {
+    mutedRef.current = muted
+    try {
+      window.localStorage.setItem(NARRATION_MUTED_KEY, String(muted))
+    } catch {
+      // Storage is unavailable; the choice lasts until the page closes.
+    }
+    controls.current?.syncNarration()
+  }, [muted])
 
   useEffect(() => {
     const root = rootRef.current
@@ -90,17 +124,24 @@ export default function PreviewTour({ api, chapters, interactionTarget, localTim
     let focusKey: string | null | undefined
     let currentStop = -1
     let progressLabel = ''
+    // Narration plays on the first loop only; later loops run silently under the presenter.
+    let firstLoopDone = false
+    let currentLine: string | null = null
+    const voice = new Audio()
+    const upcoming = new Audio()
+    upcoming.preload = 'auto'
+    const clipUrl = (key: string) => `/narration/${clips.get(key)!.clip}.mp3`
     // Only the fill element moves, so the progress bar never restyles the rest of the overlay.
     const progressFill = root.querySelector<HTMLElement>('.preview-progress-fill')
     const saved = api.saveView()
-    const { duration, cameraAt, stops: stopCues, chapters: chapterCues, finale, travel } = choreography
+    const { duration, cameraAt, stops: stopCues, chapters: chapterCues, finale, travel, narration } = choreography
     const tileWait = TILE_WAIT_MS / speed
     api.setContinuousRender(true, maxFpsRef.current)
     // Keep the tour on real time even when frames are slow; GSAP would otherwise stretch long frames.
     gsap.ticker.lagSmoothing(0)
 
     const ctx = gsap.context(() => {
-      const timeline = gsap.timeline({ paused: true, repeat: -1, onUpdate: () => sync() })
+      const timeline = gsap.timeline({ paused: true, repeat: -1, onUpdate: () => sync(), onRepeat: () => (firstLoopDone = true) })
       timeline.timeScale(speed)
       // Pins the loop length to the camera choreography.
       timeline.set({}, {}, duration)
@@ -133,9 +174,41 @@ export default function PreviewTour({ api, chapters, interactionTarget, localTim
         }, [], cue.arrival)
       })
       const finaleText = root.querySelector('[data-finale]')
-      reveal(finaleText, finaleText ? split('[data-finale]').chars : [], finale.end - 6.5, finale.end - 0.8)
+      reveal(finaleText, finaleText ? split('[data-finale]').chars : [], finale.end - FINALE_TITLE_LEAD, finale.end - 0.8)
       reveal(root.querySelector('[data-finale-label]'), [], finale.start, finale.end)
-      stops.forEach((stop, index) => timeline.call(() => api.pulsePin(stop.facility.id), [], finale.end - 6.2 + index * 0.1))
+      stops.forEach((stop, index) => timeline.call(() => api.pulsePin(stop.facility.id), [], finale.end - FINALE_TITLE_LEAD + 0.3 + index * 0.1))
+
+      // The narration follows the timeline rather than running on its own, so pausing, waiting for imagery,
+      // skipping, and seeking all carry over to it.
+      const syncNarration = () => {
+        const time = timeline.time()
+        const cue = narration.find((item) => time >= item.start && time < item.start + item.seconds)
+        const audible = cue && alive && !firstLoopDone && !mutedRef.current && !userPaused && !waiting && !timeline.paused()
+        const line = audible ? cue.key : null
+        if (line !== currentLine) {
+          currentLine = line
+          root.dataset.narration = line ?? ''
+        }
+        if (!cue || !audible) {
+          if (!voice.paused) voice.pause()
+          return
+        }
+        const src = clipUrl(cue.key)
+        if (!voice.src.endsWith(src)) {
+          voice.src = src
+          const next = narration[narration.indexOf(cue) + 1]
+          if (next) upcoming.src = clipUrl(next.key)
+        }
+        const offset = time - cue.start
+        // A clip that is still loading starts where it is asked to; one that has loaded is moved only when it drifts.
+        if (voice.readyState === HTMLMediaElement.HAVE_NOTHING) voice.currentTime = offset
+        else if (voice.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA && Math.abs(voice.currentTime - offset) > NARRATION_DRIFT) voice.currentTime = offset
+        if (voice.paused) {
+          voice.play().catch(() => {
+            // The browser refused to play sound; the tour carries on silently.
+          })
+        }
+      }
 
       const sync = () => {
         if (!alive) return
@@ -177,12 +250,14 @@ export default function PreviewTour({ api, chapters, interactionTarget, localTim
           for (const tick of root.querySelectorAll<HTMLElement>('[data-tick]')) tick.classList.toggle('is-current', Number(tick.dataset.tick) === stopIndex)
           if (facility && announcerRef.current) announcerRef.current.textContent = `Facility ${pad(facility.number)}, ${facility.city ?? facility.stateName}, ${facility.stateName}`
         }
+        syncNarration()
       }
 
       const waitForTiles = () => {
         if (waiting) return
         waiting = true
         timeline.pause()
+        syncNarration()
         api.waitForTiles(tileWait).then(() => {
           waiting = false
           if (alive && !userPaused) timeline.play()
@@ -205,6 +280,7 @@ export default function PreviewTour({ api, chapters, interactionTarget, localTim
           setPaused(userPaused)
           if (userPaused) timeline.pause()
           else if (!waiting) timeline.play()
+          syncNarration()
         },
         step: (direction) => {
           const time = timeline.time()
@@ -225,6 +301,7 @@ export default function PreviewTour({ api, chapters, interactionTarget, localTim
           if (!alive) return
           alive = false
           timeline.kill()
+          voice.pause()
           api.setHighlightOpacity(1)
           api.setFlightDetail(false)
           api.setOutline(null)
@@ -234,6 +311,7 @@ export default function PreviewTour({ api, chapters, interactionTarget, localTim
           setClosing(true)
           window.setTimeout(() => callbacks.current.onExit(), reducedMotion ? 0 : EXIT_MS)
         },
+        syncNarration,
       }
 
       sync()
@@ -254,10 +332,13 @@ export default function PreviewTour({ api, chapters, interactionTarget, localTim
         }
       }
       controls.current = null
+      voice.pause()
+      voice.removeAttribute('src')
+      upcoming.removeAttribute('src')
       ctx.revert()
       gsap.ticker.lagSmoothing(500, 33)
     }
-  }, [api, choreography, chapters, stops, finaleBoundary, reducedMotion, speed])
+  }, [api, choreography, chapters, clips, stops, finaleBoundary, reducedMotion, speed])
 
   // A new frame-rate cap (for example after Automatic quality steps down) applies without restarting.
   useEffect(() => {
@@ -265,10 +346,11 @@ export default function PreviewTour({ api, chapters, interactionTarget, localTim
     if (api && !closing) api.setContinuousRender(true, maxFps)
   }, [api, closing, maxFps])
 
-  // Esc stops; Space pauses; the arrow keys skip between facilities.
+  // Esc stops; Space pauses; the arrow keys skip between facilities; M mutes the narration.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') controls.current?.stop()
+      else if (event.key === 'm' || event.key === 'M') setMuted((value) => !value)
       else if (event.key === ' ' && !(event.target instanceof HTMLButtonElement)) controls.current?.togglePause()
       else if (event.key === 'ArrowRight') controls.current?.step(1)
       else if (event.key === 'ArrowLeft') controls.current?.step(-1)
@@ -408,6 +490,11 @@ export default function PreviewTour({ api, chapters, interactionTarget, localTim
           <button type="button" aria-label="Previous facility" onClick={() => controls.current?.step(-1)}><SkipBack size={16} /></button>
           <button type="button" aria-label={paused ? 'Play preview' : 'Pause preview'} onClick={() => controls.current?.togglePause()}>{paused ? <Play size={16} /> : <Pause size={16} />}</button>
           <button type="button" aria-label="Next facility" onClick={() => controls.current?.step(1)}><SkipForward size={16} /></button>
+          {clips.size > 0 && (
+            <button type="button" aria-label={muted ? 'Unmute narration' : 'Mute narration'} aria-pressed={muted} title={muted ? 'Unmute narration (M)' : 'Mute narration (M)'} onClick={() => setMuted((value) => !value)}>
+              {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+            </button>
+          )}
           <button type="button" className="preview-stop-button" aria-label="Stop preview" onClick={() => controls.current?.stop()}><X size={16} /><span>Stop</span></button>
         </div>
         <img className="preview-logo" src="/brand/item-logo-fullcolor-whitetxt.svg" alt="ITEM" />

@@ -10,11 +10,14 @@ type Window = { start: number; end: number }
 /** A region's part of the tour: the region shot, its facilities, then the zoom back out to the region. */
 export type ChapterCue = Window & { chapterIndex: number; intro: Window; outro: Window; outlineStart: number }
 export type StopCue = Window & { stopIndex: number; chapterIndex: number; arrival: number; jumpTo: number }
+/** When a narration line (keyed as in `narration.ts`) starts, and how long it runs. */
+export type NarrationCue = { key: string; start: number; seconds: number }
 export type Choreography = {
   duration: number
   chapters: ChapterCue[]
   stops: StopCue[]
   finale: Window
+  narration: NarrationCue[]
   /** Long flights between stops, where coarser imagery is enough. */
   travel: Window[]
   cameraAt: (time: number) => CameraPose
@@ -31,6 +34,10 @@ const REGION_PITCH = -70
 const OUTLINE_DRAW = 1.6
 // Every stay turns the camera by the same amount, so hops and flights look alike.
 const STAY_ORBIT_DEGREES = 24
+/** The finale's title appears this long before the loop ends; its narration starts with it. */
+export const FINALE_TITLE_LEAD = 6.5
+// Silence after each narration line before the tour moves on.
+const NARRATION_PAD = 0.6
 
 const EASES: Record<Ease, (t: number) => number> = {
   inOut: (t) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2),
@@ -53,13 +60,26 @@ function regionPose(chapter: TourChapter, fallback: CameraPose): CameraPose {
   return { longitude: frame.longitude - span * 0.16, latitude: frame.latitude, range: frame.range, heading: 0, pitch: REGION_PITCH }
 }
 
-export function choreograph(tour: TourChapter[], { reducedMotion }: { reducedMotion: boolean }): Choreography {
+/**
+ * `narration` maps line keys (see `narration.ts`) to clip lengths in seconds. Each narrated moment holds for at
+ * least its clip plus a short pause; moments without a clip keep the usual timing.
+ */
+export function choreograph(tour: TourChapter[], { reducedMotion, narration = new Map() }: { reducedMotion: boolean; narration?: ReadonlyMap<string, number> }): Choreography {
   const segments: Segment[] = []
   const chapters: ChapterCue[] = []
   const stops: StopCue[] = []
   const travel: Window[] = []
+  const spoken: NarrationCue[] = []
   let time = 0
   let pose = HOME
+
+  /** Queues `key`'s line at the current time and returns how long the moment must hold for it. */
+  const speak = (key: string, usual: number) => {
+    const seconds = narration.get(key)
+    if (seconds === undefined) return usual
+    spoken.push({ key, start: time, seconds })
+    return Math.max(usual, seconds + NARRATION_PAD)
+  }
 
   const hold = (duration: number, shot: (t: number) => CameraPose, ease: Ease = 'none') => {
     segments.push({ start: time, end: time + duration, ease, pose: shot })
@@ -73,8 +93,8 @@ export function choreograph(tour: TourChapter[], { reducedMotion }: { reducedMot
     hold(path.duration, path.at, 'inOut')
   }
 
-  if (reducedMotion) cut(OPENING_END, 2)
-  else hold(TIMING.opening * 0.5, (t) => lerpPose(HOME, OPENING_END, t), 'inOut')
+  if (reducedMotion) cut(OPENING_END, speak('opening', 2))
+  else hold(speak('opening', TIMING.opening * 0.5), (t) => lerpPose(HOME, OPENING_END, t), 'inOut')
 
   let previousPoint: { longitude: number; latitude: number } | null = null
   let orbitDirection = 1
@@ -83,9 +103,10 @@ export function choreograph(tour: TourChapter[], { reducedMotion }: { reducedMot
     // Every region opens on the region itself: the camera frames it while its outline draws on.
     const frame = regionPose(chapter, pose)
     if (!reducedMotion) flyTo(frame)
-    const intro = { start: time, end: time + TIMING.chapterIntro }
-    if (reducedMotion) cut(frame, TIMING.chapterIntro)
-    else hold(TIMING.chapterIntro, orbit(frame, 4, 0.96))
+    const introLength = speak(`chapter:${chapter.regionId}`, TIMING.chapterIntro)
+    const intro = { start: time, end: time + introLength }
+    if (reducedMotion) cut(frame, introLength)
+    else hold(introLength, orbit(frame, 4, 0.96))
 
     chapter.stops.forEach((stop, stopInChapter) => {
       // The first stop is dived into from the region shot, so its heading follows that descent.
@@ -97,7 +118,7 @@ export function choreograph(tour: TourChapter[], { reducedMotion }: { reducedMot
       if (reducedMotion) {
         jumpTo = time
         arrival = time
-        cut(target, TIMING.reducedStay)
+        cut(target, speak(`stop:${stop.facility.id}`, TIMING.reducedStay))
       } else {
         // A hop slides over from a nearby stop in the same region; anything else is a flight.
         if (stop.kind === 'hop' && stopInChapter > 0) {
@@ -116,7 +137,8 @@ export function choreograph(tour: TourChapter[], { reducedMotion }: { reducedMot
         }
         arrival = time
         orbitDirection *= -1
-        hold(TIMING.stay, orbit(target, STAY_ORBIT_DEGREES * orbitDirection))
+        // The line starts once the camera has settled, where the tour also waits for sharp imagery.
+        hold(speak(`stop:${stop.facility.id}`, TIMING.stay), orbit(target, STAY_ORBIT_DEGREES * orbitDirection))
       }
       stops.push({ stopIndex: stop.index, chapterIndex, start: stopStart, end: time, arrival, jumpTo })
       previousPoint = { longitude: target.longitude, latitude: target.latitude }
@@ -140,6 +162,9 @@ export function choreograph(tour: TourChapter[], { reducedMotion }: { reducedMot
     hold(2, (t) => lerpPose(pose, HOME, t), 'inOut')
   }
   const finale = { start: finaleStart, end: time }
+  // The finale line starts with its title, which is placed from the end of the loop.
+  const finaleLine = narration.get('finale')
+  if (finaleLine !== undefined) spoken.push({ key: 'finale', start: Math.max(finaleStart, time - FINALE_TITLE_LEAD), seconds: finaleLine })
 
   const cameraAt = (at: number) => {
     const clamped = Math.min(Math.max(at, 0), time)
@@ -150,7 +175,7 @@ export function choreograph(tour: TourChapter[], { reducedMotion }: { reducedMot
     return segment.pose(EASES[segment.ease](progress))
   }
 
-  return { duration: time, chapters, stops, finale, travel, cameraAt }
+  return { duration: time, chapters, stops, finale, narration: spoken, travel, cameraAt }
 }
 
 /**

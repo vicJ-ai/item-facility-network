@@ -9,6 +9,8 @@
     "typecheck": "tsc -b --pretty false",
     "lint": "oxlint",
     "preview": "vite preview",
+    "narration": "npm install --prefix scripts/narration --no-audit --no-fund --silent && node scripts/narration/generate.mjs",
+    "narration:check": "node scripts/narration/generate.mjs --check",
     "test:e2e": "playwright test"
   },
   "dependencies": {
