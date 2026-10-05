@@ -28,7 +28,6 @@ export type FacilityProfileData = {
   operatingHours?: FacilityOperatingHours
   media?: FacilityMedia
   operations?: FacilityOperations
-  operationsAccess: 'public' | 'authorized'
   totalSquareFeet?: number
   availableSpace?: FacilityProfileAvailability
   bulkRack?: FacilityBulkRack
@@ -334,11 +333,10 @@ function drawContactDirectory(page: PDFPage, fonts: Fonts, data: FacilityProfile
   page.drawRectangle({ ...box, color: NAVY_SOFT })
   page.drawText('CONTACT DIRECTORY', { x: box.x + 15, y: box.y + box.height - 22, size: 7, font: fonts.bold, color: rgb(0.76, 0.82, 0.88) })
 
-  const operations = data.operationsAccess === 'authorized' ? data.operations : undefined
+  const operations = data.operations
   if (!operations) {
-    const publicProfile = data.operationsAccess === 'public'
-    page.drawText(publicProfile ? 'Contact details omitted' : 'Contacts pending review', { x: box.x + 15, y: box.y + box.height - 57, size: 15, font: fonts.bold, color: WHITE })
-    drawWrappedText(page, publicProfile ? 'Public facility profiles omit staff contact details. View the facility Operations tab for the current directory.' : 'No staff contacts were confidently matched to this facility.', {
+    page.drawText('Contacts pending review', { x: box.x + 15, y: box.y + box.height - 57, size: 15, font: fonts.bold, color: WHITE })
+    drawWrappedText(page, 'No staff contacts were confidently matched to this facility.', {
       x: box.x + 15,
       y: box.y + box.height - 80,
       width: box.width - 30,
@@ -567,10 +565,10 @@ async function drawPhotosPage(pdf: PDFDocument, fonts: Fonts, data: FacilityProf
 function metadataKeywords(data: FacilityProfileData) {
   const facts = data.sitePlan?.facts.flatMap((fact) => [fact.label, formatFact(fact), fact.note ?? '']) ?? []
   const photoLabels = data.userPhotos?.photos.map((photo) => photo.label) ?? []
-  const includedOperations = data.operationsAccess === 'authorized' ? data.operations : undefined
+  const includedOperations = data.operations
   const contacts = includedOperations
     ? [includedOperations.source, ...includedOperations.contacts.flatMap((contact) => [contact.role, contact.name, contact.email ?? '', contactPhoneText(contact)])]
-    : [data.operationsAccess === 'public' ? 'Public profile contact details omitted' : 'Contacts pending review']
+    : ['Contacts pending review']
   return [
     `Facility ${facilityNumber(data.facility)}`,
     data.facility.id,

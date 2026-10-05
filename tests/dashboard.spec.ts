@@ -405,7 +405,7 @@ function expectVisiblePdfContacts(pageText: string, facilityId: string) {
   }
 }
 
-async function downloadFacilityProfile(page: Page, address: string, expectedFilename: string, options: { assertLoading?: boolean } = {}) {
+async function downloadFacilityProfile(page: Page, address: string, expectedFilename: string, options: { assertLoading?: boolean; saveAs?: string } = {}) {
   await chooseFromDirectory(page, address)
   await page.getByRole('tab', { name: 'Documents' }).click()
   const panel = page.locator('.facility-documents')
@@ -452,6 +452,7 @@ async function downloadFacilityProfile(page: Page, address: string, expectedFile
   page.off('request', recordFetch)
 
   expect(download.suggestedFilename()).toBe(expectedFilename)
+  if (options.saveAs) await download.saveAs(options.saveAs)
   if (options.assertLoading) expect(await page.evaluate(() => (window as Window & { __pdfLoadingObserved?: boolean }).__pdfLoadingObserved)).toBe(true)
   await expect(panel).toContainText('PDF download ready')
   for (const url of assetRequests) expect(new URL(url).origin).toBe(new URL(page.url()).origin)
@@ -3054,10 +3055,13 @@ test('site-plan tabs show sourced facts, redraw notes, official-sheet plans, and
   await expect(page.getByText('Site plan not provided')).toBeVisible()
 })
 
-test('facility profile downloads are four-page selected-facility PDFs with hours and media provenance', async ({ page }) => {
+test('anonymous facility profile downloads include contacts, hours, and media provenance', async ({ page }, testInfo) => {
   test.setTimeout(120_000)
 
-  const buenaPark = await downloadFacilityProfile(page, suppliedAddresses[0], 'facility-01-buena-park-valley-view-profile.pdf', { assertLoading: true })
+  const buenaPark = await downloadFacilityProfile(page, suppliedAddresses[0], 'facility-01-buena-park-valley-view-profile.pdf', {
+    assertLoading: true,
+    saveAs: testInfo.outputPath('anonymous-buena-park-profile.pdf'),
+  })
   expect(buenaPark.title).toContain('Facility 01')
   expect(buenaPark.keywords).toContain(suppliedAddresses[0])
   expect(buenaPark.keywords).toContain('1,034,026 SQF')
@@ -3065,10 +3069,9 @@ test('facility profile downloads are four-page selected-facility PDFs with hours
   expect(buenaPark.keywords).toContain('User-provided media')
   expect(buenaPark.keywords).toContain('8:00 AM–4:30 PM PST M-F')
   expect(buenaPark.keywords).toContain('User-provided · As supplied')
-  expect(buenaPark.visibleText).toContain('Contact details omitted')
-  expect(buenaPark.visibleText).toContain('Public facility profiles omit staff contact details')
-  expect(buenaPark.visibleText).not.toContain('Michelle Topete')
-  expect(buenaPark.visibleText).not.toContain('michelle.topete@unisco.com')
+  expectVisiblePdfContacts(buenaPark.visibleText, 'buena-park-valley-view')
+  expect(buenaPark.visibleText).not.toContain('Contact details omitted')
+  expect(buenaPark.keywords).not.toContain('Public profile contact details omitted')
   expect(buenaPark.visibleText).not.toContain('Contact information coming soon')
   expect(buenaPark.assetPaths.some((path) => path.startsWith('/media/operations/'))).toBe(false)
   expect(buenaPark.assetPaths).not.toContain(JOHN_DIAZ_PHOTO_URL)
@@ -3098,10 +3101,10 @@ test('facility profile downloads are four-page selected-facility PDFs with hours
   expect(somerset.keywords).toContain(suppliedAddresses[25])
   expect(somerset.keywords).toContain('Site plan not provided')
   expect(somerset.keywords).toContain('User-provided screenshot media')
-  // Public PDFs remain useful without exposing the contacts shown in the public Operations tab.
-  expect(somerset.visibleText).toContain('Contact details omitted')
+  expectVisiblePdfContacts(somerset.visibleText, 'somerset-cottontail')
+  expect(somerset.visibleText).not.toContain('Contact details omitted')
   expect(somerset.visibleText).not.toContain('John Diaz')
-  expect(somerset.visibleText).not.toContain('Michelle Topete')
+  expect(somerset.visibleText).toContain('Michelle Topete')
   expect(somerset.assetPaths).toEqual(['/media/somerset-cottontail.jpg'])
 
   await returnToDirectory(page)
@@ -3110,13 +3113,52 @@ test('facility profile downloads are four-page selected-facility PDFs with hours
   expect(seabrook.keywords).toContain('Official site plan')
   expect(seabrook.keywords).toContain('Official UNIS facility sheet (823 – Pooler).')
   expect(seabrook.keywords).toContain('User-provided screenshot media')
-  expect(seabrook.visibleText).toContain('Contact details omitted')
-  expect(seabrook.visibleText).toContain('Public facility profiles omit staff contact details')
-  expect(seabrook.visibleText).not.toContain('Michelle Topete')
-  expect(seabrook.visibleText).not.toContain('Lenivy Jackson')
-  expect(seabrook.visibleText).not.toContain('John Gleason')
+  expectVisiblePdfContacts(seabrook.visibleText, 'pooler-seabrook-building-2')
+  expect(seabrook.visibleText).not.toContain('Contact details omitted')
   expect(seabrook.assetPaths.some((path) => path.startsWith('/media/operations/'))).toBe(false)
   expect(seabrook.assetPaths.sort()).toEqual(['/media/pooler-seabrook-building-2.jpg', '/media/site-plans/pooler-seabrook-building-2.png'])
+
+  await returnToDirectory(page)
+  const joliet = await downloadFacilityProfile(page, suppliedAddresses[15], 'facility-16-joliet-brandon-profile.pdf', {
+    saveAs: testInfo.outputPath('anonymous-joliet-profile.pdf'),
+  })
+  expect(facilityOperations['joliet-brandon']?.contacts).toHaveLength(11)
+  expectVisiblePdfContacts(joliet.visibleText, 'joliet-brandon')
+  expect(joliet.visibleText).not.toContain('more in the Operations tab')
+  expect(joliet.assetPaths.some((path) => path.startsWith('/api/operations/portraits/'))).toBe(false)
+})
+
+test('anonymous and authenticated PDFs use the same facility-scoped contacts while admin APIs stay protected', async ({ page }, testInfo) => {
+  test.setTimeout(90_000)
+  expect((await page.request.get('/api/admin/availability')).status()).toBe(401)
+  expect((await page.request.get('/api/admin/availability/history')).status()).toBe(401)
+  expect((await page.request.post('/api/admin/facility-space/buena-park-valley-view', { data: {} })).status()).toBe(401)
+
+  const anonymous = await downloadFacilityProfile(page, suppliedAddresses[0], 'facility-01-buena-park-valley-view-profile.pdf', {
+    saveAs: testInfo.outputPath('anonymous-buena-park-audience-profile.pdf'),
+  })
+  expectVisiblePdfContacts(anonymous.visibleText, 'buena-park-valley-view')
+  expect(anonymous.visibleText).not.toContain('Fabian Quiroz')
+  expect(anonymous.visibleText).not.toContain('Jimmy Esparza')
+  await returnToDirectory(page)
+  await signInAsConfigurationAdmin(page)
+  const authenticated = await downloadFacilityProfile(page, suppliedAddresses[0], 'facility-01-buena-park-valley-view-profile.pdf')
+  expectVisiblePdfContacts(authenticated.visibleText, 'buena-park-valley-view')
+  const pageOneText = (text: string) => text.split('UNIS FACILITY PROFILE / 01')[0].replace(/\s+/g, ' ')
+  expect(pageOneText(authenticated.visibleText)).toBe(pageOneText(anonymous.visibleText))
+  expect(authenticated.keywords).toBe(anonymous.keywords)
+  expect(authenticated.assetPaths).toEqual(anonymous.assetPaths)
+})
+
+test('a facility without a matched contact directory exports the review state', async ({ page }) => {
+  await page.route('**/api/operations/buena-park-valley-view', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ operations: null, reviewRequired: true }) })
+  })
+  const profile = await downloadFacilityProfile(page, suppliedAddresses[0], 'facility-01-buena-park-valley-view-profile.pdf')
+  expect(profile.visibleText).toContain('Contacts pending review')
+  expect(profile.visibleText).toContain('No staff contacts were confidently matched to this facility.')
+  expect(profile.visibleText).not.toContain('Contact details omitted')
+  expect(profile.keywords).toContain('Contacts pending review')
 })
 
 test('facility profile Page 1 prints John Diaz corrected title, selected contacts, every phone, and no staff portraits', async ({ page }) => {
