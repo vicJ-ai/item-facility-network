@@ -113,6 +113,8 @@ Every tier also leaves out work the globe does not show:
 - Serving the `.br` copies needs the brotli module or a CDN in front of the container.
 - The Satoshi fonts are served as WOFF2 (about 43 KB each instead of 128 KB, converted with `node scripts/convert-fonts.mjs`) with the TTFs as fallback. `index.html` preloads the regular weight and preconnects to the Esri and NASA tile servers.
 
+**Rendering.** Views that receive unchanged props skip re-rendering (`memo`, with callbacks kept stable), so typing in search re-renders only the directory and the pins whose state changed, and a notice or theme change leaves the map, globe, and lists alone. Each pin state has one cached Leaflet icon (`src/views/map/pins.ts`), so a pin's DOM changes only when its status, selection, open state, or region focus does. Panning and zooming the flat map re-render nothing: the view is written straight onto the map stage's `data-center`, `data-zoom`, and `data-bounds` attributes (`src/views/map/map-view.ts`), which the tests read.
+
 **Checking a device.** Add `?debug=perf` to the address to show a readout of the frame rate, JavaScript heap, the quality tier in use, and the globe's GPU memory ([webgl-memory](https://github.com/greggman/webgl-memory), loaded only with that flag), alongside Cesium's own frame counter. GPU memory should stay flat across Preview loops. For a frame-by-frame look at draw calls, capture a frame with the [Spector.js](https://spector.babylonjs.com/) browser extension.
 
 ## Day and night
@@ -128,6 +130,14 @@ Open or closed status is computed in `src/lib/facility-open.ts` from each facili
 - The official ITEM SVG lockup is used without recoloring.
 - Colors follow the ITEM design system at design.item.com: purple `#6B46C1` is the primary brand color, and orange `#F97316` marks "open now" and the sun. Tokens, type scale, and component rules are documented in [DESIGN.md](./DESIGN.md).
 - Satoshi Variable and Satoshi Variable Italic are loaded from the supplied brand kit, as WOFF2 conversions of the supplied TTFs (which remain the fallback).
+
+## Code layout
+
+- `src/App.tsx` holds the top-level state and composes the screens; it should stay small.
+- `src/views/` holds the screens: `AppHeader`, `directory/` (the facility list), `facility/` (the selected facility's panel, tabs, and Full Details drawer), `map/` (the map stage, the Leaflet map, its pins and camera controllers), and `dashboard/` (the Preview and Regions controls).
+- `src/hooks/` holds one hook per concern, each owning its own state and any localStorage key: filters, local status overrides, selection, directory resizing, Dashboard regions, the globe, the Preview tour, the map clock, theme, and day/night preferences.
+- `src/components/` holds shared UI pieces, including the globe, the Preview tour, and the badges and previews used on several screens.
+- `src/lib/` holds pure logic with no React: display formatting, map links, open-now rules, the tour script, and URL options. `src/data/` holds the facility records.
 
 ## Run locally
 
