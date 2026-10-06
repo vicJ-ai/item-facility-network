@@ -2,10 +2,10 @@ import { memo } from 'react'
 import { ChevronRight, X } from 'lucide-react'
 import { FacilityPhoto } from '../../components/FacilityPhoto'
 import { dashboardRegions, type DashboardRegionId } from '../../data/dashboard-regions'
-import { networkFacilities, type Facility } from '../../data/facilities'
+import type { Facility } from '../../data/facilities'
 import { getFacilityMedia } from '../../data/facility-media'
 import { formatFacilityNumber, getFacilityTitle } from '../../lib/facility-display'
-import { getRegionFacilities } from '../../lib/region-facilities'
+import { useFacilityNetwork } from '../../network/facility-network-context'
 
 type RegionPanelProps = {
   activeRegionId: DashboardRegionId | null
@@ -20,6 +20,7 @@ type RegionPanelProps = {
 
 /** The Dashboard's list of regions; choosing one highlights it on the map and lists its facilities. */
 export const RegionPanel = memo(function RegionPanel({ activeRegionId, expandedRegionId, showFocusKey, onClose, onClear, onSelectRegion, onChooseFacility }: RegionPanelProps) {
+  const { networkFacilities, getRegionFacilities } = useFacilityNetwork()
   return (
     <aside id="dashboard-regions-panel" className="dashboard-region-panel" aria-label="Dashboard regions">
       <header>

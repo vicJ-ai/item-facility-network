@@ -178,5 +178,35 @@ export async function migrate(db: Db) {
       CREATE TRIGGER facility_space_save_audit_immutable BEFORE UPDATE OR DELETE ON facility_space_save_audit
         FOR EACH ROW EXECUTE FUNCTION prevent_facility_space_save_audit_mutation();
     EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+    CREATE TABLE IF NOT EXISTS facility_archive (
+      facility_id text PRIMARY KEY,
+      archived boolean NOT NULL,
+      archived_at timestamptz,
+      archived_by_name text,
+      version integer NOT NULL DEFAULT 1 CHECK (version >= 1),
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      updated_by_admin_id uuid NOT NULL REFERENCES facility_admins(id),
+      CHECK (NOT archived OR (archived_at IS NOT NULL AND archived_by_name IS NOT NULL))
+    );
+    CREATE TABLE IF NOT EXISTS facility_archive_audit (
+      id bigserial PRIMARY KEY,
+      facility_id text NOT NULL,
+      action text NOT NULL CHECK (action IN ('archive','restore')),
+      version integer NOT NULL CHECK (version >= 1),
+      actor_admin_id uuid NOT NULL REFERENCES facility_admins(id),
+      actor_iam_user_id text NOT NULL CHECK (actor_iam_user_id ~ '^[0-9]{1,128}$'),
+      actor_username text NOT NULL,
+      actor_display_name text NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS facility_archive_audit_history_idx ON facility_archive_audit(created_at DESC,id DESC);
+    CREATE INDEX IF NOT EXISTS facility_archive_audit_facility_history_idx ON facility_archive_audit(facility_id,created_at DESC,id DESC);
+    CREATE OR REPLACE FUNCTION prevent_facility_archive_audit_mutation() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN RAISE EXCEPTION 'facility archive audit is append-only'; END
+    $$;
+    DO $$ BEGIN
+      CREATE TRIGGER facility_archive_audit_immutable BEFORE UPDATE OR DELETE ON facility_archive_audit
+        FOR EACH ROW EXECUTE FUNCTION prevent_facility_archive_audit_mutation();
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$;
   `)
 }

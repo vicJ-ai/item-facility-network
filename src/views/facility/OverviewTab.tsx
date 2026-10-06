@@ -39,7 +39,7 @@ export function OverviewTab({ facility, sitePlan, status, openState, availableSq
 
       {isArchived(facility) ? (
         <section className="status-assignment" data-testid="archived-status">
-          <div><span className="eyebrow">Facility status</span><h2>Archived</h2><p>{archivedLabel(facility)}. Restoring it, and choosing its new status, is done as a site update.</p></div>
+          <div><span className="eyebrow">Facility status</span><h2>Archived</h2><p>{archivedLabel(facility)}. An administrator can restore it from the Operations workspace.</p></div>
         </section>
       ) : (
         <section className="status-assignment">

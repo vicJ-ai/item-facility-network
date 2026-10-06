@@ -4,9 +4,10 @@ import './index.css'
 import App from './App.tsx'
 import { AccessProvider } from './auth/AccessContext.tsx'
 import { AppErrorBoundary } from './components/AppErrorBoundary.tsx'
+import { FacilityNetworkProvider } from './network/FacilityNetworkProvider.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AppErrorBoundary><AccessProvider><App /></AccessProvider></AppErrorBoundary>
+    <AppErrorBoundary><AccessProvider><FacilityNetworkProvider><App /></FacilityNetworkProvider></AccessProvider></AppErrorBoundary>
   </StrictMode>,
 )

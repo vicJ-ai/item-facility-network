@@ -20,6 +20,7 @@ import { useFacilityOpenStates, useMapClock } from './hooks/useMapClock'
 import { useNotice } from './hooks/useNotice'
 import { usePreviewTour } from './hooks/usePreviewTour'
 import { useStatusOverrides } from './hooks/useStatusOverrides'
+import { useFacilityNetwork } from './network/facility-network-context'
 import { useTheme } from './hooks/useTheme'
 import { QUALITY_TIERS } from './lib/globe-quality'
 import { tourStopDetails } from './lib/preview-tour/stop-details'
@@ -39,6 +40,7 @@ if (DEBUG_PERF) void import('webgl-memory')
 
 function App() {
   const access = useAccess()
+  const network = useFacilityNetwork()
   const { availability, bulkRack, availabilityError, applyAvailability, applyBulkRack } = useFacilityAvailability()
   const { theme, toggleTheme } = useTheme()
   const [notice, setNotice] = useNotice()
@@ -60,7 +62,9 @@ function App() {
   const clock = useMapClock()
   const { openStates, openCount, withHoursCount } = useFacilityOpenStates(clock.mapTime)
 
-  const { selected, showcaseOpen } = selection
+  const { showcaseOpen } = selection
+  // Selection holds the facility object; reading it back by id picks up an archive or restore made since it was chosen.
+  const selected = selection.selected ? network.facilities.find((facility) => facility.id === selection.selected!.id) ?? selection.selected : null
   const selectedStatus = selected ? statuses.resolveStatus(selected) : 'Active'
   const operationsState = useFacilityOperations(selected?.id)
 
@@ -134,7 +138,7 @@ function App() {
       />
 
       <main ref={mainRef} className={`dashboard${appView === 'dashboard' || appView === 'operations' ? ' dashboard-map-only' : ''}${appView === 'operations' ? ' operations-view' : ''}${directory.isResizing ? ' is-resizing' : ''}`} style={{ '--directory-width': `${directory.width}px` } as CSSProperties}>
-        {appView === 'operations' && access.user && <OperationsWorkbench onAvailabilityChanged={applyAvailability} onBulkRackChanged={applyBulkRack} />}
+        {appView === 'operations' && access.user && <OperationsWorkbench onAvailabilityChanged={applyAvailability} onBulkRackChanged={applyBulkRack} onArchiveChanged={network.applyArchive} />}
         {appView === 'locations' && (
           <>
             <div className="mobile-explorer-switch" role="group" aria-label="Explorer view">

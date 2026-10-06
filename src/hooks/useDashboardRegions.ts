@@ -1,15 +1,15 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { dashboardRegions, type DashboardRegionId } from '../data/dashboard-regions'
-import { networkFacilities } from '../data/facilities'
 import { getRegionBoundary } from '../data/region-boundaries'
 import { hasUsableCoordinates } from '../lib/facility-display'
-import { getRegionFacilities } from '../lib/region-facilities'
+import { useFacilityNetwork } from '../network/facility-network-context'
 
 /**
  * The Dashboard's Regions panel and its active region. `overviewSignal` counts requests to frame the
  * current view; the flat map and the globe each fly when it changes.
  */
 export function useDashboardRegions() {
+  const { networkFacilities, getRegionFacilities } = useFacilityNetwork()
   const [panelOpen, setPanelOpen] = useState(false)
   const [activeRegionId, setActiveRegionId] = useState<DashboardRegionId | null>(null)
   const [expandedRegionId, setExpandedRegionId] = useState<DashboardRegionId | null>(null)

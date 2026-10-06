@@ -13,8 +13,8 @@ import type { PreviewTourState } from '../../hooks/usePreviewTour'
 import { assignableStatuses, statusColor, type MappableFacility } from '../../lib/facility-display'
 import type { FacilityOpenState } from '../../lib/facility-open'
 import type { BulkRackOverride } from '../../lib/effective-facility-space'
-import { mappableNetworkFacilities } from '../../lib/region-facilities'
 import { DEBUG_PERF } from '../../lib/url-params'
+import { useFacilityNetwork } from '../../network/facility-network-context'
 import { DashboardMapControls } from '../dashboard/DashboardMapControls'
 import { loadDashboardGlobe, warmGlobe } from '../deferred'
 import type { AppView, MobileView } from '../types'
@@ -62,6 +62,7 @@ type MapStageProps = {
 /** The map side of the screen: the flat map or globe, and every control drawn over it. */
 export function MapStage(props: MapStageProps) {
   const { view, regions, globe, preview, openStates, resolveStatus, mapTime, availability, bulkRack } = props
+  const { mappableNetworkFacilities } = useFacilityNetwork()
   const dayNight = useDayNightPreferences()
   const [mapLayer, setMapLayer] = useState<MapLayer>('street')
   // The globe opens on satellite imagery so it reads as the planet; its choice is independent of the flat map.

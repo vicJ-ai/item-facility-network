@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { dashboardRegions } from '../data/dashboard-regions'
-import { networkFacilities } from '../data/facilities'
 import { getRegionBoundary } from '../data/region-boundaries'
 import type { TourCameraApi } from '../lib/preview-tour/camera-api'
 import { buildTour } from '../lib/preview-tour/script'
-import { mappableNetworkFacilities } from '../lib/region-facilities'
+import { useFacilityNetwork } from '../network/facility-network-context'
 
 /**
  * The Dashboard's Preview tour. It never writes region, panel, or projection state; it only borrows
  * the camera, through `tourApi`, and reports which regions it is showing through `focus`.
  */
 export function usePreviewTour(dashboardShown: boolean) {
+  const { networkFacilities, mappableNetworkFacilities } = useFacilityNetwork()
   const [active, setActive] = useState(false)
   const [tourApi, setTourApi] = useState<TourCameraApi | null>(null)
   const [focus, setFocus] = useState<readonly string[] | null>(null)
@@ -25,13 +25,13 @@ export function usePreviewTour(dashboardShown: boolean) {
     toggleRef.current?.focus()
   }, [active])
 
-  const chapters = useMemo(() => buildTour(networkFacilities, dashboardRegions), [])
+  const chapters = useMemo(() => buildTour(networkFacilities, dashboardRegions), [networkFacilities])
   const boundary = useMemo(() => focus ? focus.flatMap((regionId) => getRegionBoundary(regionId) ?? []) : null, [focus])
   const targets = useMemo(() => {
     if (!focus) return mappableNetworkFacilities
     const numbers = new Set<number>(dashboardRegions.filter((region) => focus.includes(region.id)).flatMap((region) => region.facilityNumbers))
     return mappableNetworkFacilities.filter((facility) => numbers.has(facility.number))
-  }, [focus])
+  }, [focus, mappableNetworkFacilities])
   const targetIds = useMemo(() => new Set(targets.map((facility) => facility.id)), [targets])
 
   const start = useCallback(() => {

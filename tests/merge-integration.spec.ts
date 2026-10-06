@@ -12,6 +12,7 @@ test.beforeEach(async ({ page }) => {
   await page.route('**/api/auth/session', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ authenticated: false }) }))
   await page.route('**/api/availability', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ availability: [{ facilityId: 'houston-navigation', squareFeet: 0 }] }) }))
   await page.route('**/api/bulk-rack', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ bulkRack: [{ facilityId: 'houston-navigation', bulkSquareFeet: 0, rackPalletPositions: 12 }] }) }))
+  await page.route('**/api/archived', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ archived: [] }) }))
   await page.route('**/api/operations/*', (route) => {
     const path = new URL(route.request().url()).pathname
     const facilityId = decodeURIComponent(path.slice('/api/operations/'.length))

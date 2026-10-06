@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { AlertCircle, Building2, ChevronLeft, ChevronRight, History, LoaderCircle, RefreshCw, Save, Warehouse } from 'lucide-react'
+import { AlertCircle, Archive, ArchiveRestore, Building2, ChevronLeft, ChevronRight, History, LoaderCircle, RefreshCw, Save, Warehouse } from 'lucide-react'
 import { useAccess } from '../auth/access-context'
-import { facilities } from '../data/facilities'
+import { archivedLabel, facilities, isArchived } from '../data/facilities'
 import { formatAvailableSpaceMonth } from '../data/facility-space'
+import type { AdminArchive, ArchiveHistoryPage } from '../types/archive'
 import type { AdminFacilitySpace, FacilitySpaceHistoryEntry, FacilitySpaceHistoryPage, PublicAvailability, PublicBulkRack } from '../types/availability'
 
 const emptyHistory: FacilitySpaceHistoryPage = { entries: [], page: 1, pageSize: 10, total: 0, totalPages: 0 }
+const emptyArchiveHistory: ArchiveHistoryPage = { entries: [], page: 1, pageSize: 10, total: 0, totalPages: 0 }
 const numberFormat = new Intl.NumberFormat('en-US')
 
 function sourceLabel(source: 'administrator' | 'source-snapshot' | 'pending', snapshotAsOf: string | null, unconfirmed = false) {
@@ -113,9 +115,78 @@ function FacilitySpaceEditor({ record, onSaved }: { record: AdminFacilitySpace; 
   </form>
 }
 
-export function OperationsWorkbench({ onAvailabilityChanged, onBulkRackChanged }: { onAvailabilityChanged: (entry: PublicAvailability) => void; onBulkRackChanged: (entry: PublicBulkRack) => void }) {
+function FacilityArchivePanel({ record, onChanged }: { record: AdminArchive; onChanged: (entry: AdminArchive) => void }) {
+  const { authorizedFetch } = useAccess()
+  const facility = facilities.find((item) => item.id === record.facilityId)!
+  const [confirming, setConfirming] = useState(false)
+  const [pending, setPending] = useState(false)
+  const [message, setMessage] = useState<{ kind: 'error' | 'success'; text: string } | null>(null)
+  const name = `Facility ${String(facility.number).padStart(2, '0')} – ${facility.city ?? facility.street}, ${facility.state}`
+  const archiving = !record.archived
+
+  const submit = async () => {
+    setPending(true); setMessage(null)
+    try {
+      const response = await authorizedFetch(`/api/admin/archive/${encodeURIComponent(record.facilityId)}`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ archived: archiving, version: record.version }),
+      })
+      const responseBody = await response.json().catch(() => ({})) as { error?: string; archive?: AdminArchive }
+      if (!response.ok || !responseBody.archive) {
+        if (responseBody.error === 'stale_archive') throw new Error('The archive status changed elsewhere. Use Refresh, review it, and try again.')
+        if (responseBody.error === 'actor_access_revoked') throw new Error('Your administrator access is no longer active.')
+        throw new Error(archiving ? 'The facility could not be archived.' : 'The facility could not be restored.')
+      }
+      setMessage({ kind: 'success', text: archiving ? 'Facility archived. It is now hidden from the live network for every viewer.' : 'Facility restored to the live network.' })
+      onChanged(responseBody.archive)
+    } catch (error) {
+      setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'The archive status could not be saved.' })
+    } finally {
+      setPending(false); setConfirming(false)
+    }
+  }
+
+  const archivedText = record.archived && record.archivedAt && record.archivedBy
+    ? archivedLabel({ ...facility, archived: { date: record.archivedAt.slice(0, 10), by: record.archivedBy } })
+    : null
+
+  return <section className="facility-archive-panel" aria-label={`Archive status for ${facility.fullAddress}`}>
+    <div className="facility-archive-summary">
+      <span className="eyebrow">Facility status</span>
+      {isArchived(facility)
+        ? <p><strong>{archivedLabel(facility)}.</strong> This facility is archived in the site data and can only be restored there.</p>
+        : archivedText
+          ? <p><strong>{archivedText}.</strong> It is hidden from the map, regions, Preview tour, and totals for every viewer. Its records are kept.</p>
+          : <p><strong>In the live network.</strong> Archiving hides it from the map, regions, Preview tour, and totals for every viewer, and keeps all of its records.</p>}
+    </div>
+    {!isArchived(facility) && !confirming && <button type="button" className={archiving ? 'secondary-button danger' : 'secondary-button'} onClick={() => { setConfirming(true); setMessage(null) }} disabled={pending}>
+      {archiving ? <Archive /> : <ArchiveRestore />}{archiving ? 'Archive facility' : 'Restore facility'}
+    </button>}
+    {confirming && <div className="facility-archive-confirm" role="group" aria-label={archiving ? 'Confirm archive' : 'Confirm restore'}>
+      <p>{archiving
+        ? `Archive ${name}? It will be hidden from the map, regions, Preview tour, and totals for every viewer. Its records are kept.`
+        : `Restore ${name} to the live network for every viewer?`}</p>
+      <div>
+        <button type="button" className="secondary-button" onClick={() => setConfirming(false)} disabled={pending}>Cancel</button>
+        <button type="button" className={archiving ? 'primary-button danger' : 'primary-button'} onClick={() => void submit()} disabled={pending}>
+          {pending ? <LoaderCircle className="spin" /> : archiving ? <Archive /> : <ArchiveRestore />}{pending ? 'Saving…' : archiving ? 'Confirm archive' : 'Confirm restore'}
+        </button>
+      </div>
+    </div>}
+    {message && <div className={`availability-message ${message.kind}`} role={message.kind === 'error' ? 'alert' : 'status'}>{message.kind === 'error' && <AlertCircle />}{message.text}</div>}
+  </section>
+}
+
+export function OperationsWorkbench({ onAvailabilityChanged, onBulkRackChanged, onArchiveChanged }: {
+  onAvailabilityChanged: (entry: PublicAvailability) => void
+  onBulkRackChanged: (entry: PublicBulkRack) => void
+  onArchiveChanged: (entry: AdminArchive) => void
+}) {
   const { authorizedFetch, user } = useAccess()
   const [records, setRecords] = useState<AdminFacilitySpace[]>([])
+  const [archiveRecords, setArchiveRecords] = useState<AdminArchive[]>([])
+  const [archiveHistory, setArchiveHistory] = useState<ArchiveHistoryPage>(emptyArchiveHistory)
+  const [archivePage, setArchivePage] = useState(1)
+  const [archiveHistoryLoading, setArchiveHistoryLoading] = useState(true)
   const [selectedId, setSelectedId] = useState(facilities[0].id)
   const [history, setHistory] = useState<FacilitySpaceHistoryPage>(emptyHistory)
   const [page, setPage] = useState(1)
@@ -126,9 +197,10 @@ export function OperationsWorkbench({ onAvailabilityChanged, onBulkRackChanged }
   const loadRecords = useCallback(async () => {
     setLoading(true); setError('')
     try {
-      const response = await authorizedFetch('/api/admin/facility-space')
-      if (!response.ok) throw new Error()
+      const [response, archiveResponse] = await Promise.all([authorizedFetch('/api/admin/facility-space'), authorizedFetch('/api/admin/archive')])
+      if (!response.ok || !archiveResponse.ok) throw new Error()
       setRecords(((await response.json()) as { facilities: AdminFacilitySpace[] }).facilities)
+      setArchiveRecords(((await archiveResponse.json()) as { facilities: AdminArchive[] }).facilities)
     } catch {
       setError('Facility space could not be loaded.')
     } finally { setLoading(false) }
@@ -145,13 +217,28 @@ export function OperationsWorkbench({ onAvailabilityChanged, onBulkRackChanged }
     } finally { setHistoryLoading(false) }
   }, [authorizedFetch])
 
+  const loadArchiveHistory = useCallback(async (facilityId: string, nextPage: number) => {
+    setArchiveHistoryLoading(true)
+    try {
+      const response = await authorizedFetch(`/api/admin/archive/history?facilityId=${encodeURIComponent(facilityId)}&page=${nextPage}`)
+      if (!response.ok) throw new Error()
+      setArchiveHistory(await response.json() as ArchiveHistoryPage)
+    } catch {
+      setError('Archive history could not be loaded.')
+    } finally { setArchiveHistoryLoading(false) }
+  }, [authorizedFetch])
+
   // These effects synchronize the authenticated workbench with server-owned records.
   // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => { void loadRecords() }, [loadRecords])
   // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => { void loadHistory(selectedId, page) }, [loadHistory, page, selectedId])
+  // oxlint-disable-next-line react/set-state-in-effect
+  useEffect(() => { void loadArchiveHistory(selectedId, archivePage) }, [loadArchiveHistory, archivePage, selectedId])
 
   const selected = useMemo(() => records.find((record) => record.facilityId === selectedId), [records, selectedId])
+  const selectedArchive = useMemo(() => archiveRecords.find((record) => record.facilityId === selectedId), [archiveRecords, selectedId])
+  const archivedIds = useMemo(() => new Set(archiveRecords.filter((record) => record.archived).map((record) => record.facilityId)), [archiveRecords])
   const saveComplete = (entry: AdminFacilitySpace) => {
     setRecords((current) => current.map((record) => record.facilityId === entry.facilityId ? entry : record))
     if (entry.valueSource === 'administrator' && entry.squareFeet !== null) onAvailabilityChanged({ facilityId: entry.facilityId, squareFeet: entry.squareFeet })
@@ -162,24 +249,38 @@ export function OperationsWorkbench({ onAvailabilityChanged, onBulkRackChanged }
     setPage(1)
     void loadHistory(entry.facilityId, 1)
   }
-  const refreshWorkbench = () => { void loadRecords(); void loadHistory(selectedId, page) }
+  const archiveComplete = (entry: AdminArchive) => {
+    setArchiveRecords((current) => current.map((record) => record.facilityId === entry.facilityId ? entry : record))
+    onArchiveChanged(entry)
+    setArchivePage(1)
+    void loadArchiveHistory(entry.facilityId, 1)
+  }
+  const refreshWorkbench = () => { void loadRecords(); void loadHistory(selectedId, page); void loadArchiveHistory(selectedId, archivePage) }
 
   return <section className="operations-workbench" aria-label="Operations facility space workbench">
-    <header className="workbench-header"><div><span className="eyebrow">Administrator workspace</span><h1>Facility space</h1><p>Update public available, bulk, and rack figures without changing sourced capacity facts.</p></div><div className="workbench-header-actions"><button className="secondary-button" type="button" onClick={refreshWorkbench} disabled={loading || historyLoading}><RefreshCw />Refresh</button><span><Building2 />{facilities.length} facilities</span></div></header>
+    <header className="workbench-header"><div><span className="eyebrow">Administrator workspace</span><h1>Facility space</h1><p>Update public available, bulk, and rack figures without changing sourced capacity facts, and archive or restore facilities.</p></div><div className="workbench-header-actions"><button className="secondary-button" type="button" onClick={refreshWorkbench} disabled={loading || historyLoading || archiveHistoryLoading}><RefreshCw />Refresh</button><span><Building2 />{facilities.length} facilities</span></div></header>
     {error && <div className="workbench-error" role="alert"><AlertCircle />{error}<button type="button" onClick={refreshWorkbench}>Retry</button></div>}
     <div className="workbench-layout">
       <aside className="workbench-facilities" aria-label="Select a facility">
         {facilities.map((facility) => {
           const record = records.find((item) => item.facilityId === facility.id)
-          return <button key={facility.id} type="button" className={selectedId === facility.id ? 'active' : ''} aria-pressed={selectedId === facility.id} onClick={() => { setSelectedId(facility.id); setPage(1); setError('') }}><span><small>Facility {String(facility.number).padStart(2, '0')}</small><strong>{facility.city ?? facility.street}, {facility.state}</strong></span><b>{record?.squareFeet === null || record === undefined ? 'Pending' : `${numberFormat.format(record.squareFeet)} SQF`}</b></button>
+          return <button key={facility.id} type="button" className={selectedId === facility.id ? 'active' : ''} aria-pressed={selectedId === facility.id} onClick={() => { setSelectedId(facility.id); setPage(1); setArchivePage(1); setError('') }}><span><small>Facility {String(facility.number).padStart(2, '0')}{(isArchived(facility) || archivedIds.has(facility.id)) && <em className="workbench-archived-tag">Archived</em>}</small><strong>{facility.city ?? facility.street}, {facility.state}</strong></span><b>{record?.squareFeet === null || record === undefined ? 'Pending' : `${numberFormat.format(record.squareFeet)} SQF`}</b></button>
         })}
       </aside>
       <div className="workbench-main">
-        {loading || !selected ? <div className="workbench-loading" role="status"><LoaderCircle className="spin" />Loading facility space…</div> : <FacilitySpaceEditor key={selected.facilityId} record={selected} onSaved={saveComplete} />}
+        {loading || !selected ? <div className="workbench-loading" role="status"><LoaderCircle className="spin" />Loading facility space…</div> : <>
+          {selectedArchive && <FacilityArchivePanel key={`archive-${selectedArchive.facilityId}`} record={selectedArchive} onChanged={archiveComplete} />}
+          <FacilitySpaceEditor key={selected.facilityId} record={selected} onSaved={saveComplete} />
+        </>}
         <section className="availability-history" aria-labelledby="facility-space-history-title">
           <header><div><History /><span><span className="eyebrow">Immutable audit log</span><h2 id="facility-space-history-title">Change history</h2></span></div><small>Signed in as {user?.username} · IAM ID {user?.iamUserId}</small></header>
           {historyLoading ? <div className="history-state" role="status"><LoaderCircle className="spin" />Loading history…</div> : history.entries.length === 0 ? <div className="history-state"><Warehouse />No facility-space saves recorded for this facility.</div> : <div className="history-table-wrap"><table><thead><tr><th>Date (UTC)</th><th>Available SQF</th><th>Bulk SQF</th><th>Rack positions</th><th>Updater</th></tr></thead><tbody>{history.entries.map((entry) => <tr key={entry.id} data-record-type={entry.recordType}><td><time dateTime={entry.createdAt}>{new Date(entry.createdAt).toLocaleString('en-US', { timeZone: 'UTC', dateStyle: 'medium', timeStyle: 'short' })} UTC</time>{entry.recordType !== 'combined' && <small>Legacy record</small>}</td><td><HistoryChange metric="available" oldValue={entry.oldAvailableSquareFeet} newValue={entry.newAvailableSquareFeet} oldValueSource={entry.oldAvailableValueSource} /></td><td><HistoryChange metric="bulk" oldValue={entry.oldBulkSquareFeet} newValue={entry.newBulkSquareFeet} oldValueSource={entry.oldBulkValueSource} /></td><td><HistoryChange metric="rack" oldValue={entry.oldRackPalletPositions} newValue={entry.newRackPalletPositions} oldValueSource={entry.oldRackValueSource} /></td><td>{entry.actorUsername}<small>IAM ID {entry.actorIamUserId}</small></td></tr>)}</tbody></table></div>}
           <footer><span>{history.total} {history.total === 1 ? 'record' : 'records'}</span><div><button type="button" aria-label="Previous history page" disabled={historyLoading || page <= 1} onClick={() => setPage((current) => current - 1)}><ChevronLeft /></button><span>Page {history.totalPages ? history.page : 0} of {history.totalPages}</span><button type="button" aria-label="Next history page" disabled={historyLoading || page >= history.totalPages} onClick={() => setPage((current) => current + 1)}><ChevronRight /></button></div></footer>
+        </section>
+        <section className="availability-history archive-history" aria-labelledby="archive-history-title">
+          <header><div><Archive /><span><span className="eyebrow">Immutable audit log</span><h2 id="archive-history-title">Archive history</h2></span></div></header>
+          {archiveHistoryLoading ? <div className="history-state" role="status"><LoaderCircle className="spin" />Loading history…</div> : archiveHistory.entries.length === 0 ? <div className="history-state"><Archive />No archive changes recorded for this facility.</div> : <div className="history-table-wrap"><table><thead><tr><th>Date (UTC)</th><th>Action</th><th>Updater</th></tr></thead><tbody>{archiveHistory.entries.map((entry) => <tr key={entry.id}><td><time dateTime={entry.createdAt}>{new Date(entry.createdAt).toLocaleString('en-US', { timeZone: 'UTC', dateStyle: 'medium', timeStyle: 'short' })} UTC</time></td><td>{entry.action === 'archive' ? 'Archived' : 'Restored'}</td><td>{entry.actorDisplayName}<small>{entry.actorUsername} · IAM ID {entry.actorIamUserId}</small></td></tr>)}</tbody></table></div>}
+          <footer><span>{archiveHistory.total} {archiveHistory.total === 1 ? 'record' : 'records'}</span><div><button type="button" aria-label="Previous archive history page" disabled={archiveHistoryLoading || archivePage <= 1} onClick={() => setArchivePage((current) => current - 1)}><ChevronLeft /></button><span>Page {archiveHistory.totalPages ? archiveHistory.page : 0} of {archiveHistory.totalPages}</span><button type="button" aria-label="Next archive history page" disabled={archiveHistoryLoading || archivePage >= archiveHistory.totalPages} onClick={() => setArchivePage((current) => current + 1)}><ChevronRight /></button></div></footer>
         </section>
       </div>
     </div>

@@ -16,6 +16,7 @@ import {
   adminAvailability, adminFacilitySpace, availabilityHistory, facilitySpaceHistory, publicAvailability, publicBulkRack,
   saveAvailability, saveFacilitySpace, validSquareFeet,
 } from './availability.js'
+import { adminArchive, archiveHistory, publicArchive, setFacilityArchived } from './archive.js'
 import { isKnownFacilityId } from './data/facility-ids.js'
 
 type Dependencies = { config: AppConfig; db: Db }
@@ -156,6 +157,10 @@ export function createApp({ config, db }: Dependencies) {
     try { response.json({ bulkRack: await publicBulkRack(db) }) } catch { fail(response, 503, 'service_unavailable') }
   })
 
+  app.get('/api/archived', async (_request, response) => {
+    try { response.json({ archived: await publicArchive(db) }) } catch { fail(response, 503, 'service_unavailable') }
+  })
+
   app.get('/api/auth/session', async (request, response) => {
     try {
       const admin = await resolveSession(db, config, request)
@@ -279,6 +284,33 @@ export function createApp({ config, db }: Dependencies) {
       if (code === 'actor_access_revoked') return fail(response, 403, code)
       if (code === 'stale_availability' || code === 'stale_bulk_rack') return fail(response, 409, code)
       if (code === 'unknown_facility' || code === 'invalid_space') return fail(response, 400, code)
+      return fail(response, 503, 'service_unavailable')
+    }
+  })
+
+  app.get('/api/admin/archive', requireAuth, async (_request, response) => {
+    try { response.json({ facilities: await adminArchive(db) }) } catch { fail(response, 503, 'service_unavailable') }
+  })
+
+  app.get('/api/admin/archive/history', requireAuth, async (request, response) => {
+    const rawPage = typeof request.query.page === 'string' ? request.query.page : '1'
+    const facilityId = typeof request.query.facilityId === 'string' && request.query.facilityId ? request.query.facilityId : undefined
+    if (!/^\d+$/.test(rawPage) || (facilityId && !isKnownFacilityId(facilityId))) return fail(response, 400, 'invalid_query')
+    try { response.json(await archiveHistory(db, { page: Number(rawPage), ...(facilityId ? { facilityId } : {}) })) } catch { fail(response, 400, 'invalid_query') }
+  })
+
+  app.post('/api/admin/archive/:facilityId', requireAuth, requireMutation, async (request: AuthorizedRequest, response) => {
+    const facilityId = Array.isArray(request.params.facilityId) ? request.params.facilityId[0] : request.params.facilityId
+    const archived = request.body?.archived
+    const version = request.body?.version
+    if (!isKnownFacilityId(facilityId) || typeof archived !== 'boolean' || !Number.isSafeInteger(version) || version < 0) return fail(response, 400, 'invalid_archive')
+    try {
+      response.json({ ok: true, archive: await setFacilityArchived(db, config.tenantId, request.admin!, { facilityId, archived, version }) })
+    } catch (error) {
+      const code = error instanceof Error ? error.message : ''
+      if (code === 'actor_access_revoked') return fail(response, 403, code)
+      if (code === 'stale_archive') return fail(response, 409, code)
+      if (code === 'unknown_facility' || code === 'invalid_archive') return fail(response, 400, code)
       return fail(response, 503, 'service_unavailable')
     }
   })

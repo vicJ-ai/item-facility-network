@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from 'react'
-import { facilities, networkFacilities, type DisplayStatus, type Facility } from '../data/facilities'
+import { facilities, type DisplayStatus, type Facility } from '../data/facilities'
 import { resolveFacilityStatus, type StatusAssignments } from '../lib/facility-display'
+import { useFacilityNetwork } from '../network/facility-network-context'
 import { usePersistentState } from './usePersistentState'
 
 const STATUS_STORAGE_KEY = 'facility-status-assignments-v3'
@@ -21,6 +22,7 @@ const saveStatuses = (assignments: StatusAssignments) => JSON.stringify(assignme
 
 /** Local status choices, saved only in this browser, layered over each facility's supplied status. */
 export function useStatusOverrides() {
+  const { networkFacilities } = useFacilityNetwork()
   const [assignments, setAssignments] = usePersistentState(STATUS_STORAGE_KEY, loadStatuses, saveStatuses)
 
   // Its identity changes only when an assignment does, so memoized views can depend on it.
@@ -37,7 +39,7 @@ export function useStatusOverrides() {
       active: statuses.filter((item) => item === 'Active').length,
       coming: statuses.filter((item) => item === 'Coming Soon').length,
     }
-  }, [resolveStatus])
+  }, [networkFacilities, resolveStatus])
 
   return { resolveStatus, assignStatus, counts }
 }

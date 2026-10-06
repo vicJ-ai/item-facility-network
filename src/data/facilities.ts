@@ -1,6 +1,7 @@
 export type FacilityStatus = 'Active' | 'Coming Soon' | 'Planned'
-// Archived is set only in this data file, never through the per-browser status dropdown, so every viewer sees the same
-// archived facilities. An archived facility keeps all of its records but is left out of the live network.
+// Archived is never set through the per-browser status dropdown, so every viewer sees the same archived facilities. It
+// is set here, or by an administrator in the Operations workspace (stored on the server and merged in by
+// src/lib/facility-network.ts). An archived facility keeps all of its records but is left out of the live network.
 export type DisplayStatus = FacilityStatus | 'Unassigned' | 'Archived'
 export type CoordinatePrecision = 'Point address' | 'Street address' | 'Approximate' | 'Unavailable'
 export type FacilityType = 'UF ONLY' | 'UF/CUBEWORKS' | 'Samsung Warehouse'
@@ -187,7 +188,10 @@ export const facilities: Facility[] = [
 
 export const isArchived = (facility: Facility) => facility.status === 'Archived'
 
-/** The live network: every facility that is not archived. Maps, regions, the Preview tour, and totals use this list. */
+/**
+ * The live network from this data file alone. The app reads the network through useFacilityNetwork(), which also
+ * applies administrator archives; these lists serve code that runs without the server, such as tour narration.
+ */
 export const networkFacilities = facilities.filter((facility) => !isArchived(facility))
 
 export const archivedFacilities = facilities.filter(isArchived)

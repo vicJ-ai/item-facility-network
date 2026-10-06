@@ -3,11 +3,12 @@ import { ChevronRight, MapPin, Search } from 'lucide-react'
 import { EmptyState } from '../../components/EmptyState'
 import { FacilityPhoto } from '../../components/FacilityPhoto'
 import { OpenStateBadge } from '../../components/OpenStateBadge'
-import { archivedFacilities, networkFacilities, type DisplayStatus, type Facility } from '../../data/facilities'
+import type { DisplayStatus, Facility } from '../../data/facilities'
 import { getFacilityMedia } from '../../data/facility-media'
 import type { FacilityTypeFilter, StatusFilter } from '../../hooks/useFacilityFilters'
 import { formatFacilityNumber, getFacilityTitle, statusClass } from '../../lib/facility-display'
 import type { FacilityOpenState } from '../../lib/facility-open'
+import { useFacilityNetwork } from '../../network/facility-network-context'
 
 type FacilityDirectoryProps = {
   facilities: readonly Facility[]
@@ -25,6 +26,7 @@ type FacilityDirectoryProps = {
 
 /** The searchable, filterable facility roster beside the map. */
 export const FacilityDirectory = memo(function FacilityDirectory({ facilities, search, onSearchChange, statusFilter, onStatusFilterChange, typeFilter, onTypeFilterChange, selectedId, resolveStatus, openStates, onChoose }: FacilityDirectoryProps) {
+  const { archivedFacilities, networkFacilities } = useFacilityNetwork()
   return (
     <div className="locations-card directory-panel">
       <div className="directory-heading">

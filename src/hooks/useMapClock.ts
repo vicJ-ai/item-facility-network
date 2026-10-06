@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { facilities, networkFacilities } from '../data/facilities'
 import { getFacilityOperatingHours } from '../data/facility-hours'
 import { getFacilityOpenState, type FacilityOpenState } from '../lib/facility-open'
+import { useFacilityNetwork } from '../network/facility-network-context'
 
 const CLOCK_TICK_MS = 30_000
 
@@ -25,6 +25,7 @@ export function useMapClock() {
 
 /** Each facility's open or closed state at `time`, with the network's open-now counts. */
 export function useFacilityOpenStates(time: number) {
+  const { facilities, networkFacilities } = useFacilityNetwork()
   return useMemo(() => {
     const at = new Date(time)
     const openStates = Object.fromEntries(facilities.map((facility) => [facility.id, getFacilityOpenState(facility, getFacilityOperatingHours(facility.id), at)])) as Record<string, FacilityOpenState>
@@ -33,5 +34,5 @@ export function useFacilityOpenStates(time: number) {
       openCount: networkFacilities.filter((facility) => openStates[facility.id].isOpen).length,
       withHoursCount: networkFacilities.filter((facility) => openStates[facility.id].hoursKnown).length,
     }
-  }, [time])
+  }, [facilities, networkFacilities, time])
 }

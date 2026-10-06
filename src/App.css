@@ -539,6 +539,22 @@ tbody tr:hover td:last-child, tbody tr.selected td:last-child { color: var(--pri
 .availability-current dt { color: var(--muted); font-size: 11px; }
 .availability-current dd { margin: 2px 0 0; font-size: 13px; font-weight: 700; }
 .availability-current small { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+.facility-archive-panel { padding: 14px 18px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px 18px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); }
+.facility-archive-summary p { margin: 3px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.facility-archive-summary strong { margin-right: 4px; color: var(--text); }
+.facility-archive-confirm { grid-column: 1 / -1; padding: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--border)); border-radius: 8px; background: var(--surface); }
+.facility-archive-confirm p { margin: 0; font-size: 12px; line-height: 1.45; }
+.facility-archive-confirm > div { flex: 0 0 auto; display: flex; gap: 8px; }
+.facility-archive-panel .secondary-button.danger { color: var(--danger); }
+.facility-archive-panel .primary-button.danger, .facility-archive-panel .primary-button.danger:hover { border-color: var(--danger); color: var(--surface); background: var(--danger); }
+.workbench-archived-tag { margin-left: 6px; padding: 1px 5px; border-radius: 4px; color: #fff; background: #4b5563; font-size: 9px; font-style: normal; }
+.archive-history table { width: 100%; }
+.archive-history th:nth-child(n), .archive-history td:nth-child(n) { width: auto; }
+.archive-history td:last-child { padding-left: 12px; color: var(--text); }
+@media (max-width: 760px) {
+  .facility-archive-panel { grid-template-columns: 1fr; }
+  .facility-archive-confirm { flex-direction: column; align-items: stretch; }
+}
 .bulk-rack-refresh-error { display: block; margin-top: 6px; color: var(--danger); font-size: 11px; }
 .availability-history { min-width: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface); }
 .availability-history > header { min-height: 62px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; gap: 18px; border-bottom: 1px solid var(--border); }
