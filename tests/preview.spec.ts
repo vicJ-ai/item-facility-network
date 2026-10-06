@@ -297,10 +297,10 @@ test.describe('narration', () => {
   test('each stop reads its number, place, total, and reported available space', () => {
     expect(lineFor('opening')).toBe('Welcome to the Item facility network.')
     expect(lineFor('chapter:florida')).toBe('Florida has one facility.')
-    expect(lineFor('stop:roanoke-highway-114')).toBe('Facility five, in Roanoke, Texas. It offers five hundred sixty-eight thousand, six hundred thirty-two square feet, with four thousand available.')
-    expect(lineFor('stop:tacoma-steele')).toBe('Facility eleven, in Tacoma, Washington. It offers two hundred seventy-three thousand, eight hundred sixteen square feet, with no space available right now.')
+    expect(lineFor('stop:roanoke-highway-114')).toBe('Roanoke, Texas. It offers five hundred sixty-eight thousand, six hundred thirty-two square feet, with four thousand available.')
+    expect(lineFor('stop:tacoma-steele')).toBe('Tacoma, Washington. It offers two hundred seventy-three thousand, eight hundred sixteen square feet, with no space available right now.')
     // No supplied city, and no available figure reported.
-    expect(lineFor('stop:tennessee-quality-drive')).toBe('Facility nine, in Tennessee. It offers one hundred thousand, fifty square feet.')
+    expect(lineFor('stop:tennessee-quality-drive')).toBe('Tennessee. It offers one hundred thousand, fifty square feet.')
     expect(lineFor('finale')).toBe('Twenty-nine facilities across thirteen regions. One network.')
   })
 

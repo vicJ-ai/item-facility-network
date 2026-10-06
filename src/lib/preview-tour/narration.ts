@@ -55,11 +55,11 @@ function pronounce(text: string) {
   return Object.entries(PRONUNCIATIONS).reduce((line, [word, spoken]) => line.replace(new RegExp(`\\b${word}\\b`, 'g'), spoken), text)
 }
 
-/** Facility number, place, then total and available square feet: the figures the stop's card shows. */
+/** Place, then total and available square feet: the figures the stop's card shows. The facility number is not spoken. */
 function stopLine(facility: TourFacility) {
   const place = facility.city ? `${facility.city}, ${facility.stateName}` : facility.stateName
   const { totalSquareFeet, available } = getFacilitySquareFootage(facility.id)
-  const intro = `Facility ${spokenNumber(facility.number)}, in ${place}.`
+  const intro = `${place}.`
   if (totalSquareFeet === undefined) return intro
   // Available is left out while it is unreported or unconfirmed, as on the card.
   const space = !hasReportedAvailableSpace(available)
