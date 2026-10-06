@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { inflateSync } from 'node:zlib'
 import { PDFDocument } from 'pdf-lib'
-import { facilities } from '../src/data/facilities'
+import { archivedFacilities, archivedLabel, facilities, isArchived, networkFacilities, type Facility } from '../src/data/facilities'
 import { facilityBuildingDetails } from '../src/data/facility-building'
 import { facilityTopCustomers } from '../src/data/facility-customers'
 import { CONFIRMED_OPERATING_HOURS_SOURCE, facilityOperatingHours, formatOperatingHours, OPERATING_HOURS_SOURCE } from '../src/data/facility-hours'
@@ -660,7 +660,7 @@ test('opens with the exact 29-address directory beside the 29-pin map and no sel
   await expect(page.getByTestId('map-open-in-maps')).toHaveCount(0)
   await expect(page.getByTestId('overview-map-preview')).toHaveCount(0)
   await expectDefaultFacilityStatuses(page)
-  await expect(page.getByLabel('Filter by status').locator('option')).toHaveText(['All statuses', 'Active', 'Coming Soon', 'Planned', 'Unassigned'])
+  await expect(page.getByLabel('Filter by status').locator('option')).toHaveText(['All statuses', 'Active', 'Coming Soon', 'Planned', 'Unassigned', 'Archived'])
   await expect(page.getByLabel('Filter by facility type')).toHaveValue('All')
   await expect(page.getByLabel('Filter by facility type').locator('option')).toHaveText(['All types', 'UF ONLY', 'UF/CUBEWORKS', 'Samsung Warehouse'])
   await expect(page.getByLabel('Local facility status legend')).toContainText('Planned')
@@ -1874,6 +1874,35 @@ test('confirmed Waddell and Kent pins show no approximate caveats while the Plan
   await expect(drawer).toContainText('primary 910 10th St')
   await expect(drawer).toContainText('alternate 880 F Ave.')
   await expect(drawer.getByText('ZIP', { exact: true }).locator('..')).toContainText('Not provided')
+})
+
+test('Archived facilities are kept but left out of the live network until the Archived filter is chosen', async ({ page }) => {
+  // Nothing is archived yet, so the live network is the whole roster.
+  expect(archivedFacilities).toEqual([])
+  expect(networkFacilities).toEqual(facilities)
+  const sample: Facility = { ...facilities[25], status: 'Archived', archived: { date: '2026-10-05', by: 'Victor Jun' } }
+  expect(isArchived(sample)).toBe(true)
+  expect(isArchived(facilities[25])).toBe(false)
+  expect(archivedLabel(sample)).toBe('Archived on Oct 5, 2026 by Victor Jun')
+
+  // The Archived filter lists only archived facilities, and the local dropdown never offers Archived.
+  const filter = page.getByLabel('Filter by status')
+  await filter.selectOption('Archived')
+  await expect(page.locator('tbody tr')).toHaveCount(0)
+  await expect(page.getByText('0 of 0 archived', { exact: true })).toBeVisible()
+  await filter.selectOption('All')
+  await expect(page.locator('tbody tr')).toHaveCount(facilities.length)
+  await chooseFromDirectory(page, suppliedAddresses[0])
+  await expect(page.getByLabel(`Set status for ${suppliedAddresses[0]}`).locator('option')).toHaveText(['Unassigned', 'Active', 'Coming Soon', 'Planned'])
+  await expect(page.getByTestId('archived-banner')).toHaveCount(0)
+})
+
+test('a stored local Archived status cannot archive a facility for one viewer', async ({ page }) => {
+  await page.evaluate(() => localStorage.setItem('facility-status-assignments-v3', JSON.stringify({ 'buena-park-valley-view': 'Archived' })))
+  await page.reload()
+  await expect(page.locator('tbody tr')).toHaveCount(facilities.length)
+  await page.getByLabel('Filter by status').selectOption('Archived')
+  await expect(page.locator('tbody tr')).toHaveCount(0)
 })
 
 test('local status assignments drive all filters and persist across reload', async ({ page }) => {
@@ -3278,6 +3307,7 @@ test('Joliet shows supplied Fabian and Javier portraits with no duplicate VP ent
   }
   await page.screenshot({ path: 'test-results/joliet-desktop.png', fullPage: true })
   await page.setViewportSize({ width: 390, height: 844 })
+  // Michelle, Mary, Fabian, Javier, and John Diaz all have supplied portraits.
   await expect(panel.locator('img')).toHaveCount(10)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   await page.screenshot({ path: 'test-results/joliet-mobile.png', fullPage: true })

@@ -1,6 +1,11 @@
 import { expect, test, type Page } from '@playwright/test'
-import { facilities } from '../src/data/facilities'
+import { dashboardRegions } from '../src/data/dashboard-regions'
+import { facilities, networkFacilities } from '../src/data/facilities'
 import { userProvidedFacilityPhotos } from '../src/data/facility-user-photos'
+import { choreograph } from '../src/lib/preview-tour/choreography'
+import { narrationClips, narrationLines, type NarrationManifest } from '../src/lib/preview-tour/narration'
+import narrationManifest from '../src/lib/preview-tour/narration-manifest.json' with { type: 'json' }
+import { buildTour } from '../src/lib/preview-tour/script'
 
 // The tour renders the globe continuously; in software WebGL a smaller desktop viewport keeps that
 // cheap enough to run alongside the other suites (it stays above the 1040px desktop-header breakpoint).
@@ -125,7 +130,9 @@ test('Next, Previous, and the progress ticks move between facilities', async ({ 
   const roanokeSquareFeet = savedAvailability.get('roanoke-highway-114') ?? 4_000
   await expect(roanokeCard.getByTestId('preview-stop-available')).toHaveText(`Available${roanokeSquareFeet.toLocaleString('en-US')} SQF`)
   const roanokeBulkRack = savedBulkRack.get('roanoke-highway-114')
-  await expect(roanokeCard.locator('.preview-stop-facts')).toHaveText(`Total568,632 SQFAvailable${roanokeSquareFeet.toLocaleString('en-US')} SQFBulk${roanokeBulkRack?.bulkSquareFeet === undefined ? 'Pending' : `${roanokeBulkRack.bulkSquareFeet.toLocaleString('en-US')} SQF`}Rack${roanokeBulkRack?.rackPalletPositions === undefined ? 'Pending' : `${roanokeBulkRack.rackPalletPositions.toLocaleString('en-US')} pallet positions`}Ceiling height36 ftLoading docks34`)
+  const roanokeBulk = roanokeBulkRack?.bulkSquareFeet ?? 0
+  const roanokeRack = roanokeBulkRack?.rackPalletPositions ?? 0
+  await expect(roanokeCard.locator('.preview-stop-facts')).toHaveText(`Total568,632 SQFAvailable${roanokeSquareFeet.toLocaleString('en-US')} SQFBulk${roanokeBulk.toLocaleString('en-US')} SQFRack${roanokeRack.toLocaleString('en-US')} pallet positionsCeiling height36 ftLoading docks34`)
 
   // Joliet has every figure, so all six facts show values.
   const jolietTick = tour.getByRole('button', { name: 'Jump to facility 16, Joliet' })
@@ -140,7 +147,10 @@ test('Next, Previous, and the progress ticks move between facilities', async ({ 
   const universityParkTick = tour.getByRole('button', { name: 'Jump to facility 29, University Park' })
   await universityParkTick.click()
   const universityParkCard = tour.locator(`.preview-stop[data-stop="${await universityParkTick.getAttribute('data-tick')}"] [data-testid="preview-stop-card"]`)
-  await expect(universityParkCard.locator('.preview-stop-facts')).toHaveText('Total1,552,475 SQFAvailable0 SQFBulkPendingRackPendingCeiling heightPendingLoading docksPending')
+  const universityParkBulkRack = savedBulkRack.get('university-park-central')
+  const universityParkBulk = universityParkBulkRack?.bulkSquareFeet ?? 0
+  const universityParkRack = universityParkBulkRack?.rackPalletPositions ?? 0
+  await expect(universityParkCard.locator('.preview-stop-facts')).toHaveText(`Total1,552,475 SQFAvailable0 SQFBulk${universityParkBulk.toLocaleString('en-US')} SQFRack${universityParkRack.toLocaleString('en-US')} pallet positionsCeiling heightPendingLoading docksPending`)
 })
 
 // The tour's chapters west to east, each with its facilities in visiting order.
@@ -277,6 +287,58 @@ test('dragging the map hands control back, and a pin click ends the tour and ope
   await expect(tour).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Facilities', exact: true })).toHaveAttribute('aria-current', 'page')
   await expect(page.getByTestId('selected-showcase')).toContainText(facilities.find((facility) => facility.id === pinId)!.fullAddress)
+})
+
+test.describe('narration', () => {
+  const tour = buildTour(networkFacilities, dashboardRegions)
+  const lines = narrationLines(tour)
+  const lineFor = (key: string) => lines.find((line) => line.key === key)?.text
+
+  test('each stop reads its number, place, total, and reported available space', () => {
+    expect(lineFor('opening')).toBe('Welcome to the Item facility network.')
+    expect(lineFor('chapter:florida')).toBe('Florida has one facility.')
+    expect(lineFor('stop:roanoke-highway-114')).toBe('Facility five, in Roanoke, Texas. It offers five hundred sixty-eight thousand, six hundred thirty-two square feet, with four thousand available.')
+    expect(lineFor('stop:tacoma-steele')).toBe('Facility eleven, in Tacoma, Washington. It offers two hundred seventy-three thousand, eight hundred sixteen square feet, with no space available right now.')
+    // No supplied city, and no available figure reported.
+    expect(lineFor('stop:tennessee-quality-drive')).toBe('Facility nine, in Tennessee. It offers one hundred thousand, fifty square feet.')
+    expect(lineFor('finale')).toBe('Twenty-nine facilities across thirteen regions. One network.')
+  })
+
+  // Fails after a data edit until `npm run narration` has spoken the changed lines; until then they play silently.
+  test('every line has a current clip', () => {
+    const clips = narrationClips(lines, narrationManifest as NarrationManifest)
+    expect(lines.filter((line) => !clips.has(line.key)).map((line) => line.key)).toEqual([])
+  })
+
+  test('each narrated moment holds until its line has finished', () => {
+    const clips = narrationClips(lines, narrationManifest as NarrationManifest)
+    const { narration, stops } = choreograph(tour, { reducedMotion: false, narration: new Map([...clips].map(([key, clip]) => [key, clip.seconds])) })
+    expect(narration).toHaveLength(lines.length)
+    const stopIds = tour.flatMap((chapter) => chapter.stops.map((stop) => stop.facility.id))
+    for (const cue of stops) {
+      const line = narration.find((item) => item.key === `stop:${stopIds[cue.stopIndex]}`)!
+      expect(line.start).toBe(cue.arrival)
+      expect(cue.end - cue.arrival).toBeGreaterThanOrEqual(line.seconds)
+    }
+  })
+
+  test('the narrator speaks each stop at normal speed, and M or the button mutes it', async ({ page }) => {
+    await openDashboard(page, 1)
+    const tour = await startPreview(page)
+    await expect.poll(() => tour.getAttribute('data-narration'), { timeout: 30_000 }).toMatch(/^stop:/)
+    expect(await tour.getAttribute('data-narration')).toBe(`stop:${await tour.getAttribute('data-preview-stop')}`)
+
+    await page.keyboard.press('m')
+    await expect(page.getByRole('button', { name: 'Unmute narration' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(tour).toHaveAttribute('data-narration', '')
+    expect(await page.evaluate(() => localStorage.getItem('preview-narration-muted'))).toBe('true')
+
+    await page.getByRole('button', { name: 'Unmute narration' }).click()
+    await expect(page.getByRole('button', { name: 'Mute narration' })).toHaveAttribute('aria-pressed', 'false')
+    // Pausing silences the line too.
+    await page.getByRole('button', { name: 'Pause preview' }).click()
+    await expect(tour).toHaveAttribute('data-narration', '')
+  })
 })
 
 test.describe('with reduced motion', () => {

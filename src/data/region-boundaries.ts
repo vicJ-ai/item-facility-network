@@ -1,4 +1,4 @@
-import boundaries from './region-boundaries.json'
+import boundaries from './region-boundaries.json' with { type: 'json' }
 
 /** Longitude/latitude rings; the first ring of each polygon is its outer edge. */
 export type RegionBoundary = readonly (readonly (readonly [number, number])[])[][]

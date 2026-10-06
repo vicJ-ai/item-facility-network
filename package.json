@@ -12,6 +12,8 @@
     "migrate": "node dist-server/migrate.js",
     "preview": "node dist-server/index.js",
     "test:server": "tsx --test server/**/*.test.ts",
+    "narration": "npm install --prefix scripts/narration --no-audit --no-fund --silent && node scripts/narration/generate.mjs",
+    "narration:check": "node scripts/narration/generate.mjs --check",
     "test:e2e": "playwright test"
   },
   "dependencies": {
