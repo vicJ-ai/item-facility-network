@@ -1,105 +1,89 @@
 {
   "voice": "am_michael",
   "clips": {
-    "06a03d4da0286dfb": {
-      "seconds": 11.925,
-      "text": "Facility sixteen, in Joliet, Illinois. It offers eight hundred twenty-six thousand, seven hundred fifty-five square feet, with one hundred ten thousand available."
+    "07884421cf0ea41b": {
+      "seconds": 10.525,
+      "text": "Ontario, California. It offers four hundred fourteen thousand, nine hundred sixty-two square feet, with one hundred forty thousand available."
     },
     "0a3fb2060dcc7ac4": {
       "seconds": 2.75,
       "text": "Georgia has three facilities."
     },
-    "10900551c060d413": {
-      "seconds": 10.725,
-      "text": "Facility eighteen, in Waddell, Arizona. It offers nine hundred fifteen thousand, one hundred sixty square feet, with forty thousand available."
-    },
     "1460dd46beee3cbc": {
       "seconds": 3.475,
       "text": "Northern California has one facility."
     },
-    "1583c30d83622f73": {
+    "1f3b5cd8c12c7e7e": {
+      "seconds": 9.475,
+      "text": "Tacoma, Washington. It offers four hundred sixteen thousand, four hundred ninety-two square feet, with eighty thousand available."
+    },
+    "242813d11c5877ef": {
       "seconds": 9.325,
-      "text": "Facility seven, in Pooler, Georgia. It offers one million, one hundred ninety-three thousand, nine hundred twenty square feet."
+      "text": "Plano, Texas. It offers three hundred twenty-eight thousand, seven hundred four square feet, with no space available right now."
     },
-    "25b09d7652083ba4": {
-      "seconds": 9.1,
-      "text": "Facility twelve, in Jacksonville, Florida. It offers one hundred seventy-four thousand, one hundred fifty-seven square feet."
+    "2a28effea225a7c0": {
+      "seconds": 7.425,
+      "text": "Kent, Washington. It offers three hundred thousand square feet, with no space available right now."
     },
-    "25cf63fed4134140": {
-      "seconds": 11.275,
-      "text": "Facility thirteen, in Las Vegas, Nevada. It offers one hundred sixty-nine thousand, seven hundred sixty square feet, with no space available right now."
+    "2e536381afebb847": {
+      "seconds": 9.45,
+      "text": "Riverside, California. It offers seven hundred nine thousand, eighty-one square feet, with one hundred twenty thousand available."
     },
-    "3992ad25b2ac636f": {
-      "seconds": 13.475,
-      "text": "Facility twenty-nine, in University Park, Illinois. It offers one million, five hundred fifty-two thousand, four hundred seventy-five square feet, with no space available right now."
+    "2f6a57fd04230aaf": {
+      "seconds": 7.225,
+      "text": "Sparks, Nevada. It offers fifty thousand square feet, with eight thousand, five hundred available."
     },
-    "4165f4063dea271c": {
-      "seconds": 6.3,
-      "text": "Facility nine, in Tennessee. It offers one hundred thousand, fifty square feet."
+    "3ac73f9cdf9e5b1a": {
+      "seconds": 9.45,
+      "text": "Houston, Texas. It offers one hundred fifteen thousand, five hundred fourteen square feet, with eighty-six thousand available."
     },
-    "43465ec00e619922": {
-      "seconds": 11.05,
-      "text": "Facility twenty-six, in Somerset, New Jersey. It offers ninety-eight thousand, one hundred fifty-three square feet, with no space available right now."
+    "4113c14a613af294": {
+      "seconds": 8.25,
+      "text": "Buena Park, California. It offers one million, seventy-five thousand, three hundred forty-seven square feet."
     },
-    "49fbaa5cfb0744d2": {
-      "seconds": 12.225,
-      "text": "Facility twenty-one, in West Sacramento, California. It offers one hundred five thousand, four hundred ninety-three square feet, with no space available right now."
+    "4ada06936c21438d": {
+      "seconds": 5.95,
+      "text": "Memphis, Tennessee. It offers ninety-four thousand, five hundred square feet."
     },
-    "56bce3c58bde62d7": {
-      "seconds": 8.375,
-      "text": "Facility seventeen, in El Paso, Texas. It offers two hundred nine thousand, one hundred fifty-three square feet."
+    "4be2b0551cb75fe7": {
+      "seconds": 9.325,
+      "text": "Roanoke, Texas. It offers five hundred sixty-eight thousand, six hundred thirty-two square feet, with four thousand available."
+    },
+    "4da630c4212c5d92": {
+      "seconds": 9.65,
+      "text": "Garden City, Georgia. It offers five hundred five thousand, nine hundred two square feet, with no space available right now."
     },
     "56ffe2a1eccac477": {
       "seconds": 2.65,
       "text": "Nevada has two facilities."
     },
-    "5860143c63e37e42": {
-      "seconds": 10.9,
-      "text": "Facility four, in Houston, Texas. It offers one hundred fifteen thousand, five hundred fourteen square feet, with eighty-six thousand available."
-    },
-    "5bcd18a8b79730fe": {
-      "seconds": 11.3,
-      "text": "Facility twenty-seven, in Plano, Texas. It offers three hundred twenty-eight thousand, seven hundred four square feet, with no space available right now."
-    },
-    "5e49f118857ba6fa": {
-      "seconds": 10.3,
-      "text": "Facility twenty-three, in Houston, Texas. It offers two hundred thirty-eight thousand, eleven square feet, with eighty-six thousand available."
-    },
-    "635e6ec1dc6eebe3": {
-      "seconds": 12.2,
-      "text": "Facility nineteen, in Ontario, California. It offers four hundred fourteen thousand, nine hundred sixty-two square feet, with one hundred forty thousand available."
+    "6188364c66b045aa": {
+      "seconds": 8.15,
+      "text": "Summerville, South Carolina. It offers five hundred seventy-four thousand, seven hundred eighty-nine square feet."
     },
     "6db33df36f9f0b55": {
       "seconds": 2.625,
       "text": "Illinois has two facilities."
     },
-    "7a8f74854cf41d33": {
-      "seconds": 8.9,
-      "text": "Facility twenty, in Kent, Washington. It offers three hundred thousand square feet, with no space available right now."
+    "6f799481bd69cc2f": {
+      "seconds": 9.975,
+      "text": "Las Vegas, Nevada. It offers one hundred sixty-nine thousand, seven hundred sixty square feet, with no space available right now."
+    },
+    "70e5f675fb7265eb": {
+      "seconds": 10.35,
+      "text": "Joliet, Illinois. It offers eight hundred twenty-six thousand, seven hundred fifty-five square feet, with one hundred ten thousand available."
     },
     "805e86936fea415d": {
       "seconds": 2.775,
       "text": "Florida has one facility."
     },
-    "84713173496795b9": {
-      "seconds": 7.75,
-      "text": "Facility twenty-four, in Memphis, Tennessee. It offers ninety-four thousand, five hundred square feet."
-    },
     "884ef3eed8b38184": {
       "seconds": 2.95,
       "text": "New Jersey has one facility."
     },
-    "8d2b15922c1a0dbc": {
-      "seconds": 9.575,
-      "text": "Facility one, in Buena Park, California. It offers one million, seventy-five thousand, three hundred forty-seven square feet."
-    },
-    "8ef55e18473db2ce": {
-      "seconds": 8.075,
-      "text": "Facility fourteen, in El Paso, Texas. It offers two hundred nine thousand, one hundred fifty-three square feet."
-    },
-    "94f77006c2621004": {
-      "seconds": 10.5,
-      "text": "Facility fifteen, in Long Beach, California. It offers one hundred ninety-eight thousand, eighty-nine square feet, with ten thousand available."
+    "8ff4cc5a11e0a128": {
+      "seconds": 9.275,
+      "text": "Waddell, Arizona. It offers nine hundred fifteen thousand, one hundred sixty square feet, with forty thousand available."
     },
     "9bc7d92f38050a21": {
       "seconds": 2.625,
@@ -109,33 +93,45 @@
       "seconds": 3.2,
       "text": "Welcome to the Item facility network."
     },
+    "9f0d0414c3ac66de": {
+      "seconds": 6.85,
+      "text": "El Paso, Texas. It offers two hundred nine thousand, one hundred fifty-three square feet."
+    },
+    "a46a5f4c39f4675e": {
+      "seconds": 8.525,
+      "text": "Houston, Texas. It offers two hundred thirty-eight thousand, eleven square feet, with eighty-six thousand available."
+    },
+    "a632d02a5d269dfc": {
+      "seconds": 4.775,
+      "text": "Tennessee. It offers one hundred thousand, fifty square feet."
+    },
+    "aaaec528d8b25102": {
+      "seconds": 7.95,
+      "text": "Pooler, Georgia. It offers one million, one hundred ninety-three thousand, nine hundred twenty square feet."
+    },
+    "aba1c0111ee96e33": {
+      "seconds": 7.65,
+      "text": "Jacksonville, Florida. It offers one hundred seventy-four thousand, one hundred fifty-seven square feet."
+    },
     "aecf9af4812e24c6": {
       "seconds": 2.625,
       "text": "Utah has one facility."
     },
-    "b2437d8bf9e42a79": {
-      "seconds": 10.85,
-      "text": "Facility two, in Riverside, California. It offers seven hundred nine thousand, eighty-one square feet, with one hundred twenty thousand available."
+    "af985521646af0db": {
+      "seconds": 11.625,
+      "text": "University Park, Illinois. It offers one million, five hundred fifty-two thousand, four hundred seventy-five square feet, with no space available right now."
     },
-    "c015e9535f589ab5": {
-      "seconds": 9.6,
-      "text": "Facility eight, in Summerville, South Carolina. It offers five hundred seventy-four thousand, seven hundred eighty-nine square feet."
+    "b631eaabe61fb3ad": {
+      "seconds": 7.85,
+      "text": "Moreno Valley, California. It offers seven hundred fifty-six thousand, three hundred forty square feet."
     },
-    "c66d266bec10f9b5": {
-      "seconds": 11.175,
-      "text": "Facility twenty-five, in Salt Lake City, Utah. It offers eighty-nine thousand, two hundred ninety-six square feet, with no space available right now."
+    "ba57d79d66d5c003": {
+      "seconds": 10.125,
+      "text": "Tacoma, Washington. It offers two hundred seventy-three thousand, eight hundred sixteen square feet, with no space available right now."
     },
-    "c84cee6bdd64b4d9": {
-      "seconds": 8.875,
-      "text": "Facility twenty-two, in Sparks, Nevada. It offers fifty thousand square feet, with eight thousand, five hundred available."
-    },
-    "c8daf81bb31c26d1": {
-      "seconds": 8.1,
-      "text": "Facility six, in Pooler, Georgia. It offers four hundred ninety-nine thousand, five hundred square feet."
-    },
-    "ca1544196dafd617": {
-      "seconds": 10.7,
-      "text": "Facility five, in Roanoke, Texas. It offers five hundred sixty-eight thousand, six hundred thirty-two square feet, with four thousand available."
+    "d21e33ccdcea9d4e": {
+      "seconds": 9.1,
+      "text": "Somerset, New Jersey. It offers ninety-eight thousand, one hundred fifty-three square feet, with no space available right now."
     },
     "d29e884e413d6c04": {
       "seconds": 2.875,
@@ -144,6 +140,10 @@
     "d36a1c6aa07c06dc": {
       "seconds": 3.45,
       "text": "Southern California has five facilities."
+    },
+    "d42b6bb1a19a4e83": {
+      "seconds": 9.05,
+      "text": "Long Beach, California. It offers one hundred ninety-eight thousand, eighty-nine square feet, with ten thousand available."
     },
     "e418db6a1c81d7f4": {
       "seconds": 3.2,
@@ -157,25 +157,21 @@
       "seconds": 2.85,
       "text": "Washington has three facilities."
     },
-    "eadb875fb55c7afd": {
-      "seconds": 9.175,
-      "text": "Facility three, in Moreno Valley, California. It offers seven hundred fifty-six thousand, three hundred forty square feet."
-    },
-    "eb54320c6b4ff736": {
-      "seconds": 11.7,
-      "text": "Facility eleven, in Tacoma, Washington. It offers two hundred seventy-three thousand, eight hundred sixteen square feet, with no space available right now."
-    },
-    "f02e64035744a575": {
-      "seconds": 11.075,
-      "text": "Facility ten, in Tacoma, Washington. It offers four hundred sixteen thousand, four hundred ninety-two square feet, with eighty thousand available."
+    "efbdca843641e17e": {
+      "seconds": 10.375,
+      "text": "West Sacramento, California. It offers one hundred five thousand, four hundred ninety-three square feet, with no space available right now."
     },
     "f2677af2c07c5b4c": {
       "seconds": 2.625,
       "text": "Tennessee has two facilities."
     },
-    "fd8c9179a7ba3a27": {
-      "seconds": 11.1,
-      "text": "Facility twenty-eight, in Garden City, Georgia. It offers five hundred five thousand, nine hundred two square feet, with no space available right now."
+    "f63282df8a1227d9": {
+      "seconds": 6.65,
+      "text": "Pooler, Georgia. It offers four hundred ninety-nine thousand, five hundred square feet."
+    },
+    "f8973a1fb89deac9": {
+      "seconds": 9.4,
+      "text": "Salt Lake City, Utah. It offers eighty-nine thousand, two hundred ninety-six square feet, with no space available right now."
     }
   }
 }

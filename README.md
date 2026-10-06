@@ -83,7 +83,7 @@ Esc, Stop, or any drag, scroll, or click on the map ends the tour and puts back 
 
 ### Narration
 
-A narrator reads the tour on its first loop: a welcome, each region and its facility count, each facility's number, city, state, total square feet, and available space (only when the card shows it), and the finale. Later loops play silently, so a presenter can talk over them. The speaker button beside Next, or the **M** key, mutes it; the choice is saved in localStorage under `preview-narration-muted`. Each narrated moment holds until its line has finished, which stretches a loop to about eight minutes.
+A narrator reads the tour on its first loop: a welcome, each region and its facility count, each facility's city and state (not its number), total square feet, and available space (only when the card shows it), and the finale. Later loops play silently, so a presenter can talk over them. The speaker button beside Next, or the **M** key, mutes it; the choice is saved in localStorage under `preview-narration-muted`. Each narrated moment holds until its line has finished, which stretches a loop to about eight minutes.
 
 The lines are built from the facility data by `src/lib/preview-tour/narration.ts`, and the audio is generated ahead of time with [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) (Apache 2.0, voice `am_michael`) and committed as one MP3 per line in `public/narration/`. `src/lib/preview-tour/narration-manifest.json` records each clip's length and text. Clips are named by a hash of their text, so a line whose figures changed has no clip and plays silently, at the usual timing, until it is generated again; the narrator never reads an old figure.
 
